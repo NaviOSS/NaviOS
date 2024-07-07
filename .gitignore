@@ -10,4 +10,7 @@
 *.sig
 
 pkg/
-src/
+
+.trunk
+a.out
+noVnc
