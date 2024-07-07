@@ -12,6 +12,7 @@
 pkg/
 build/
 *.img
+*.bin
 .trunk
 a.out
 noVNC
