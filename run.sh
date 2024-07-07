@@ -1,7 +1,7 @@
 #!/bin/bash
 git clone https://github.com/novnc/noVNC --depth 1
 export qemu=qemu-system-i386
-$qemu -kernel kernel.bin -vnc :0 &
+$qemu -kernel kernel.img -M pc -vnc :0 &
 
 echo "qemu starting..."
 sleep 2
