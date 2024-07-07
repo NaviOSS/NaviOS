@@ -1,4 +1,5 @@
 #!/bin/bash
+make
 git clone https://github.com/novnc/noVNC --depth 1
 export qemu=qemu-system-i386
 $qemu -kernel kernel.bin -vnc :0 &
