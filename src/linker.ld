@@ -1,9 +1,12 @@
 ENTRY(_start)
 
 SECTIONS {
-    . = 2M;
-    .text : ALIGN(4K) {
+    . = 1M;
+    .multiboot : {
         *(.multiboot)
+    }
+
+    .text : ALIGN(4K) {
         *(.text)
     }
 

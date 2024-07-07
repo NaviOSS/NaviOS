@@ -15,3 +15,4 @@ build/
 .trunk
 a.out
 noVNC
+*.bin

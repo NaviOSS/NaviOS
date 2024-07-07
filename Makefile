@@ -6,7 +6,7 @@ CFLAGS=-Wall -O2 -nostdlib -nostartfiles -ffreestanding -mgeneral-regs-only -Iin
 BUILD = build
 SRC = src
 
-all: kernel.img
+all: kernel.bin
 
 $(BUILD)/%_c.o: $(SRC)/%.c
 	mkdir -p ${@D}
@@ -17,7 +17,7 @@ $(BUILD)/%_s.o: $(SRC)/%.S
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(BUILD) *.o *.elf *.img
+	rm -rf $(BUILD) *.o *.elf *.img *.bin
 
 C_FILES = $(wildcard $(SRC)/*.c)
 ASM_FILES = $(wildcard $(SRC)/*.S)
@@ -28,5 +28,5 @@ OBJ_FILES += $(ASM_FILES:$(SRC)/%.S=$(BUILD)/%_s.o)
 DEP_FILES = $(OBJ_FILES:%.o=%.d)
 -include $(DEP_FILES)
 
-kernel.img: $(SRC)/linker.ld $(OBJ_FILES)
-	$(LD) -T $(SRC)/linker.ld -o kernel.img  $(OBJ_FILES)
+kernel.bin: $(SRC)/linker.ld $(OBJ_FILES)
+	$(LD) -T $(SRC)/linker.ld -o kernel.bin  $(OBJ_FILES)
