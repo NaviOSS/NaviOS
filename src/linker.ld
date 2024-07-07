@@ -1,3 +1,5 @@
+ENTRY(_start)
+
 SECTIONS {
     . = 2M;
     .text : ALIGN(4K) {
@@ -10,6 +12,7 @@ SECTIONS {
     }
 
     .data : ALIGN(4K) {
+        *(COMMON)
         *(.data)
     }
     

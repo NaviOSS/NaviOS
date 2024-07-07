@@ -1,7 +1,6 @@
 TARGET=i686-elf
 CC=${TARGET}-gcc
 LD=${TARGET}-ld
-OBJCOPY=${TARGET}-objcopy
 
 CFLAGS=-Wall -O2 -nostdlib -nostartfiles -ffreestanding -mgeneral-regs-only -Iinclude
 BUILD = build
@@ -30,5 +29,4 @@ DEP_FILES = $(OBJ_FILES:%.o=%.d)
 -include $(DEP_FILES)
 
 kernel.img: $(SRC)/linker.ld $(OBJ_FILES)
-	$(LD) -T $(SRC)/linker.ld -o $(BUILD)/kernel.elf  $(OBJ_FILES)
-	$(OBJCOPY) $(BUILD)/kernel.elf -O binary kernel.img
+	$(LD) -T $(SRC)/linker.ld -o kernel.img  $(OBJ_FILES)
