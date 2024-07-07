@@ -1,7 +1,7 @@
 #!/bin/bash
 git clone https://github.com/novnc/noVNC --depth 1
 
-qemu-system-arm -kernel kernel.img -M versatilepb -vnc :0 &
+qemu-system-i386 -kernel kernel.img -M pc -vnc :0 &
 
 echo "qemu starting..."
 sleep 2
@@ -14,4 +14,4 @@ sleep 2
 
 xdg-open http://localhost:6080/vnc.html &
 while true; do read -p "type exit to exit: " </dev/tty;  if [ "$REPLY" == "exit" ]; then break; fi; done
-killall qemu-system-arm
+killall qemu-system-i386

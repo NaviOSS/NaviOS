@@ -1,6 +1,14 @@
 .set STACK_SIZE, 16384
+/* multiboot */
+.set FLAG, 0x0
+.set MAGIC, 0x1BADB002
+.set CHECKSUM, -(MAGIC + FLAG)
 
-.section .boot
+.section .multiboot
+.align 4
+.long MAGIC
+.long FLAG
+.long CHECKSUM
 
 .section .bss
 .align 16
@@ -9,11 +17,11 @@ stack_bottom:
 stack_top:
 
 .section .text
+
 .global _start
-.type _start, %function
+.type _start, @function
 
 _start:
-    ldr sp, =stack_top
-    bl kernel_main
-    b .
-    
+    mov $stack_top, %esp
+    call kernel_main
+    hlt

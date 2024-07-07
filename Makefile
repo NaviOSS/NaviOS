@@ -1,6 +1,7 @@
-CC=arm-none-eabi-gcc
-LD=arm-none-eabi-ld
-OBJCOPY=arm-none-eabi-objcopy
+TARGET=i686-elf
+CC=${TARGET}-gcc
+LD=${TARGET}-ld
+OBJCOPY=${TARGET}-objcopy
 
 CFLAGS=-Wall -O2 -nostdlib -nostartfiles -ffreestanding -mgeneral-regs-only -Iinclude
 BUILD = build
@@ -17,7 +18,7 @@ $(BUILD)/%_s.o: $(SRC)/%.S
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(BUILD) *.o *.elf *.img
+	rm -rf $(BUILD) *.o *.elf *.img
 
 C_FILES = $(wildcard $(SRC)/*.c)
 ASM_FILES = $(wildcard $(SRC)/*.S)

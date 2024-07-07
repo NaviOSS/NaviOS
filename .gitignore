@@ -10,7 +10,8 @@
 *.sig
 
 pkg/
-
+build/
+*.img
 .trunk
 a.out
 noVNC

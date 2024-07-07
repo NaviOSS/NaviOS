@@ -1,7 +1,7 @@
 SECTIONS {
     . = 2M;
     .text : ALIGN(4K) {
-        *(.boot)
+        *(.multiboot)
         *(.text)
     }
 
