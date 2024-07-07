@@ -17,7 +17,7 @@ $(BUILD)/%_s.o: $(SRC)/%.S
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(BUILD) *.o *.elf *.img
+	rm -rf $(BUILD) *.o *.elf *.img *.bin
 
 C_FILES = $(wildcard $(SRC)/*.c)
 ASM_FILES = $(wildcard $(SRC)/*.S)
