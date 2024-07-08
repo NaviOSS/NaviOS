@@ -1,6 +1,31 @@
+#include "GDT.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+
+void decToHexStr(uint32_t num, char str[11]) {
+    char hexDigits[] = "0123456789ABCDEF";
+    int i = 7;
+    str[8] = '\0';
+
+    if (num == 0) {
+        str[i--] = '0';
+    }
+
+    while (num > 0 && i >= 0) {
+        str[i--] = hexDigits[num % 16];
+        num /= 16;
+    }
+
+    while (i >= 0) {
+        str[i--] = '0';
+    }
+
+    str[0] = '0';
+    str[1] = 'x';
+}
+
 
 // VGA
 typedef enum VGA_COLOR {
@@ -63,6 +88,12 @@ void write(char* str) {
     terminalPut(str, vga_entry_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK));
 }
 
+void write_hex(uint32_t hex) {
+    char str[11];
+    decToHexStr(hex, str);
+    write(str);
+}
+
 void kerr(char* err) {
     terminalPut(err, vga_entry_color(VGA_COLOR_RED, VGA_COLOR_BLACK));
 }
@@ -72,9 +103,10 @@ void kwarn(char* warn) {
 }
 // KERNEL
 void initKernel() {
-    initGDT();
     initTerminal();
+    initGDT();
 }
+
 
 void kernelMain() {
     initKernel();

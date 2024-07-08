@@ -1,5 +1,5 @@
 #include <stdint.h>
-
+#include "kernel.h"
 
 typedef struct {
     uint32_t base;
