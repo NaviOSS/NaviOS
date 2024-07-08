@@ -1,1 +1,2 @@
-# SHAWARMA INC WAS HERE
+# NaviOS 
+an opensource operating system made for fun!
