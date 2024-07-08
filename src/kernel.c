@@ -104,7 +104,8 @@ void kwarn(char* warn) {
 // KERNEL
 void initKernel() {
     initTerminal();
-    initGDT();
+    write("registers: \n");
+    printSegmentRegisters();
 }
 
 

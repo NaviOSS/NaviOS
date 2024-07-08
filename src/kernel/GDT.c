@@ -91,7 +91,4 @@ void initGDT() {
     encodeGDTEntry(&GDT[16], KernelDataSeg);
 
     setGDT();
-    write("finished setting up GDT...\n");
-    write("registers: \n");
-    printSegmentRegisters();
 }

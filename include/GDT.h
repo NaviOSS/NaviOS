@@ -15,3 +15,4 @@ typedef struct {
 
 void encodeGDTEntry(uint8_t* target, GDTEntry entry);
 void initGDT();
+void printSegmentRegisters();

@@ -25,6 +25,8 @@ _start:
     mov $stack_top, %esp
     cli
     // enter protected mode
+    call initGDT
+    mov %eax, %cr0
     or %al, 1
     mov %cr0, %eax
     call kernelMain
