@@ -10,7 +10,7 @@ void encodeGDTEntry(uint8_t* target, GDTEntry entry) {
             uint8_t base2;
 
             uint8_t accessByte;
-            uint8_t limit2; // flags at the first 4 bits
+            uint8_t limit2Flags; // flags at the last 4 bits
             uint8_t base3;
 
         };
