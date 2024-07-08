@@ -23,8 +23,8 @@ static inline uint16_t vga_entry(unsigned char uc, uint8_t color)
 
 // TERMINAL
 uint16_t* terminal_buffer;
-size_t terminal_row;
-size_t terminal_col;
+size_t terminal_row = 0;
+size_t terminal_col = 0;
 
 size_t strlen(const char* str) {
     size_t len = 0;
@@ -52,8 +52,8 @@ void write(char* str) {
             terminal_col = 0;
             continue;
         }
-
-        terminal_buffer[i+terminal_col+terminal_row*VGA_WIDTH] = vga_entry(str[i], vga_entry_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK));
+        terminal_buffer[terminal_col+terminal_row*VGA_WIDTH] = vga_entry(str[i], vga_entry_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK));
+        terminal_col++;
     }
 }
 
