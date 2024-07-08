@@ -5,6 +5,8 @@
 // VGA
 typedef enum VGA_COLOR {
     VGA_COLOR_BLACK = 0,
+    VGA_COLOR_RED = 4,
+    VGA_COLOR_YELLOW = 14,
     VGA_COLOR_WHITE = 15,
 } VGA_COLOR;
 
@@ -33,7 +35,7 @@ size_t strlen(const char* str) {
     return len;
 }
 
-void init_term() {
+void initTerminal() {
     terminal_buffer = (uint16_t*) 0xB8000;
     
     for (size_t y = 0; y < VGA_HEIGHT; y++) {
@@ -44,7 +46,7 @@ void init_term() {
     }
 }
 
-void write(char* str) {
+void terminalPut(char* str, uint8_t color) {
     size_t len = strlen(str);
     for (size_t i = 0; i < len; i++) {
         if (str[i] == '\n') {
@@ -52,15 +54,30 @@ void write(char* str) {
             terminal_col = 0;
             continue;
         }
-        terminal_buffer[terminal_col+terminal_row*VGA_WIDTH] = vga_entry(str[i], vga_entry_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK));
+        terminal_buffer[terminal_col+terminal_row*VGA_WIDTH] = vga_entry(str[i], color);
         terminal_col++;
     }
 }
 
+void write(char* str) {
+    terminalPut(str, vga_entry_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK));
+}
+
+void kerr(char* err) {
+    terminalPut(err, vga_entry_color(VGA_COLOR_RED, VGA_COLOR_BLACK));
+}
+
+void kwarn(char* warn) {
+    terminalPut(warn, vga_entry_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK));
+}
 // KERNEL
+
 void kernel_main() {
-    init_term();
+    initTerminal();
+
     write("Hello, world!\n");
     write("some more text");
     write(", and more...\n");
+    kerr("NO MORE INFO\n");
+    kwarn("WARNING\n");
 }

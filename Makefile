@@ -20,7 +20,10 @@ clean:
 	rm -rf $(BUILD) *.o *.elf *.img *.bin
 
 C_FILES = $(wildcard $(SRC)/*.c)
+C_FILES += $(wildcard $(SRC)/**/*.c)
+
 ASM_FILES = $(wildcard $(SRC)/*.S)
+ASM_FILES += $(wildcard $(SRC)/**/*.S) # temp fix
 
 OBJ_FILES = $(C_FILES:$(SRC)/%.c=$(BUILD)/%_c.o)
 OBJ_FILES += $(ASM_FILES:$(SRC)/%.S=$(BUILD)/%_s.o)
