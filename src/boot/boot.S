@@ -26,8 +26,10 @@ _start:
     cli
     // enter protected mode
     call initGDT
-    mov %eax, %cr0
-    or %al, 1
+
     mov %cr0, %eax
+    or $0x1, %al
+    mov %eax, %cr0
+
     call kernelMain
     hlt
