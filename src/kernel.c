@@ -71,9 +71,13 @@ void kwarn(char* warn) {
     terminalPut(warn, vga_entry_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK));
 }
 // KERNEL
-
-void kernel_main() {
+void initKernel() {
+    initGDT();
     initTerminal();
+}
+
+void kernelMain() {
+    initKernel();
 
     write("Hello, world!\n");
     write("some more text");

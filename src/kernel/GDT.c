@@ -1,5 +1,7 @@
 #include "GDT.h"
+#define GDT_ENTRIES 3
 
+uint8_t GDT[GDT_ENTRIES*8];
 void encodeGDTEntry(uint8_t* target, GDTEntry entry) {
     // encodedGDTEntry:
     /*
@@ -12,7 +14,6 @@ void encodeGDTEntry(uint8_t* target, GDTEntry entry) {
             uint8_t accessByte;
             uint8_t limit2Flags; // flags at the last 4 bits
             uint8_t base3;
-
         };
     */
     
@@ -30,4 +31,9 @@ void encodeGDTEntry(uint8_t* target, GDTEntry entry) {
     target[6] |= (entry.flags << 4);
 
     target[7] = (entry.base >> 24) & 0xFF;
+}
+
+void initGDT() {
+    GDTEntry null = {0, 0, 0, 0};
+    encodeGDTEntry(&GDT[0], null);
 }

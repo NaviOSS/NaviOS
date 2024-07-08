@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+
 typedef struct {
     uint32_t base;
     uint32_t limit;
@@ -13,3 +14,4 @@ typedef struct {
 } __attribute__((packed)) GDTDescriptor;
 
 void encodeGDTEntry(uint8_t* target, GDTEntry entry);
+void initGDT();

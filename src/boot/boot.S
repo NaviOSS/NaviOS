@@ -24,5 +24,5 @@ stack_top:
 _start:
     mov $stack_top, %esp
     cli
-    call kernel_main
+    call kernelMain
     hlt
