@@ -24,5 +24,8 @@ stack_top:
 _start:
     mov $stack_top, %esp
     cli
+    // enter protected mode
+    or %al, 1
+    mov %cr0, %eax
     call kernelMain
     hlt
