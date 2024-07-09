@@ -142,7 +142,6 @@ void initKernel() {
 
 void kernelMain() {
     initKernel();
-    
     printRegisters();
 
     write("Hello, world!\n");
