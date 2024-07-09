@@ -60,27 +60,6 @@ void setGDT() {
     );
 }
 
-void printSegmentRegisters() {
-    uint16_t cs, ds, es, ss, fs, gs;
-    asm volatile (
-        "mov %%cs, %0 \n\t"
-        "mov %%ds, %1 \n\t"
-        "mov %%es, %2 \n\t"
-        "mov %%ss, %3 \n\t"
-        "mov %%fs, %4 \n\t"
-        "mov %%gs, %5 \n\t"
-        : "=r" (cs), "=r" (ds), "=r" (es), "=r" (ss), "=r" (fs), "=r" (gs)
-    );
-
-    write("CS: "); write_hex(cs); write("\n");
-    write("DS: "); write_hex(ds); write("\n");
-    write("ES: "); write_hex(es); write("\n");
-    write("SS: "); write_hex(ss); write("\n");
-    write("FS: "); write_hex(fs); write("\n");
-    write("GS: "); write_hex(gs); write("\n");
-}
-
-
 void initGDT() {
     GDTEntry null = {0, 0, 0, 0};
     GDTEntry KernelCodeSeg = {.base = 0, .limit = 0xFFFFF, .access = VALID | READ | NON_SYSTEM | EXECUTABLE, .flags = IS_32BIT | PAGE_LIMIT};

@@ -6,8 +6,8 @@
 
 void decToHexStr(uint32_t num, char str[11]) {
     char hexDigits[] = "0123456789ABCDEF";
-    int i = 7;
-    str[8] = '\0';
+    int i = 9;
+    str[10] = '\0';
 
     if (num == 0) {
         str[i--] = '0';
@@ -101,16 +101,49 @@ void kerr(char* err) {
 void kwarn(char* warn) {
     terminalPut(warn, vga_entry_color(VGA_COLOR_YELLOW, VGA_COLOR_BLACK));
 }
+// TEST
+void printRegisters() {
+    write("registers: \n");
+
+    uint16_t cs, ds, es, ss, fs, gs;
+    uint32_t eax;
+    uint32_t tmp;
+    asm volatile (
+        "mov %%cs, %0 \n\t"
+        "mov %%ds, %1 \n\t"
+        "mov %%es, %2 \n\t"
+        "mov %%ss, %3 \n\t"
+        "mov %%fs, %4 \n\t"
+        "mov %%gs, %5 \n\t"
+
+        "mov %%eax, %6 \n\t"
+        "xor %%eax, %%eax \n\t"
+        "not %%eax \n\t"
+        "mov %%eax, %7 \n\t"
+        "mov %6, %%eax"
+
+        : "=r" (cs), "=r" (ds), "=r" (es), "=r" (ss), "=r" (fs), "=r" (gs), "=m" (tmp), "=m" (eax)
+    );
+
+    write("CS: "); write_hex(cs); write("\n");
+    write("DS: "); write_hex(ds); write("\n");
+    write("ES: "); write_hex(es); write("\n");
+    write("SS: "); write_hex(ss); write("\n");
+    write("FS: "); write_hex(fs); write("\n");
+    write("GS: "); write_hex(gs); write("\n");
+    write("EAX: "); write_hex(eax); write("\n");
+}
+
 // KERNEL
 void initKernel() {
     initTerminal();
-    write("registers: \n");
-    printSegmentRegisters();
 }
 
 
 void kernelMain() {
     initKernel();
+    
+    printRegisters();
 
     write("Hello, world!\n");
     write("some more text");
