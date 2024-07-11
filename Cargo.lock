@@ -7,9 +7,7 @@ name = "NaviOS"
 version = "0.1.0"
 dependencies = [
  "bootloader",
- "bootloader_api",
  "kernel",
- "lazy_static",
 ]
 
 [[package]]
