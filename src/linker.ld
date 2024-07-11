@@ -1,22 +1,28 @@
+# OUTPUT_FORMAT("elf64-x86_64")
 ENTRY(_start)
 
+
 SECTIONS {
-    . = 2M;
-    .text : ALIGN(4K) {
+    . = 3M;
+
+	.text : ALIGN(4K) {
         *(.multiboot)
-        *(.text)
+		*(.text .text.*)
+	}
+
+	.rodata : ALIGN(4K) {
+        *(.rodata .rodata.*)
     }
 
-    .rodata : ALIGN(4K) {
-        *(.rodata)
+	.data : ALIGN(4K) {
+        *(.data .data.*)
     }
 
-    .data : ALIGN(4K) {
-        *(COMMON)
-        *(.data)
-    }
-    
     .bss : ALIGN(4K) {
         *(.bss)
+        *(COMMON)
     }
+
+    PROVIDE(stack_bottom = . - 16384);
+    PROVIDE(stack_top = stack_bottom + 16384);
 }

@@ -16,3 +16,7 @@ build/
 .trunk
 a.out
 noVNC
+
+# Added by cargo
+
+/target

@@ -1,7 +1,7 @@
 #!/bin/bash
-make
+cargo build
 export qemu=qemu-system-i386
-$qemu -kernel kernel.bin -display gtk &
+$qemu -kernel target/x86-navi/debug/NaviOS.elf &
 
 echo "qemu starting..."
 sleep 2
