@@ -1,2 +1,2 @@
 # NaviOS 
-an opensource operating system made for fun!
+an open-source operating system made for fun!
