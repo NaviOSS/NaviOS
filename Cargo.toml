@@ -4,5 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# bootloader = "0.9"
-lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
+
+[build-dependencies]
+kernel = { target = "x86_64-unknown-none", path = "kernel", artifact = "bin" }
+bootloader = "0.11.7"
+# ensures no stack problems
+[profile.dev]
+opt-level = 0
+
+[workspace]
+members = ["kernel"]

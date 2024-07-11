@@ -1,3 +1,5 @@
+use core::ptr;
+
 use crate::strlen;
 
 const VGA_BUFFER: *mut u16 = 0xb8000 as *mut u16;
@@ -65,9 +67,34 @@ pub extern "C" fn kput(char: u8) {
 }
 
 pub extern "C" fn init_vga() {
-    for i in 0..VGA_WIDTH * VGA_HEIGHT {
-        unsafe {
-            *VGA_BUFFER.offset(i as isize) = 0;
-        }
+    let blank = vga_entry(b' ', vga_entry_color(VGAColor::White, VGAColor::White));
+
+    for i in 0..(VGA_WIDTH * VGA_HEIGHT) {}
+    unsafe {
+        *VGA_BUFFER.offset(0) = 0;
     }
+}
+
+// gpt4 generated
+pub fn u32_to_hex_array(value: u32) -> [u8; 11] {
+    let mut hex_array = [0u8; 11];
+    hex_array[0] = b'0';
+    hex_array[1] = b'x';
+
+    for i in 0..8 {
+        let nibble = (value >> (28 - i * 4)) & 0xF;
+        hex_array[i + 2] = match nibble {
+            0..=9 => b'0' + nibble as u8,
+            _ => b'a' + (nibble - 10) as u8,
+        };
+    }
+
+    hex_array[10] = b'\0';
+
+    hex_array
+}
+
+pub fn write_hex(hex: u32) {
+    kwrite(u32_to_hex_array(hex).as_ptr());
+    kput(b'\n');
 }
