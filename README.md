@@ -3,7 +3,6 @@ an open-source generic operating system made for fun written in rust!
 
 # dev_rules!
 - each arch is located in src/arch
-- develop a macro called header that defines bootloader header for an arch in mod.rs
 - develop a macro called arch_init and a function called init for an arch in mod.rs
 - asm should be reserved, as much as possible to the crate::arch::{arch}
 
