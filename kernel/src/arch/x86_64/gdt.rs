@@ -1,6 +1,8 @@
 use core::arch::asm;
 
 use lazy_static::lazy_static;
+
+use crate::terminal::framebuffer::kwriteln;
 #[derive(Default)]
 struct GDTEntry {
     base: u32,
@@ -60,14 +62,14 @@ lazy_static! {
             base: 0,
             limit: 0xFFFFF,
             access: ACCESS_VAILD | NON_SYSTEM | ACCESS_WRITE_READ | ACCESS_EXECUTABLE,
-            flags: FLAG_IS32BIT | FLAG_PAGELIMIT
+            flags: FLAG_PAGELIMIT | FLAG_LONG
         }
         .into(), // kernel code segment
         GDTEntry {
             base:0,
             limit: 0xFFFFF,
             access: ACCESS_VAILD | ACCESS_WRITE_READ | NON_SYSTEM,
-            flags: FLAG_IS32BIT | FLAG_PAGELIMIT
+            flags: FLAG_PAGELIMIT | FLAG_LONG
         }.into(), // kernel data segment
     ];
 }
@@ -83,26 +85,9 @@ lazy_static! {
     };
 }
 
-pub fn init_pm() {
-    unsafe {
-        asm!(
-            "
-            mov ds, {0:x}
-            mov es, {0:x}
-            mov fs, {0:x}
-            mov gs, {0:x}
-            mov ss, {0:x}
-            ",
-            in(reg) 0x10u16,
-            options(nostack),
-        );
-
-        asm!("ljmp $8, $2f; 2:", options(att_syntax));
-    }
-}
-
 pub fn init_gdt() {
     unsafe {
         asm!("lgdt [{}]", in(reg) &*GDT_DESCRIPTOR, options(nostack));
     }
+    kwriteln("loaded gdt using lgdt sucess i think....");
 }

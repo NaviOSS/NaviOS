@@ -20,3 +20,4 @@ noVNC
 # Added by cargo
 
 /target
+/fonts/font*

@@ -3,27 +3,20 @@
 #![allow(dead_code)]
 #![feature(asm_const)]
 
-macro_rules! s {
-    ($str: expr) => {
-        $str.as_ptr()
-    };
-}
 mod arch;
-mod kernel;
+mod terminal;
 
-use core::{arch::asm, panic::PanicInfo};
+use core::panic::PanicInfo;
 
-use kernel::vga::{kerr, kput, kwrite};
-
-use crate::kernel::vga;
-
+#[allow(unused_imports)]
+use terminal::framebuffer::{kerr, kput, kwrite, kwriteln, Terminal};
+#[allow(dead_code)]
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    kput(b'\n'); // ensures correctly formated panic
-
-    kerr(s!(b"Kernel panic: \0"));
-    kerr(info.message().as_str().unwrap().as_ptr());
-    kerr(s!(b"\ncannot continue execution kernel will now hang\0\n"));
+    kerr("Kernel panic: ");
+    kerr(info.message().as_str().unwrap());
+    kerr("\ncannot continue execution kernel will now hang");
     loop {}
 }
 
@@ -36,17 +29,24 @@ pub fn strlen(cstr: *const u8) -> usize {
     len
 }
 
-pub extern "C" fn kinit() {
-    vga::init_vga();
-
+pub extern "C" fn kinit(boot_info: &'static mut bootloader_api::BootInfo) {
+    // initing terminal
+    let terminal = Terminal::init(boot_info.framebuffer.as_mut().unwrap());
+    unsafe {
+        TERMINAL = Some(terminal);
+    }
+    // initing the arch
     arch_init!(); // macro is defined for each arch
 }
 
+static mut TERMINAL: Option<Terminal> = None;
 #[no_mangle]
 fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
-    kinit();
+    kinit(boot_info);
 
-    // kwrite(s!(b"Hello, world!\n\0"));
+    kwriteln("Hello, world!");
+    // panic!("kernel works finally now you can hang in peace");
     loop {}
 }
+
 bootloader_api::entry_point!(kmain);

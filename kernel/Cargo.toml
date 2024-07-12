@@ -4,5 +4,13 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+noto-sans-mono-bitmap = { version = "0.3.0", features = [
+    "raster_heights_all",
+    "font_weights_all",
+] }
+
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 bootloader_api = "0.11.7"
+
+[dev-dependencies]
+cc = "1.1.1"
