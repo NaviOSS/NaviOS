@@ -12,4 +12,3 @@ an open-source generic operating system made for fun written in rust!
 - being able to run native binaries
 - being as minimal, as lightweight and as usable as possible
 - cool os to teach me about oses!
-- LEFT only
