@@ -13,7 +13,7 @@ fn main() {
         cmd.arg("-drive")
             .arg(format!("format=raw,file={uefi_path}"))
             .arg("-display")
-            .arg("gtk");
+            .arg("sdl");
     } else {
         cmd.arg("-drive")
             .arg(format!("format=raw,file={bios_path}"));
