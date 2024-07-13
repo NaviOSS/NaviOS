@@ -13,10 +13,12 @@ fn main() {
         cmd.arg("-drive")
             .arg(format!("format=raw,file={uefi_path}"))
             .arg("-display")
-            .arg("sdl");
+            .arg("sdl")
+            .arg("-d")
+            .arg("int");
     } else {
-        cmd.arg("-drive")
-            .arg(format!("format=raw,file={bios_path}"));
+        // cmd.arg("-drive")
+        //     .arg(format!("format=raw,file={bios_path}"))
     }
     let mut child = cmd.spawn().unwrap();
     child.wait().unwrap();

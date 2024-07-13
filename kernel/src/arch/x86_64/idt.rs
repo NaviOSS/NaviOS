@@ -3,6 +3,10 @@ use lazy_static::lazy_static;
 use crate::terminal::framebuffer::{kwrite, kwriteln};
 use core::arch::asm;
 
+type IDTT = [GateDescriptor; 256];
+type HandlerFn<T> = extern "x86-interrupt" fn(T);
+
+#[repr(C, packed)]
 pub struct IDTDescriptor {
     limit: u16,
     base: usize,
@@ -23,8 +27,8 @@ const ATTR_TRAP: u8 = 0xF;
 const ATTR_INT: u8 = 0xE;
 
 impl GateDescriptor {
-    pub fn new<T>(handler: &T, attributes: u8) -> Self {
-        let offset = (handler as *const T) as u64;
+    pub fn new<T>(handler: HandlerFn<T>, attributes: u8) -> Self {
+        let offset = handler as u64;
         Self {
             offset0: offset as u16,
             selector: 0x08,
@@ -49,24 +53,19 @@ impl GateDescriptor {
     }
 }
 
-type IDTT = [GateDescriptor; 256];
+const EMPTY_TABLE: IDTT = [GateDescriptor::default(); 256]; // making sure it is made at compile-time
 
-fn create_idt(idt: &[GateDescriptor]) -> IDTT {
-    let mut table = [GateDescriptor::default(); 256];
+fn create_idt<T>(idt: &[(u8, HandlerFn<T>, u8)]) -> IDTT {
+    let mut table = EMPTY_TABLE;
 
-    for (index, gate) in idt.into_iter().enumerate() {
-        table[index] = *gate;
+    for (index, handler, attributes) in idt {
+        table[*index as usize] = GateDescriptor::new(*handler, *attributes);
     }
     table
 }
 
 lazy_static! {
-    static ref IDT: IDTT = create_idt(&[
-        GateDescriptor::new(&int_handler, ATTR_INT), // divide by 0
-        GateDescriptor::new(&int_handler, ATTR_INT),
-        GateDescriptor::new(&int_handler, ATTR_INT),
-        GateDescriptor::new(&int_handler, ATTR_INT), // breakpoint
-    ]);
+    static ref IDT: IDTT = create_idt(&[(3, breakpoint_handler, ATTR_INT)]);
     static ref IDTDesc: IDTDescriptor = IDTDescriptor {
         limit: (size_of::<IDTT>() - 1) as u16,
         base: (&*IDT).as_ptr() as usize
@@ -82,14 +81,13 @@ struct InterruptFrame {
     ss: u64,
 }
 
-extern "x86-interrupt" fn int_handler() {
-    kwriteln("hi from interrupt");
-    loop {}
+extern "x86-interrupt" fn breakpoint_handler(_frame: InterruptFrame) {
+    kwriteln("hi from interrupt, breakpoint!");
 }
 
 pub fn init_idt() {
     unsafe {
-        asm!("lidt [{}]", in(reg) &*IDTDesc);
+        asm!("lidt [{}]", in(reg) &*IDTDesc, options(nostack));
         asm!("sti")
     }
 

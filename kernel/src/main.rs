@@ -3,7 +3,8 @@
 #![allow(dead_code)]
 #![feature(asm_const)]
 #![feature(abi_x86_interrupt)]
-
+#![feature(unboxed_closures)]
+#![feature(tuple_trait)]
 mod arch;
 mod terminal;
 
