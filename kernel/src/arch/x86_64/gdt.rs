@@ -76,18 +76,40 @@ lazy_static! {
 #[repr(C, packed)]
 pub struct GDTDescriptor {
     pub limit: u16,
-    pub base: u32,
+    pub base: usize,
 }
 lazy_static! {
     pub static ref GDT_DESCRIPTOR: GDTDescriptor = GDTDescriptor {
         limit: (size_of::<GDTType>() - 1) as u16,
-        base: (&*GDT) as *const GDTType as u32
+        base: (&*GDT) as *const GDTType as usize
     };
 }
 
 pub fn init_gdt() {
     unsafe {
         asm!("lgdt [{}]", in(reg) &*GDT_DESCRIPTOR, options(nostack));
+
+        asm!(
+            "
+            mov ax, 0x10
+            mov gs, ax
+            mov fs, ax
+            mov ds, ax
+            mov es, ax
+            mov ss, ax
+        "
+        );
+
+        asm!(
+            "            
+            push 0x08
+            lea rax, [rip + 2f]
+            push rax
+            retfq
+            2:
+            ",
+            options(nostack),
+        );
     }
     kwriteln("loaded gdt using lgdt sucess i think....");
 }
