@@ -2,7 +2,8 @@ use core::arch::asm;
 
 use lazy_static::lazy_static;
 
-use crate::terminal::framebuffer::kwriteln;
+use crate::println;
+
 #[derive(Default)]
 struct GDTEntry {
     base: u32,
@@ -111,5 +112,5 @@ pub fn init_gdt() {
             options(nostack),
         );
     }
-    kwriteln("loaded gdt using lgdt sucess i think....");
+    println!("loaded gdt using lgdt sucess i think....");
 }

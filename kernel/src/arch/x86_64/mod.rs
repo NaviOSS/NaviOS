@@ -3,12 +3,12 @@ mod idt;
 
 use core::arch::asm;
 
-use crate::terminal::framebuffer::{kwrite, kwrite_hex, kwriteln};
+use crate::{print, println};
 
 use self::{gdt::init_gdt, idt::init_idt};
 
 pub extern "C" fn init() {
-    kwriteln("initing gdt....");
+    println!("initing gdt....");
     init_gdt();
 
     init_idt();
@@ -27,16 +27,15 @@ pub extern "C" fn init() {
         );
     }
 
-    kwriteln("TESTS:");
+    println!("TESTS:");
 
-    kwrite("rax: ");
-    kwrite_hex(rax);
+    println!("rax: {:#018x}", rax);
 
-    kwrite("according to this information are we in long mode?: ");
+    print!("according to this information are we in long mode?: ");
     if rax == 0xFFFFFFFFFFFFFFFF {
-        kwriteln("yes");
+        println!("yes");
     } else {
-        kwriteln("no");
+        println!("no");
     }
 }
 

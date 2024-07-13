@@ -1,7 +1,8 @@
 use lazy_static::lazy_static;
 
-use crate::terminal::framebuffer::{kwrite, kwriteln};
 use core::arch::asm;
+
+use crate::println;
 
 type IDTT = [GateDescriptor; 256];
 type HandlerFn<T> = extern "x86-interrupt" fn(T);
@@ -55,6 +56,7 @@ impl GateDescriptor {
 
 const EMPTY_TABLE: IDTT = [GateDescriptor::default(); 256]; // making sure it is made at compile-time
 
+// interrupt index(code), handler, attributes
 fn create_idt<T>(idt: &[(u8, HandlerFn<T>, u8)]) -> IDTT {
     let mut table = EMPTY_TABLE;
 
@@ -71,8 +73,8 @@ lazy_static! {
         base: (&*IDT).as_ptr() as usize
     };
 }
-
-#[repr(C)]
+#[derive(Debug)]
+#[repr(C, packed)]
 struct InterruptFrame {
     rip: u64,
     cs: u64,
@@ -81,8 +83,8 @@ struct InterruptFrame {
     ss: u64,
 }
 
-extern "x86-interrupt" fn breakpoint_handler(_frame: InterruptFrame) {
-    kwriteln("hi from interrupt, breakpoint!");
+extern "x86-interrupt" fn breakpoint_handler(frame: InterruptFrame) {
+    println!("hi from interrupt, breakpoint!, {:#?}", frame);
 }
 
 pub fn init_idt() {
@@ -91,5 +93,5 @@ pub fn init_idt() {
         asm!("sti")
     }
 
-    kwriteln("finished initing interrupts!");
+    println!("finished initing interrupts!");
 }

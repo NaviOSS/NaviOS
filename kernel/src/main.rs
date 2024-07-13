@@ -1,17 +1,28 @@
 #![no_std]
 #![no_main]
 #![allow(dead_code)]
-#![feature(asm_const)]
 #![feature(abi_x86_interrupt)]
-#![feature(unboxed_closures)]
-#![feature(tuple_trait)]
+
 mod arch;
 mod terminal;
 
-use core::panic::PanicInfo;
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => ($crate::terminal::_print(format_args!($($arg)*)));
+}
 
+#[macro_export]
+macro_rules! println {
+    () => (print!("\n"));
+    ($($arg:tt)*) => (crate::print!("{}\n", format_args!($($arg)*)));
+}
 #[allow(unused_imports)]
-use terminal::framebuffer::{kerr, kput, kwrite, kwriteln, Terminal};
+use core::panic::PanicInfo;
+#[allow(unused_imports)]
+use terminal::kerr;
+
+use terminal::framebuffer::Terminal;
+
 #[allow(dead_code)]
 #[cfg(not(test))]
 #[panic_handler]
@@ -46,8 +57,7 @@ static mut TERMINAL: Option<Terminal> = None;
 fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     kinit(boot_info);
 
-    kwriteln("Hello, world!");
-    // panic!("kernel works finally now you can hang in peace");
+    println!("Hello, world!");
     loop {}
 }
 

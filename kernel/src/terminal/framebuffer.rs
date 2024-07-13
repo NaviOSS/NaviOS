@@ -1,10 +1,11 @@
+use core::{fmt, ptr};
+
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 
-use crate::TERMINAL;
-
 const CHAR_WIDTH: usize = 8;
 const CHAR_HEIGHT: usize = 16;
+pub type Color = (u32, u32, u32);
 
 pub struct Terminal<'a> {
     row: usize,
@@ -70,6 +71,10 @@ impl<'a> Terminal<'a> {
 
         self.buffer[byte_offset..(byte_offset + bytes_per_pixel)]
             .copy_from_slice(&color[..bytes_per_pixel]);
+        // ensure buffer is not optimized away
+        unsafe {
+            ptr::read_volatile(self.buffer.as_ptr());
+        }
     }
 
     fn draw_char(&mut self, glyph: RasterizedChar, color: (u32, u32, u32)) {
@@ -115,49 +120,16 @@ impl<'a> Terminal<'a> {
     }
 }
 
-// safe wrappers around TERMINAL
-#[no_mangle]
-pub fn kwrite(str: &str) {
-    unsafe { TERMINAL.as_mut().unwrap().write(str, (100, 22, 200)) }
-}
-
-#[no_mangle]
-pub fn kput(c: char) {
-    unsafe { TERMINAL.as_mut().unwrap().putc(c, (100, 22, 200)) }
-}
-
-#[no_mangle]
-pub fn kerr(str: &str) {
-    unsafe { TERMINAL.as_mut().unwrap().write(str, (200, 0, 0)) }
-}
-
-#[no_mangle]
-pub fn kwriteln(str: &str) {
-    kwrite(str);
-    kput('\n');
-}
-
-// gpt4 generated
-pub fn u64_to_hex_array(value: u64) -> [u8; 18] {
-    let mut hex_array = [b' '; 18];
-    hex_array[0] = b'0';
-    hex_array[1] = b'x';
-    let i = hex_array.len() - 2;
-
-    for i in 0..i {
-        let shr = (15 - i) * 4;
-        let nibble = ((value >> shr) & 0xF) as u8;
-
-        hex_array[i + 2] = match nibble {
-            0..=9 => b'0' + nibble as u8,
-            _ => b'A' + (nibble - 10) as u8,
-        };
+const WRITE_COLOR: Color = (100, 22, 200);
+impl fmt::Write for Terminal<'static> {
+    // i can add color escapes later on like parsing \(u8, u8, u8)str$ as coloring str into (u8, u8, u8)
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write(s, WRITE_COLOR);
+        Ok(())
     }
 
-    hex_array
-}
-
-pub fn kwrite_hex(hex: u64) {
-    let arr = u64_to_hex_array(hex);
-    kwriteln(core::str::from_utf8(&arr).unwrap())
+    fn write_char(&mut self, c: char) -> fmt::Result {
+        self.putc(c, WRITE_COLOR);
+        Ok(())
+    }
 }
