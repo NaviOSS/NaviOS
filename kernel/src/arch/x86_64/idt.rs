@@ -2,7 +2,6 @@ use lazy_static::lazy_static;
 
 use core::arch::asm;
 
-use crate::print;
 use crate::println;
 
 type IDTT = [GateDescriptor; 256];
@@ -29,8 +28,8 @@ const ATTR_TRAP: u8 = 0xF;
 const ATTR_INT: u8 = 0xE;
 
 impl GateDescriptor {
-    pub fn new<T>(handler: HandlerFn<T>, attributes: u8) -> Self {
-        let offset = handler as u64;
+    pub const fn new(handler: u64, attributes: u8) -> Self {
+        let offset = handler;
         Self {
             offset0: offset as u16,
             selector: 0x08,
@@ -58,25 +57,32 @@ impl GateDescriptor {
 const EMPTY_TABLE: IDTT = [GateDescriptor::default(); 256]; // making sure it is made at compile-time
 
 // interrupt index(code), handler, attributes
-fn create_idt<T>(idt: &[(u8, HandlerFn<T>, u8)]) -> IDTT {
-    let mut table = EMPTY_TABLE;
+macro_rules! create_idt {
+    ($(($indx: literal, $handler: tt, $attributes: expr), )*) => {
+        {
+            let mut table = EMPTY_TABLE;
 
-    for (index, handler, attributes) in idt {
-        table[*index as usize] = GateDescriptor::new(*handler, *attributes);
-    }
-    table
+            for (index, handler, attributes) in &[$(($indx, $handler as u64, $attributes), )*] {
+                table[*index as usize] = GateDescriptor::new(*handler, *attributes);
+            }
+            table
+        }
+    };
 }
 
 lazy_static! {
-    static ref IDT: IDTT = create_idt(&[
+    static ref IDT: IDTT = create_idt!(
         (0, divide_by_zero_handler, ATTR_INT),
-        (3, breakpoint_handler, ATTR_INT)
-    ]);
+        (3, breakpoint_handler, ATTR_INT),
+        (8, dobule_fault_handler, ATTR_TRAP),
+        (14, page_fault_handler, ATTR_TRAP),
+    );
     static ref IDTDesc: IDTDescriptor = IDTDescriptor {
         limit: (size_of::<IDTT>() - 1) as u16,
         base: (&*IDT).as_ptr() as usize
     };
 }
+
 #[derive(Debug)]
 #[repr(C, packed)]
 struct InterruptFrame {
@@ -87,20 +93,31 @@ struct InterruptFrame {
     stack_segment: u64,
 }
 
-macro_rules! except {
-    ($($arg:tt),*) => {
-        print!("kernel exception: ");
-        println!($($arg, )*);
-    };
+#[derive(Debug)]
+#[repr(C, packed)]
+struct TrapFrame {
+    insturaction: u64,
+    code_segment: u64,
+    flags: u64,
+    stack_pointer: u64,
+    stack_segment: u64,
+    error_code: u64,
 }
 
 extern "x86-interrupt" fn divide_by_zero_handler(frame: InterruptFrame) {
-    except!("divide by zero exception\nframe: {:#?}", frame);
-    loop {} // hang because it is fatal
+    panic!("divide by zero exception\nframe: {:#?}", frame);
 }
 
 extern "x86-interrupt" fn breakpoint_handler(frame: InterruptFrame) {
     println!("hi from interrupt, breakpoint!, {:#?}", frame);
+}
+
+extern "x86-interrupt" fn dobule_fault_handler(frame: TrapFrame) {
+    panic!("double fault exception\nframe: {:#?}", frame);
+}
+
+extern "x86-interrupt" fn page_fault_handler(frame: TrapFrame) {
+    panic!("page fault exception\nframe: {:#?}", frame)
 }
 
 pub fn init_idt() {

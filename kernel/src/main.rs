@@ -28,8 +28,8 @@ use terminal::framebuffer::Terminal;
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    kerr("Kernel panic: ");
-    kerr(info.message().as_str().unwrap());
+    println!("kernel panic: {}", info.message());
+
     kerr("\ncannot continue execution kernel will now hang");
     loop {}
 }
