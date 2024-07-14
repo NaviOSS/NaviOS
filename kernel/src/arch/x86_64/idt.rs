@@ -18,7 +18,7 @@ pub struct IDTDescriptor {
 pub struct GateDescriptor {
     offset0: u16,
     selector: u16,
-    ist: u8,
+    pub ist: u8,
     attributes: u8, // gate_type, dpl, zero and present bit
     offset1: u16,
     offset2: u32,
@@ -58,12 +58,15 @@ const EMPTY_TABLE: IDTT = [GateDescriptor::default(); 256]; // making sure it is
 
 // interrupt index(code), handler, attributes
 macro_rules! create_idt {
-    ($(($indx: literal, $handler: tt, $attributes: expr), )*) => {
+    ($(($indx: literal, $handler: tt, $attributes: expr $(, $ist: literal)?)),*) => {
         {
             let mut table = EMPTY_TABLE;
 
-            for (index, handler, attributes) in &[$(($indx, $handler as u64, $attributes), )*] {
+            #[allow(unused_mut)]
+            #[allow(unused_assignments)]
+            for (index, handler, attributes, ist) in &[$(($indx, $handler as u64, $attributes,  {let mut ist = None; $(ist = Some($ist as i8);)? ist.unwrap_or(-1) + 1}), )*] {
                 table[*index as usize] = GateDescriptor::new(*handler, *attributes);
+                table[*index as usize].ist = *ist as u8;
             }
             table
         }
@@ -74,8 +77,8 @@ lazy_static! {
     static ref IDT: IDTT = create_idt!(
         (0, divide_by_zero_handler, ATTR_INT),
         (3, breakpoint_handler, ATTR_INT),
-        (8, dobule_fault_handler, ATTR_TRAP),
-        (14, page_fault_handler, ATTR_TRAP),
+        (8, dobule_fault_handler, ATTR_TRAP, 0),
+        (14, page_fault_handler, ATTR_TRAP)
     );
     static ref IDTDesc: IDTDescriptor = IDTDescriptor {
         limit: (size_of::<IDTT>() - 1) as u16,

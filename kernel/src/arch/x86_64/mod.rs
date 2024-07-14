@@ -16,13 +16,6 @@ pub extern "C" fn init() {
         asm!("int3");
     }
 
-    // fn stack_overflow() {
-    //     stack_overflow(); // for each recursion, the return address is pushed
-    // }
-
-    // // trigger a stack overflow
-    // stack_overflow();
-
     let rax: u64;
     unsafe {
         asm!(
