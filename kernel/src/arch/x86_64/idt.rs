@@ -2,6 +2,7 @@ use lazy_static::lazy_static;
 
 use core::arch::asm;
 
+use crate::print;
 use crate::println;
 
 type IDTT = [GateDescriptor; 256];
@@ -67,7 +68,10 @@ fn create_idt<T>(idt: &[(u8, HandlerFn<T>, u8)]) -> IDTT {
 }
 
 lazy_static! {
-    static ref IDT: IDTT = create_idt(&[(3, breakpoint_handler, ATTR_INT)]);
+    static ref IDT: IDTT = create_idt(&[
+        (0, divide_by_zero_handler, ATTR_INT),
+        (3, breakpoint_handler, ATTR_INT)
+    ]);
     static ref IDTDesc: IDTDescriptor = IDTDescriptor {
         limit: (size_of::<IDTT>() - 1) as u16,
         base: (&*IDT).as_ptr() as usize
@@ -76,11 +80,23 @@ lazy_static! {
 #[derive(Debug)]
 #[repr(C, packed)]
 struct InterruptFrame {
-    rip: u64,
-    cs: u64,
-    rflags: u64,
-    rsp: u64,
-    ss: u64,
+    insturaction: u64,
+    code_segment: u64,
+    flags: u64,
+    stack_pointer: u64,
+    stack_segment: u64,
+}
+
+macro_rules! except {
+    ($($arg:tt),*) => {
+        print!("kernel exception: ");
+        println!($($arg, )*);
+    };
+}
+
+extern "x86-interrupt" fn divide_by_zero_handler(frame: InterruptFrame) {
+    except!("divide by zero exception\nframe: {:#?}", frame);
+    loop {} // hang because it is fatal
 }
 
 extern "x86-interrupt" fn breakpoint_handler(frame: InterruptFrame) {

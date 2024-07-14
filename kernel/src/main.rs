@@ -2,6 +2,7 @@
 #![no_main]
 #![allow(dead_code)]
 #![feature(abi_x86_interrupt)]
+#![feature(iter_advance_by)]
 
 mod arch;
 mod terminal;

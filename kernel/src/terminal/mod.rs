@@ -1,4 +1,6 @@
 pub mod framebuffer;
+pub mod navitts;
+
 use crate::TERMINAL;
 use core::fmt;
 
