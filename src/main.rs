@@ -3,7 +3,7 @@ use ovmf_prebuilt;
 
 fn main() {
     let uefi_path = env!("UEFI_PATH");
-    let bios_path = env!("BIOS_PATH");
+    let _bios_path = env!("BIOS_PATH");
 
     let uefi = true;
 

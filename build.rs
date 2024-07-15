@@ -1,6 +1,6 @@
 // build.rs
 
-use std::{path::PathBuf, process::Command};
+use std::path::PathBuf;
 
 use bootloader::BootConfig;
 
@@ -11,7 +11,7 @@ fn main() {
 
     let config: BootConfig = {
         let mut config = BootConfig::default();
-        let mut farmebuffer = bootloader_boot_config::FrameBuffer::default();
+        let farmebuffer = bootloader_boot_config::FrameBuffer::default();
 
         // farmebuffer.minimum_framebuffer_width = Some(512);
         // farmebuffer.minimum_framebuffer_height = Some(256);

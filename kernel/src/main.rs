@@ -55,7 +55,7 @@ pub fn strlen(cstr: *const u8) -> usize {
 
 pub extern "C" fn kinit(boot_info: &'static mut bootloader_api::BootInfo) {
     // initing terminal
-    let regions = &mut boot_info.memory_regions;
+    let _regions = &mut boot_info.memory_regions;
     let terminal = Terminal::init(boot_info.framebuffer.as_mut().unwrap());
     unsafe {
         TERMINAL = Some(terminal);

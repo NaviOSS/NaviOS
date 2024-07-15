@@ -2,8 +2,6 @@ use core::arch::asm;
 
 use lazy_static::lazy_static;
 
-use crate::println;
-
 #[repr(C, packed)]
 pub struct GDTEntry {
     limit0: u16,

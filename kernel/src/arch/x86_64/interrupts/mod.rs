@@ -1,7 +1,6 @@
 mod handlers;
 mod idt;
 
-use crate::println;
 use core::arch::asm;
 use idt::IDTDesc;
 

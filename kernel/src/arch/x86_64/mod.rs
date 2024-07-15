@@ -1,7 +1,6 @@
 mod gdt;
 mod interrupts;
 
-use core::arch::asm;
 use interrupts::{enable_interrupts, init_idt};
 
 use self::gdt::init_gdt;
