@@ -4,7 +4,7 @@ use tests::test_module;
 pub mod testing_module {
     use alloc::vec::Vec;
 
-    use crate::{print, println};
+    use crate::{print, println, terminal::framebuffer::Terminal, TERMINAL};
     use core::arch::asm;
 
     fn print() {
@@ -34,6 +34,9 @@ pub mod testing_module {
     }
 
     fn allocator() {
+        unsafe {
+            println!("info {:?}", TERMINAL.as_ref().unwrap().info);
+        }
         let mut test = Vec::new();
 
         for i in 0..22 {

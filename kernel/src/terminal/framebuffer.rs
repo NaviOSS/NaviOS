@@ -5,6 +5,7 @@ use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 
 // max console size if reached we will move buffer down a little bit and put it in the ecess buffer so we can scroll
 const MAX_CONSOLE_SIZE: usize = 0;
+const RASTER_HEIGHT: RasterHeight = RasterHeight::Size20;
 const WRITE_COLOR: Color = (222, 255, 30);
 
 pub type Color = (u32, u32, u32);
@@ -12,12 +13,12 @@ pub type Color = (u32, u32, u32);
 pub struct Terminal<'a> {
     row: usize,
     column: usize,
-    buffer: &'a mut [u8],
+    pub buffer: &'a mut [u8],
     // the second value is how much bytes are written
     extra_buffer: ([u8; MAX_CONSOLE_SIZE], usize),
-    info: FrameBufferInfo,
-    x_pos: usize,
-    y_pos: usize,
+    pub info: FrameBufferInfo,
+    pub x_pos: usize,
+    pub y_pos: usize,
 }
 
 impl<'a> Terminal<'a> {
@@ -41,27 +42,37 @@ impl<'a> Terminal<'a> {
         }
     }
 
-    fn width(&self) -> usize {
+    pub fn width(&self) -> usize {
         self.info.width
     }
 
-    fn height(&self) -> usize {
+    pub fn height(&self) -> usize {
         self.info.height
     }
 
-    fn scroll_up(&mut self) {
-        // for now we just remove the y coordinate by scroll amount
+    fn get_byte_offset(&self, x: usize, y: usize) -> usize {
+        (y * self.info.stride + x) * self.info.bytes_per_pixel
+    }
 
-        self.y_pos -= 100;
+    fn scroll_up(&mut self) {
+        // copy the buffer up
+        let len = self.buffer.len();
+        self.buffer.copy_within(
+            self.get_byte_offset(self.x_pos, RASTER_HEIGHT.val()) /* the first line in buffer */ ..len - 1,
+            0,
+        );
+
+        // overwriting the last line
+        // there is a bug that has to do with this that i didnt figure out yet!
+        let last_line = self.get_byte_offset(0, self.y_pos);
+        self.buffer[last_line - 1..len].fill(0);
+
+        self.y_pos -= RASTER_HEIGHT.val();
     }
 
     fn newline(&mut self) {
-        self.y_pos += RasterHeight::Size24.val();
+        self.y_pos += RASTER_HEIGHT.val();
         self.x_pos = 0;
-
-        if self.y_pos >= self.height() {
-            self.scroll_up();
-        }
     }
 
     fn set_pixel(&mut self, x: usize, y: usize, intens: u32, color: (u32, u32, u32)) {
@@ -72,10 +83,8 @@ impl<'a> Terminal<'a> {
                 panic!("pixel format {:?} not supported", other)
             }
         };
-
-        let pixel_offset = y * self.info.stride + x;
         let bytes_per_pixel = self.info.bytes_per_pixel;
-        let byte_offset = pixel_offset * bytes_per_pixel;
+        let byte_offset = self.get_byte_offset(x, y);
 
         // i dont know why this works just did some random stuff but it does!
         let color = [
@@ -87,15 +96,19 @@ impl<'a> Terminal<'a> {
 
         self.buffer[byte_offset..(byte_offset + bytes_per_pixel)]
             .copy_from_slice(&color[..bytes_per_pixel]);
-        // ensure buffer is not optimized away
+
         unsafe {
-            ptr::read_volatile(self.buffer.as_ptr());
+            ptr::read_volatile(self.buffer.as_ptr()); // ensure buffer is not optimized away
         }
     }
 
     fn draw_char(&mut self, glyph: RasterizedChar, color: (u32, u32, u32)) {
         if (self.x_pos + glyph.width()) > self.width() {
             self.newline();
+        }
+
+        if (self.y_pos + glyph.height()) > self.height() {
+            self.scroll_up()
         }
 
         for (row, rows) in glyph.raster().iter().enumerate() {
@@ -114,15 +127,11 @@ impl<'a> Terminal<'a> {
             }
 
             _ => {
-                let null = noto_sans_mono_bitmap::get_raster(
-                    'N',
-                    FontWeight::Regular,
-                    RasterHeight::Size24,
-                )
-                .unwrap();
-                let glyph =
-                    noto_sans_mono_bitmap::get_raster(c, FontWeight::Bold, RasterHeight::Size24)
-                        .unwrap_or(null);
+                let null =
+                    noto_sans_mono_bitmap::get_raster('N', FontWeight::Regular, RASTER_HEIGHT)
+                        .unwrap();
+                let glyph = noto_sans_mono_bitmap::get_raster(c, FontWeight::Bold, RASTER_HEIGHT)
+                    .unwrap_or(null);
 
                 self.draw_char(glyph, color);
             }
