@@ -1,5 +1,4 @@
 pub mod allocator;
-pub mod page;
 
 use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 

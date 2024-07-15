@@ -12,6 +12,9 @@ noto-sans-mono-bitmap = { version = "0.3.0", features = [
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 bootloader_api = "0.11.7"
 spin = "0.9.8"
+
+x86_64 = "0.15.1"
+
 tests = { path = "../tests" }
 
 [dev-dependencies]
