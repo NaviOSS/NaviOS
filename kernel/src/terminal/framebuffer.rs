@@ -5,7 +5,8 @@ use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 
 // max console size if reached we will move buffer down a little bit and put it in the ecess buffer so we can scroll
 const MAX_CONSOLE_SIZE: usize = 0;
-const SCROLL_AMOUNT: usize = 24;
+const WRITE_COLOR: Color = (222, 255, 30);
+
 pub type Color = (u32, u32, u32);
 
 pub struct Terminal<'a> {
@@ -50,7 +51,8 @@ impl<'a> Terminal<'a> {
 
     fn scroll_up(&mut self) {
         // for now we just remove the y coordinate by scroll amount
-        self.y_pos += (self.y_pos - self.height()) - SCROLL_AMOUNT;
+
+        self.y_pos -= 100;
     }
 
     fn newline(&mut self) {
@@ -134,7 +136,6 @@ impl<'a> Terminal<'a> {
     }
 }
 
-const WRITE_COLOR: Color = (100, 22, 200);
 impl fmt::Write for Terminal<'static> {
     // i can add color escapes later on like parsing \(u8, u8, u8)str$ as coloring str into (u8, u8, u8)
     fn write_str(&mut self, s: &str) -> fmt::Result {
