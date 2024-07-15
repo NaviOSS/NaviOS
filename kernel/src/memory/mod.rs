@@ -35,7 +35,7 @@ pub unsafe fn level_4_table(phy_offset: u64) -> &'static mut PageTable {
     &mut *(virt_addr as *mut PageTable)
 }
 
-pub const HEAP_START: usize = 0x_ADD_E000;
+pub const HEAP_START: usize = 0xAAA_AAA_AAA;
 pub const HEAP_SIZE: usize = 100 * 1024;
 
 // TODO! make the memory module more generic for different architectures; for now we can only support x86_64 because of the bootloader crate so take into account making our own bootloader for aarch64
