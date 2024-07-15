@@ -3,7 +3,7 @@ use core::{
     ptr,
 };
 
-use crate::{println, utils::Locked};
+use crate::utils::Locked;
 
 use super::align;
 #[derive(Debug)]
@@ -114,8 +114,7 @@ impl LinkedListAllocator {
         node.next = self.head.next.take();
 
         let node_ptr = addr as *mut Node;
-        println!("adding addr {:?}", addr);
-        println!("node {:#?}", node);
+
         ptr::write(node_ptr, node);
 
         self.head.next = Some(&mut *node_ptr);

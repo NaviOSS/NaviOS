@@ -3,14 +3,17 @@ use core::{fmt, ptr};
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 
-const CHAR_WIDTH: usize = 8;
-const CHAR_HEIGHT: usize = 16;
+// max console size if reached we will move buffer down a little bit and put it in the ecess buffer so we can scroll
+const MAX_CONSOLE_SIZE: usize = 0;
+const SCROLL_AMOUNT: usize = 24;
 pub type Color = (u32, u32, u32);
 
 pub struct Terminal<'a> {
     row: usize,
     column: usize,
     buffer: &'a mut [u8],
+    // the second value is how much bytes are written
+    extra_buffer: ([u8; MAX_CONSOLE_SIZE], usize),
     info: FrameBufferInfo,
     x_pos: usize,
     y_pos: usize,
@@ -30,6 +33,7 @@ impl<'a> Terminal<'a> {
             row: 0,
             column: 0,
             buffer,
+            extra_buffer: ([0u8; MAX_CONSOLE_SIZE], 0),
             info,
             x_pos: 0,
             y_pos: 0,
@@ -44,9 +48,18 @@ impl<'a> Terminal<'a> {
         self.info.height
     }
 
+    fn scroll_up(&mut self) {
+        // for now we just remove the y coordinate by scroll amount
+        self.y_pos += (self.y_pos - self.height()) - SCROLL_AMOUNT;
+    }
+
     fn newline(&mut self) {
         self.y_pos += RasterHeight::Size24.val();
         self.x_pos = 0;
+
+        if self.y_pos >= self.height() {
+            self.scroll_up();
+        }
     }
 
     fn set_pixel(&mut self, x: usize, y: usize, intens: u32, color: (u32, u32, u32)) {

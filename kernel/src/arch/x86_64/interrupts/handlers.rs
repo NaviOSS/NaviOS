@@ -19,8 +19,10 @@ pub extern "x86-interrupt" fn page_fault_handler(
     code: PageFaultErrorCode,
 ) {
     panic!(
-        "page fault exception\nerror code: {:?}\nframe: {:#?}",
-        code, frame
+        "page fault exception\nerror code: {:?}\naccessed address: {:?}\nframe: {:#?}",
+        x86_64::registers::control::Cr2::read(),
+        code,
+        frame
     )
 }
 

@@ -2,7 +2,9 @@ use tests::test_module;
 
 #[test_module]
 pub mod testing_module {
-    use crate::println;
+    use alloc::vec::Vec;
+
+    use crate::{print, println};
     use core::arch::asm;
 
     fn print() {
@@ -29,5 +31,15 @@ pub mod testing_module {
     fn interrupts() {
         unsafe { asm!("int3") }
         assert_eq!(true, true);
+    }
+
+    fn allocator() {
+        let mut test = Vec::new();
+
+        for i in 0..22 {
+            test.push(i);
+        }
+
+        println!("Allocated Vec with len {}\n{:#?}", test.len(), test);
     }
 }

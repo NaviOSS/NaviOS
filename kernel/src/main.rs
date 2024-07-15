@@ -44,18 +44,11 @@ fn panic(info: &PanicInfo) -> ! {
     loop {}
 }
 
-pub fn strlen(cstr: *const u8) -> usize {
-    let mut len = 0;
-
-    while unsafe { *cstr.offset(len as isize) } != b'\0' {
-        len += 1;
-    }
-    len
-}
-
 pub extern "C" fn kinit(boot_info: &'static mut bootloader_api::BootInfo) {
     // initing terminal
-    let _regions = &mut boot_info.memory_regions;
+    let phy_offset = &mut boot_info.physical_memory_offset;
+    let regions = &mut boot_info.memory_regions;
+
     let terminal = Terminal::init(boot_info.framebuffer.as_mut().unwrap());
     unsafe {
         TERMINAL = Some(terminal);
@@ -63,29 +56,32 @@ pub extern "C" fn kinit(boot_info: &'static mut bootloader_api::BootInfo) {
     // initing the arch
     arch_init!(); // macro is defined for each arch
 
-    // WIP
-    // memory::init_heap(regions)
+    unsafe {
+        memory::init_memory(phy_offset, regions).unwrap();
+    };
 }
 
 static mut TERMINAL: Option<Terminal> = None;
 #[no_mangle]
 fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     kinit(boot_info);
+
     #[cfg(feature = "test")]
     test::testing_module::test_main();
 
-    // trying allocator
-    // memory is still wip i have implemented an allocator but no pagging yet
-    // let mut test = Vec::new();
-
-    // for i in 0..22 {
-    //     print!("alloc, ");
-    //     test.push(i);
-    // }
-
-    // println!("Allocated Vec with len {}\n{:#?}", test.len(), test);
     println!("Hello, world!");
     loop {}
 }
+static CONFIG: bootloader_api::BootloaderConfig = {
+    use bootloader_api::{
+        config::{Mapping, Mappings},
+        BootloaderConfig,
+    };
 
-bootloader_api::entry_point!(kmain);
+    let mut config = BootloaderConfig::new_default();
+    let mut mappings = Mappings::new_default();
+    mappings.physical_memory = Some(Mapping::Dynamic);
+    config.mappings = mappings;
+    config
+};
+bootloader_api::entry_point!(kmain, config = { &CONFIG });
