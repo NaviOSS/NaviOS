@@ -1,42 +1,15 @@
 mod gdt;
-mod idt;
+mod interrupts;
 
 use core::arch::asm;
+use interrupts::{enable_interrupts, init_idt};
 
-use crate::{print, println};
-
-use self::{gdt::init_gdt, idt::init_idt};
+use self::gdt::init_gdt;
 
 pub extern "C" fn init() {
-    println!("initing gdt....");
     init_gdt();
-
     init_idt();
-    unsafe {
-        asm!("int3");
-    }
-
-    let rax: u64;
-    unsafe {
-        asm!(
-            "
-                mov rax, 0xFFFFFFFFFFFFFFFF
-                mov {}, rax
-            ",
-            out(reg) rax
-        );
-    }
-
-    println!("TESTS:");
-
-    println!("rax: {:#018x}", rax);
-
-    print!("according to this information are we in long mode?: ");
-    if rax == 0xFFFFFFFFFFFFFFFF {
-        println!("yes");
-    } else {
-        println!("no");
-    }
+    enable_interrupts();
 }
 
 #[macro_export]

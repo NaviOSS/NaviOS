@@ -177,5 +177,4 @@ pub fn init_gdt() {
 
         asm!("ltr {0:x}", in(reg) ((3*8) as u16))
     }
-    println!("loaded gdt using lgdt sucess i think....");
 }

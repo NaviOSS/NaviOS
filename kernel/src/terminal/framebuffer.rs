@@ -17,7 +17,8 @@ pub struct Terminal<'a> {
 }
 
 impl<'a> Terminal<'a> {
-    pub fn init(frame_buffer: &'a mut FrameBuffer) -> Self {
+    pub fn init(frame_buffer: &'static mut FrameBuffer) -> Self {
+        let frame_buffer = frame_buffer;
         let info = frame_buffer.info();
         let buffer = frame_buffer.buffer_mut();
 
