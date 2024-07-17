@@ -66,6 +66,9 @@ impl<'a> Terminal<'a> {
         self.y_pos -= RASTER_HEIGHT.val();
 
         let last_line = self.get_byte_offset(0, self.y_pos);
+        if last_line >= len {
+            self.scroll_up()
+        }
         self.buffer[last_line..len].fill(0);
     }
 

@@ -1,16 +1,17 @@
 use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 
-use super::align;
+use super::{align_down, PhysAddr};
+#[derive(Debug)]
 pub struct Frame {
-    pub start_address: usize,
+    pub start_address: PhysAddr,
 }
 
 impl Frame {
     #[inline]
     // returns the frame that contains an address
-    pub fn containing_address(address: usize) -> Self {
+    pub fn containing_address(address: PhysAddr) -> Self {
         Self {
-            start_address: align(address, 4096), // for now frames can only be 1 normal page sized
+            start_address: align_down(address, 4096), // for now frames can only be 1 normal page sized
         }
     }
 }
@@ -37,7 +38,7 @@ impl RegionAllocator {
 
         let address = addr_ranges.flat_map(|x| x.step_by(4096));
 
-        address.map(|x| Frame::containing_address(x as usize))
+        address.map(|x| Frame::containing_address(x as PhysAddr))
     }
 }
 
