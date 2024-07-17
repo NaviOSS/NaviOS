@@ -1,8 +1,19 @@
 use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
-use x86_64::{
-    structures::paging::{FrameAllocator, PhysFrame, Size4KiB},
-    PhysAddr,
-};
+
+use super::align;
+pub struct Frame {
+    pub start_address: usize,
+}
+
+impl Frame {
+    #[inline]
+    // returns the frame that contains an address
+    pub fn containing_address(address: usize) -> Self {
+        Self {
+            start_address: align(address, 4096), // for now frames can only be 1 normal page sized
+        }
+    }
+}
 
 pub struct RegionAllocator {
     memory_map: &'static mut MemoryRegions,
@@ -17,7 +28,7 @@ impl RegionAllocator {
         }
     }
 
-    fn usable_regions(&self) -> impl Iterator<Item = PhysFrame> + '_ {
+    fn usable_regions(&self) -> impl Iterator<Item = Frame> + '_ {
         let usable_regions = self
             .memory_map
             .iter()
@@ -26,12 +37,12 @@ impl RegionAllocator {
 
         let address = addr_ranges.flat_map(|x| x.step_by(4096));
 
-        address.map(|x| PhysFrame::containing_address(PhysAddr::new(x)))
+        address.map(|x| Frame::containing_address(x as usize))
     }
 }
 
-unsafe impl FrameAllocator<Size4KiB> for RegionAllocator {
-    fn allocate_frame(&mut self) -> Option<PhysFrame<Size4KiB>> {
+impl RegionAllocator {
+    pub fn allocate_frame(&mut self) -> Option<Frame> {
         let region = self.usable_regions().nth(self.next);
         self.next += 1;
         region

@@ -14,10 +14,7 @@ pub struct Node {
 
 impl Node {
     pub const fn new(size: usize) -> Self {
-        Self {
-            size: size,
-            next: None,
-        }
+        Self { size, next: None }
     }
 
     pub fn start(&self) -> usize {

@@ -57,7 +57,7 @@ pub extern "C" fn kinit(boot_info: &'static mut bootloader_api::BootInfo) {
     arch_init!(); // macro is defined for each arch
 
     unsafe {
-        memory::init_memory(phy_offset, regions).unwrap();
+        memory::init_memory(phy_offset, regions);
     };
 }
 
