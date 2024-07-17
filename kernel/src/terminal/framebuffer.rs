@@ -64,10 +64,10 @@ impl<'a> Terminal<'a> {
 
         // overwriting the last line
         // there is a bug that has to do with this that i didnt figure out yet!
-        let last_line = self.get_byte_offset(0, self.y_pos);
-        self.buffer[last_line - 1..len].fill(0);
-
         self.y_pos -= RASTER_HEIGHT.val();
+
+        let last_line = self.get_byte_offset(0, self.y_pos);
+        self.buffer[last_line..len].fill(0);
     }
 
     fn newline(&mut self) {
