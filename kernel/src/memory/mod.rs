@@ -9,7 +9,7 @@ pub type PhysAddr = usize;
 use bootloader_api::info::{MemoryRegions, Optional};
 use page::{EntryFlags, MapToError, Mapper, Page};
 
-use crate::{println, utils::Locked};
+use crate::utils::Locked;
 
 use self::frame_allocator::RegionAllocator;
 
@@ -77,13 +77,8 @@ pub unsafe fn init_memory(
         let heap_end = heap_start + HEAP_SIZE - 1;
         let heap_start_page = Page::containing_address(heap_start);
         let heap_end_page = Page::containing_address(heap_end);
-        println!("allocated heap pages");
-        Page::iter_pages(heap_start_page, heap_start_page)
+        Page::iter_pages(heap_start_page, heap_end_page)
     };
-    println!("{:#?}", page_range);
-
-    let start = page_range.start.clone();
-    let end = page_range.end.clone();
 
     let frame_allocator = &mut RegionAllocator::new(memory_regions);
 
@@ -92,14 +87,9 @@ pub unsafe fn init_memory(
         let frame = frame_allocator
             .allocate_frame()
             .ok_or(MapToError::FrameAllocationFailed)?;
-        println!("page {:#?}", page);
+
         unsafe { mapper.map_to(page, frame, flags, frame_allocator)?.flush() };
     }
-
-    println!("start {:18x}", start.start_address);
-    println!("end {:18x}", end.start_address);
-    println!("heap_start {:18x}", HEAP_START);
-    println!("heap_end {:18x}", HEAP_START + HEAP_SIZE);
 
     GLOBAL_ALLOCATOR.inner.lock().init(HEAP_START, HEAP_SIZE);
     Ok(())

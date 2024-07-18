@@ -1,11 +1,8 @@
 const ENTRY_COUNT: usize = 512;
 const PAGE_SIZE: usize = 4096;
 
-use crate::{
-    memory::{translate, PhysAddr},
-    println,
-};
-use bitflags::{bitflags, Flags};
+use crate::memory::{translate, PhysAddr};
+use bitflags::bitflags;
 use core::{
     arch::asm,
     ops::{Index, IndexMut},
@@ -15,9 +12,6 @@ use crate::memory::frame_allocator::Frame;
 
 use super::{align_down, frame_allocator::RegionAllocator, VirtAddr};
 
-// macro_rules! println {
-//     ($($tt:tt)*) => {};
-// }
 #[derive(Debug, Clone, Copy)]
 pub struct Page {
     pub start_address: VirtAddr,
@@ -107,6 +101,14 @@ pub struct PageTable {
     entries: [Entry; ENTRY_COUNT],
 }
 
+impl PageTable {
+    pub fn zeroize(&mut self) {
+        for entry in &mut self.entries {
+            entry.0 = 0;
+        }
+    }
+}
+
 impl Index<usize> for PageTable {
     type Output = Entry;
     fn index(&self, index: usize) -> &Self::Output {
@@ -159,6 +161,8 @@ impl Mapper {
     ) -> Result<&'static mut PageTable, MapToError> {
         if entry.flags().contains(EntryFlags::PRESENT) {
             let addr = entry.frame().unwrap().start_address;
+
+            entry.set(flags | entry.flags(), addr);
             let virt_addr = addr + offset;
             let entry_ptr = virt_addr as *mut PageTable;
 
@@ -174,7 +178,10 @@ impl Mapper {
             let virt_addr = addr + offset;
             let table_ptr = virt_addr as *mut PageTable;
 
-            Ok(unsafe { &mut *(table_ptr) })
+            Ok(unsafe {
+                (*table_ptr).zeroize();
+                &mut *(table_ptr)
+            })
         }
     }
 
@@ -191,14 +198,14 @@ impl Mapper {
         let level_4_entry = &mut self.level_4_table[level_4_index];
         let level_3_table =
             Self::map_page_table_entry(self.offset, flags, level_4_entry, frame_allocator)?;
-        println!("level 3");
+
         let level_2_table = Self::map_page_table_entry(
             self.offset,
             flags,
             &mut level_3_table[level_3_index],
             frame_allocator,
         )?;
-        println!("level 2");
+
         let level_1_table = Self::map_page_table_entry(
             self.offset,
             flags,
@@ -209,7 +216,6 @@ impl Mapper {
         let entry = &mut level_1_table[level_1_index];
 
         *entry = Entry::new(flags, frame.start_address);
-        println!("Ok! mapped page to frame");
         Ok(self)
     }
 
