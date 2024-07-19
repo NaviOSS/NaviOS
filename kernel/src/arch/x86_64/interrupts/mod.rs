@@ -2,7 +2,8 @@ mod apic;
 mod handlers;
 mod idt;
 
-use apic::{LVTEntry, LVTEntryFlags};
+use apic::{LVTEntry, LVTEntryFlags, APIC_BASE};
+use bitflags::Flags;
 use core::arch::asm;
 use idt::IDTDesc;
 
@@ -40,8 +41,9 @@ pub fn init_idt() {
 }
 
 pub fn enable_apic_interrupts() {
-    let apic_base = read_msr(0x1B);
-    let address = apic_base & 0xFFFFF000;
+    unsafe { asm!("sti") };
+
+    let address = *APIC_BASE;
     println!("address of apic 0x{:x}", address);
 
     // mapping the apic address
@@ -56,7 +58,7 @@ pub fn enable_apic_interrupts() {
     let sivr = (address + 0xF0) as *mut u32;
 
     unsafe {
-        core::ptr::write_volatile(sivr, 0xff);
+        core::ptr::write_volatile(sivr, 0x1ff);
     }
 
     let timer_addr = address + 0x320;
@@ -66,12 +68,22 @@ pub fn enable_apic_interrupts() {
             timer,
             LVTEntry {
                 flags: LVTEntryFlags::TIMER_PERIODIC,
-                entry: 32,
+                entry: 0x20,
                 unused: 0,
             },
         );
 
+        let divide_reg = address + 0x3E0;
+        let divide_reg = divide_reg as *mut u8;
+        *divide_reg = 0x0000000B;
+
+        let init_reg = address + 0x380;
+        let init_reg = init_reg as *mut u32;
+        *init_reg = 0xFFFFFFF;
+
         let timer = *(timer_addr as *mut LVTEntry);
-        println!("{:#?}", timer);
+        let flags = timer.flags;
+        let timer = timer.entry as u64 | ((flags.bits() as u64) << 7);
+        println!("{:x}", timer);
     }
 }

@@ -3,7 +3,8 @@ use lazy_static::lazy_static;
 use super::idt::{GateDescriptor, IDTT};
 use super::idt::{InterruptFrame, TrapFrame};
 
-use crate::println;
+use crate::arch::x86_64::interrupts::apic::send_eoi;
+use crate::{print, println};
 const ATTR_TRAP: u8 = 0xF;
 const ATTR_INT: u8 = 0xE;
 const EMPTY_TABLE: IDTT = [GateDescriptor::default(); 256]; // making sure it is made at compile-time
@@ -57,5 +58,6 @@ extern "x86-interrupt" fn page_fault_handler(frame: TrapFrame) {
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(frame: InterruptFrame) {
-    println!("got timer {:#?}", frame);
+    print!(".");
+    send_eoi();
 }
