@@ -11,11 +11,24 @@
 mod test;
 
 mod arch;
+mod globals;
 mod memory;
 mod terminal;
 mod utils;
 
 extern crate alloc;
+use bootloader_api::info::MemoryRegions;
+
+use globals::FRAME_ALLOCATOR;
+use globals::PAGING_MAPPER;
+use globals::TERMINAL;
+
+use memory::frame_allocator::RegionAllocator;
+use memory::paging::level_4_table;
+use memory::paging::Mapper;
+pub use memory::PhysAddr;
+pub use memory::VirtAddr;
+use terminal::framebuffer::Terminal;
 
 #[macro_export]
 macro_rules! print {
@@ -30,10 +43,10 @@ macro_rules! println {
 
 #[allow(unused_imports)]
 use core::panic::PanicInfo;
+
 #[allow(unused_imports)]
 use terminal::kerr;
 
-use terminal::framebuffer::Terminal;
 #[allow(dead_code)]
 #[cfg(not(test))]
 #[panic_handler]
@@ -47,21 +60,27 @@ fn panic(info: &PanicInfo) -> ! {
 pub extern "C" fn kinit(boot_info: &'static mut bootloader_api::BootInfo) {
     // initing terminal
     let phy_offset = &mut boot_info.physical_memory_offset;
-    let regions = &mut boot_info.memory_regions;
+    let phy_offset = phy_offset.as_mut().unwrap();
 
-    let terminal = Terminal::init(boot_info.framebuffer.as_mut().unwrap());
+    let regions: &'static mut MemoryRegions = &mut boot_info.memory_regions;
+
     unsafe {
+        FRAME_ALLOCATOR = Some(RegionAllocator::new(&mut *regions));
+
+        let terminal: Terminal<'static> = Terminal::init(boot_info.framebuffer.as_mut().unwrap());
         TERMINAL = Some(terminal);
-    }
+
+        let mapper = Mapper::new(*phy_offset as usize, level_4_table(*phy_offset));
+        PAGING_MAPPER = Some(mapper);
+    };
     // initing the arch
     arch_init!(); // macro is defined for each arch
 
     unsafe {
-        memory::init_memory(phy_offset, regions);
+        memory::init_memory().unwrap();
     };
 }
 
-static mut TERMINAL: Option<Terminal> = None;
 #[no_mangle]
 fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     kinit(boot_info);

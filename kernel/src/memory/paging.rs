@@ -1,7 +1,10 @@
 const ENTRY_COUNT: usize = 512;
 const PAGE_SIZE: usize = 4096;
 
-use crate::memory::{translate, PhysAddr};
+use crate::{
+    globals::frame_allocator,
+    memory::{translate, PhysAddr},
+};
 use bitflags::bitflags;
 use core::{
     arch::asm,
@@ -134,7 +137,7 @@ pub unsafe fn level_4_table(phy_offset: u64) -> &'static mut PageTable {
 
     &mut *(virt_addr as *mut PageTable)
 }
-
+#[derive(Debug)]
 pub enum MapToError {
     FrameAllocationFailed,
 }
@@ -190,10 +193,10 @@ impl Mapper {
         page: Page,
         frame: Frame,
         flags: EntryFlags,
-        frame_allocator: &mut RegionAllocator,
     ) -> Result<&mut Mapper, MapToError> {
         let (_, level_1_index, level_2_index, level_3_index, level_4_index) =
             translate(page.start_address);
+        let frame_allocator = frame_allocator();
 
         let level_4_entry = &mut self.level_4_table[level_4_index];
         let level_3_table =

@@ -1,14 +1,14 @@
 mod gdt;
 mod interrupts;
 
-use interrupts::{enable_interrupts, init_idt};
+use interrupts::{enable_apic_interrupts, init_idt};
 
 use self::gdt::init_gdt;
 
 pub extern "C" fn init() {
     init_gdt();
     init_idt();
-    enable_interrupts();
+    enable_apic_interrupts();
 }
 
 #[macro_export]
