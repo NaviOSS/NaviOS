@@ -19,9 +19,7 @@ mod utils;
 extern crate alloc;
 use bootloader_api::info::MemoryRegions;
 
-use globals::FRAME_ALLOCATOR;
-use globals::PAGING_MAPPER;
-use globals::TERMINAL;
+use globals::*;
 
 use memory::frame_allocator::RegionAllocator;
 use memory::paging::level_4_table;
@@ -65,6 +63,7 @@ pub extern "C" fn kinit(boot_info: &'static mut bootloader_api::BootInfo) {
     let regions: &'static mut MemoryRegions = &mut boot_info.memory_regions;
 
     unsafe {
+        RSDP_ADDR = boot_info.rsdp_addr.into();
         FRAME_ALLOCATOR = Some(RegionAllocator::new(&mut *regions));
 
         let terminal: Terminal<'static> = Terminal::init(boot_info.framebuffer.as_mut().unwrap());

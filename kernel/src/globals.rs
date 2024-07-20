@@ -28,6 +28,12 @@ pub fn paging_mapper() -> &'static mut Mapper {
     unsafe { PAGING_MAPPER.as_mut().unwrap() }
 }
 
+// Some in x86 family
+pub static mut RSDP_ADDR: Option<u64> = None;
+pub fn rsdp_addr() -> u64 {
+    unsafe { RSDP_ADDR.unwrap() }
+}
+
 // safer globals that uses the locked type!
 // still has to be init'ed
 #[global_allocator]

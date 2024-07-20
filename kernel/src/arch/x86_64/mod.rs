@@ -1,3 +1,4 @@
+mod acpi;
 mod gdt;
 mod interrupts;
 
