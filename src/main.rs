@@ -14,9 +14,6 @@ fn main() {
             .arg(format!("format=raw,file={uefi_path}"))
             .arg("-display")
             .arg("sdl");
-    } else {
-        // cmd.arg("-drive")
-        //     .arg(format!("format=raw,file={bios_path}"))
     }
     let mut child = cmd.spawn().unwrap();
     child.wait().unwrap();

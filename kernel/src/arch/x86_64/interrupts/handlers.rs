@@ -36,6 +36,7 @@ lazy_static! {
         (0, divide_by_zero_handler, ATTR_INT),
         (3, breakpoint_handler, ATTR_INT),
         (8, dobule_fault_handler, ATTR_TRAP, 0),
+        (13, general_protection_fault_handler, ATTR_TRAP),
         (14, page_fault_handler, ATTR_TRAP),
         (0x20, timer_interrupt_handler, ATTR_INT),
         (0x21, keyboard_interrupt_handler, ATTR_INT)
@@ -52,6 +53,10 @@ extern "x86-interrupt" fn breakpoint_handler(frame: InterruptFrame) {
 
 extern "x86-interrupt" fn dobule_fault_handler(frame: TrapFrame) {
     panic!("double fault exception\nframe: {:#?}", frame);
+}
+
+extern "x86-interrupt" fn general_protection_fault_handler(frame: TrapFrame) {
+    panic!("general protection fault\nframe: {:#?}", frame);
 }
 
 extern "x86-interrupt" fn page_fault_handler(frame: TrapFrame) {

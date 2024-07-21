@@ -1,6 +1,22 @@
-use core::{ops::Index, panicking::panic};
+use core::{mem, ops::Index, slice};
 
-use crate::rsdp_addr;
+use crate::{
+    memory::{
+        frame_allocator::Frame,
+        paging::{EntryFlags, Page},
+    },
+    paging_mapper, println, rsdp_addr,
+};
+
+fn map_present(addr: u64) {
+    paging_mapper()
+        .map_to(
+            Page::containing_address(addr as usize),
+            Frame::containing_address(addr as usize),
+            EntryFlags::PRESENT,
+        )
+        .unwrap();
+}
 
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
@@ -35,7 +51,7 @@ impl RSDPDesc {
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
 pub struct ACPIHeader {
-    signatrue: [u8; 4],
+    pub signatrue: [u8; 4],
     len: u32,
     revision: u8,
     checksum: u8,
@@ -45,18 +61,18 @@ pub struct ACPIHeader {
     creator_revision: u32,
 }
 
-#[repr(C, packed)]
+#[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct RSDT {
     pub header: ACPIHeader,
     table: [u32; 0], // uint32_t table[];?
 }
 
-#[repr(C, packed)]
+#[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct XSDT {
     pub header: ACPIHeader,
-    table: [u64; 0], // uint32_t table[];?
+    table: [u64; 0],
 }
 
 #[derive(Debug)]
@@ -65,67 +81,36 @@ pub enum SDT {
     XSDT(*const XSDT),
 }
 
-impl SDT {
-    pub fn table_len(&self) -> usize {
-        let bytes = self.table_bytes();
-
-        let len = unsafe {
-            match self {
-                SDT::RSDT(ptr) => (**ptr).header.len,
-                SDT::XSDT(ptr) => (**ptr).header.len,
-            }
-        };
-
-        (len as usize - size_of::<ACPIHeader>()) / bytes
-    }
-
-    #[inline]
-    pub fn table_bytes(&self) -> usize {
-        match self {
-            SDT::RSDT(_) => 4,
-            SDT::XSDT(_) => 8,
-        }
-    }
-
-    pub fn nth(&self, index: usize) -> *const ACPIHeader {
-        let ptr = unsafe {
-            match self {
-                SDT::RSDT(ptr) => (*ptr).add(size_of::<ACPIHeader>()) as *const u8,
-                SDT::XSDT(ptr) => (*ptr).add(size_of::<ACPIHeader>()) as *const u8,
-            }
-        };
-
-        if self.table_len() <= index {
-            panic!(
-                "index out of bounds: the len is {} but the index is {} while trying to index an RSDT or an XSDT",
-                self.table_len(),
-                index
-            );
+impl RSDT {
+    pub unsafe fn entries(&self) -> &[u32] {
+        let num = (self.header.len as usize - size_of::<ACPIHeader>()) / 4;
+        let entries = slice::from_raw_parts(self.table.as_ptr(), num);
+        for entry in entries {
+            map_present(*entry as u64);
         }
 
-        let item = unsafe { *(ptr.add(self.table_bytes() * index)) as usize };
-        item as *const ACPIHeader
-    }
-}
-
-impl Index<usize> for SDT {
-    type Output = ACPIHeader;
-    fn index(&self, index: usize) -> &Self::Output {
-        unsafe { &(*self.nth(index)) }
+        entries
     }
 }
 
 fn get_rsdp() -> RSDPDesc {
+    map_present(rsdp_addr());
     let ptr = rsdp_addr() as *mut RSDPDesc;
-    unsafe { *ptr }
+
+    let desc = unsafe { *ptr };
+    println!("{:#?}", desc);
+    desc
 }
 
-fn get_sdt() -> SDT {
+pub fn get_sdt() -> SDT {
     let rsdp = get_rsdp();
 
-    if rsdp.xsdt_addr != 0 {
-        return SDT::RSDT(rsdp.xsdt_addr as *const RSDT);
-    }
+    // if rsdp.xsdt_addr != 0 {
+    //     map_present(rsdp.xsdt_addr);
+    //     return SDT::XSDT(rsdp.xsdt_addr as *const XSDT);
+    // }
 
-    SDT::XSDT(rsdp.rsdt_addr as *const XSDT)
+    map_present(rsdp.rsdt_addr as u64);
+
+    SDT::RSDT(rsdp.rsdt_addr as *const RSDT)
 }
