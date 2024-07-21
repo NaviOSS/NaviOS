@@ -1,5 +1,3 @@
-use core::{mem, ops::Index, slice};
-
 use crate::{
     memory::{
         frame_allocator::Frame,
@@ -57,6 +55,7 @@ pub struct ACPIHeader {
     checksum: u8,
     oem_id: [u8; 6],
     oem_table_id: [u8; 8],
+    oem_revision: u32,
     creator_id: u32,
     creator_revision: u32,
 }
@@ -75,21 +74,118 @@ pub struct XSDT {
     table: [u64; 0],
 }
 
+#[repr(C, packed)]
 #[derive(Debug)]
-pub enum SDT {
-    RSDT(*const RSDT),
-    XSDT(*const XSDT),
+pub struct MADT {
+    pub header: ACPIHeader,
+    local_apic_address: u32,
+    flags: u32,
 }
 
-impl RSDT {
-    pub unsafe fn entries(&self) -> &[u32] {
-        let num = (self.header.len as usize - size_of::<ACPIHeader>()) / 4;
-        let entries = slice::from_raw_parts(self.table.as_ptr(), num);
-        for entry in entries {
-            map_present(*entry as u64);
+#[repr(C, packed)]
+#[derive(Debug)]
+pub struct MADTRecord {
+    pub entry_type: u8,
+    pub length: u8,
+}
+
+// any sdt
+pub trait SDT {
+    fn header(&self) -> &ACPIHeader;
+
+    fn len(&self) -> u32 {
+        self.header().len
+    }
+
+    unsafe fn nth(&self, n: usize) -> (usize, u32);
+}
+
+// RSDT and RSDT
+// stands for Parent Table of System Descriptors (yes it gave me ptsd)
+pub trait PTSD: SDT {
+    // returns (ptr, offset)
+    // offset can be used to iter
+    // offset is the offset starting from the first byte of Self
+    unsafe fn get_entry_of_signatrue(&self, signatrue: [u8; 4]) -> Option<*const ACPIHeader> {
+        for i in 0..(self.count()) {
+            let item = self.nth(i).0 as *const ACPIHeader;
+            if (*item).signatrue == signatrue {
+                return Some(item);
+            }
+        }
+        None
+    }
+
+    // table item count
+    fn count(&self) -> usize {
+        (self.len() as usize - size_of::<ACPIHeader>()) / 4
+    }
+}
+
+impl SDT for RSDT {
+    fn header(&self) -> &ACPIHeader {
+        &self.header
+    }
+
+    unsafe fn nth(&self, n: usize) -> (usize, u32) {
+        let table_start = (self as *const Self).byte_add(size_of::<Self>());
+        let offset = n * 4;
+
+        let total_offset = (table_start as usize - (self as *const Self) as usize) + offset;
+        let addr = *(table_start.byte_add(offset) as *const u32) as usize;
+        map_present(addr as u64);
+
+        (addr, total_offset as u32)
+    }
+}
+
+impl PTSD for RSDT {}
+
+impl SDT for MADT {
+    fn header(&self) -> &ACPIHeader {
+        &self.header
+    }
+
+    unsafe fn nth(&self, n: usize) -> (usize, u32) {
+        let addr = self as *const Self;
+
+        if n == 0 {
+            let base = (addr).byte_add(size_of::<MADT>());
+            return (base as usize, base as u32 - addr as u32);
         }
 
-        entries
+        let base = self.nth(0).0;
+        let mut record = base as u32 + (*(base as *const MADTRecord)).length as u32;
+
+        for _ in 1..n - 1 {
+            let next_record = record as *const MADTRecord;
+            let len = (*next_record).length;
+            record += len as u32;
+        }
+
+        (record as usize, record as u32 - addr as u32)
+    }
+}
+
+impl MADT {
+    pub unsafe fn get_record_of_type(&self, ty: u8) -> Option<*const MADTRecord> {
+        let len = self.header.len;
+        let mut current_offset = 0;
+        let mut i = 0;
+
+        while current_offset <= len {
+            let (ptr, offset) = self.nth(i);
+            let ptr = ptr as *const MADTRecord;
+
+            if (*ptr).entry_type == ty {
+                return Some(ptr);
+            }
+
+            i += 1;
+            current_offset = offset;
+        }
+
+        None
     }
 }
 
@@ -102,7 +198,7 @@ fn get_rsdp() -> RSDPDesc {
     desc
 }
 
-pub fn get_sdt() -> SDT {
+pub fn get_sdt() -> &'static dyn PTSD {
     let rsdp = get_rsdp();
 
     // if rsdp.xsdt_addr != 0 {
@@ -112,5 +208,5 @@ pub fn get_sdt() -> SDT {
 
     map_present(rsdp.rsdt_addr as u64);
 
-    SDT::RSDT(rsdp.rsdt_addr as *const RSDT)
+    unsafe { &*(rsdp.rsdt_addr as *const RSDT) }
 }

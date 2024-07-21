@@ -3,19 +3,18 @@ mod handlers;
 mod idt;
 
 use apic::{LVTEntry, LVTEntryFlags, APIC_BASE};
-use bitflags::Flags;
 use core::arch::asm;
 use idt::IDTDesc;
 
 use crate::{
-    arch::x86_64::acpi::{get_sdt, ACPIHeader, SDT},
+    arch::x86_64::acpi::{get_sdt, MADT},
     globals::paging_mapper,
     memory::{
         frame_allocator::Frame,
         paging::{EntryFlags, Page},
         PhysAddr,
     },
-    print, println,
+    println,
 };
 
 pub fn read_msr(msr: u32) -> PhysAddr {
@@ -39,6 +38,11 @@ pub fn init_idt() {
     unsafe {
         asm!("lidt [{}]", in(reg) &*IDTDesc, options(nostack));
     }
+}
+
+fn get_madt() -> &'static MADT {
+    let sdt = get_sdt();
+    unsafe { &*(sdt.get_entry_of_signatrue(*b"APIC").unwrap() as *const MADT) }
 }
 
 pub fn enable_apic_interrupts() {
@@ -83,23 +87,7 @@ pub fn enable_apic_interrupts() {
         // let timer = *(timer_addr as *mut LVTEntry);
         // let flags = timer.flags;
         // let timer = timer.entry as u64 | ((flags.bits() as u64) << 7);
-        let sdt = get_sdt();
-        match sdt {
-            SDT::RSDT(ptr) => {
-                for entry in (*ptr).entries() {
-                    let s = *entry as usize;
-                    let header = *(s as *const ACPIHeader);
-                    let s = core::str::from_utf8(&header.signatrue).unwrap_or("\0");
-
-                    println!("here is a signatrue (RSDT)! {}", s);
-                }
-            }
-            _ => {
-                unreachable!(
-                    "XSDT is not implented right now duo to pagging(x64 addresses) problems!"
-                )
-            }
-        }
+        let madt = get_madt();
+        println!("{:#?}", madt);
     }
-    loop {}
 }
