@@ -1,20 +1,4 @@
-use crate::{
-    memory::{
-        frame_allocator::Frame,
-        paging::{EntryFlags, Page},
-    },
-    paging_mapper, println, rsdp_addr,
-};
-
-fn map_present(addr: u64) {
-    paging_mapper()
-        .map_to(
-            Page::containing_address(addr as usize),
-            Frame::containing_address(addr as usize),
-            EntryFlags::PRESENT,
-        )
-        .unwrap();
-}
+use crate::{memory::map_present, rsdp_addr};
 
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy)]
@@ -83,7 +67,7 @@ pub struct MADT {
 }
 
 #[repr(C, packed)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct MADTRecord {
     pub entry_type: u8,
     pub length: u8,
@@ -133,7 +117,7 @@ impl SDT for RSDT {
 
         let total_offset = (table_start as usize - (self as *const Self) as usize) + offset;
         let addr = *(table_start.byte_add(offset) as *const u32) as usize;
-        map_present(addr as u64);
+        map_present(addr);
 
         (addr, total_offset as u32)
     }
@@ -190,11 +174,10 @@ impl MADT {
 }
 
 fn get_rsdp() -> RSDPDesc {
-    map_present(rsdp_addr());
+    map_present(rsdp_addr() as usize);
     let ptr = rsdp_addr() as *mut RSDPDesc;
 
     let desc = unsafe { *ptr };
-    println!("{:#?}", desc);
     desc
 }
 
@@ -206,7 +189,7 @@ pub fn get_sdt() -> &'static dyn PTSD {
     //     return SDT::XSDT(rsdp.xsdt_addr as *const XSDT);
     // }
 
-    map_present(rsdp.rsdt_addr as u64);
+    map_present(rsdp.rsdt_addr as usize);
 
     unsafe { &*(rsdp.rsdt_addr as *const RSDT) }
 }

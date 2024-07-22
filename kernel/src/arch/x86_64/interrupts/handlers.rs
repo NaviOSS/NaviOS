@@ -3,6 +3,7 @@ use lazy_static::lazy_static;
 use super::idt::{GateDescriptor, IDTT};
 use super::idt::{InterruptFrame, TrapFrame};
 
+use crate::arch::x86_64::inb;
 use crate::arch::x86_64::interrupts::apic::send_eoi;
 use crate::{print, println};
 const ATTR_TRAP: u8 = 0xF;
@@ -68,6 +69,8 @@ extern "x86-interrupt" fn timer_interrupt_handler(_frame: InterruptFrame) {
     send_eoi();
 }
 
-extern "x86-interrupt" fn keyboard_interrupt_handler(_frame: InterruptFrame) {
-    println!("got keyboard int");
+extern "x86-interrupt" fn keyboard_interrupt_handler() {
+    let key = inb(0x60);
+    println!("int {key}");
+    send_eoi();
 }

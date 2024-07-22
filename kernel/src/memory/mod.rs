@@ -6,9 +6,32 @@ pub mod paging;
 pub type VirtAddr = usize;
 pub type PhysAddr = usize;
 
+use frame_allocator::Frame;
 use paging::{EntryFlags, MapToError, Page};
 
 use crate::globals::{frame_allocator, global_allocator, paging_mapper};
+
+#[inline]
+pub fn map_present(addr: PhysAddr) {
+    paging_mapper()
+        .map_to(
+            Page::containing_address(addr),
+            Frame::containing_address(addr),
+            EntryFlags::PRESENT,
+        )
+        .unwrap();
+}
+
+#[inline]
+pub fn map_writeable(addr: PhysAddr) {
+    paging_mapper()
+        .map_to(
+            Page::containing_address(addr),
+            Frame::containing_address(addr),
+            EntryFlags::PRESENT | EntryFlags::WRITABLE,
+        )
+        .unwrap();
+}
 
 fn p4_index(addr: VirtAddr) -> usize {
     (addr >> 39) & 0x1FF
