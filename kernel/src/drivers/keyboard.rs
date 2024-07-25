@@ -9,18 +9,6 @@ pub struct Key {
     pub code: KeyCode, // each code has lower 5 bits as column while the highest 3 are row
 }
 
-// NOTE the ranges are based on the US-QWERTY layout
-// NULL, F1 .. F12, print screen - row 0 - null is an invaild key it is 0
-// esc, 1 .. 0, -, =, backspace - num row 1
-
-// q .. p, [, ], \ - first alphabet row 2
-// a .. l, :, ", enter - second alphabet row 3
-// z .. m, '`', ',', '.', / - third alphabet row 4
-
-// tab, caps lock, shift, ctrl, alt, super(windows), space, up, down, left, right - control row 5
-// pg up, pg down, insert, delete, home, end - prob more numpad keys which i dont have row 6
-/* empty row 7 */
-
 macro_rules! row {
     ($row: expr) => {
         $row << 5
@@ -30,8 +18,21 @@ macro_rules! row {
 #[derive(Clone, Copy, Debug)]
 #[repr(u8)]
 pub enum KeyCode {
-    // set the first key at N row to row!(N), then put the other keys in order
+    // set the first key at index N row to row!(N), then put the other keys in order
     NULL = row!(0),
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+    PrintScr,
 
     Esc = row!(1),
     Key1,
@@ -49,6 +50,62 @@ pub enum KeyCode {
     Backspace,
 
     KeyQ = row!(2),
+    KeyW,
+    KeyE,
+    KeyR,
+    KeyT,
+    KeyY,
+    KeyU,
+    KeyI,
+    KeyO,
+    KeyP,
+    LeftBrace,
+    RightBrace,
+    BackSlash,
+
+    KeyA = row!(3),
+    KeyS,
+    KeyD,
+    KeyF,
+    KeyG,
+    KeyH,
+    KeyJ,
+    KeyK,
+    KeyL,
+    Semicolon,
+    DoubleQuote,
+    Return,
+
+    KeyZ = row!(4),
+    KeyX,
+    KeyC,
+    KeyV,
+    KeyB,
+    KeyN,
+    KeyM,
+    BackQuote,
+    Comma,
+    Dot,
+    Slash,
+
+    Tab = row!(5),
+    CapsLock,
+    Ctrl,
+    Shift,
+    Alt,
+    Super,
+    Space,
+    Up,
+    Down,
+    Left,
+    Right,
+
+    PageUp = row!(6),
+    PageDown,
+    Insert,
+    Delete,
+    Home,
+    End,
 }
 
 impl LowerHex for KeyCode {
@@ -86,8 +143,7 @@ pub trait EncodeKey: Sized {
     fn encode(self) -> KeyCode;
 }
 
-// EncodeKey macro defined in macros crate, basically you just
-// need to add the keycode as a variant below, give it the same name as the key in KeyCode enum
+// you need to add the keycode as a variant below, give it the same name as the key in KeyCode enum
 #[repr(u64)]
 #[derive(IntEnum, Clone, Copy, EncodeKey)]
 pub enum Set1Key {
