@@ -11,6 +11,7 @@
 mod test;
 
 mod arch;
+mod drivers;
 mod globals;
 mod memory;
 mod terminal;

@@ -5,7 +5,7 @@ use super::idt::{InterruptFrame, TrapFrame};
 
 use crate::arch::x86_64::inb;
 use crate::arch::x86_64::interrupts::apic::send_eoi;
-use crate::{print, println};
+use crate::{drivers, print, println};
 const ATTR_TRAP: u8 = 0xF;
 const ATTR_INT: u8 = 0xE;
 const EMPTY_TABLE: IDTT = [GateDescriptor::default(); 256]; // making sure it is made at compile-time
@@ -71,6 +71,6 @@ extern "x86-interrupt" fn timer_interrupt_handler(_frame: InterruptFrame) {
 
 extern "x86-interrupt" fn keyboard_interrupt_handler() {
     let key = inb(0x60);
-    println!("int {key}");
+    drivers::keyboard::encode_ps2_set_1(key);
     send_eoi();
 }

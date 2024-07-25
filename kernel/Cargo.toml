@@ -13,7 +13,8 @@ lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
 bootloader_api = { version = "0.11.7" }
 spin = "0.9.8"
 bitflags = "2.6.0"
-tests = { path = "../tests" }
+macros = { path = "../macros" }
+int-enum = "1.1"
 
 [dev-dependencies]
 cc = "1.1.1"

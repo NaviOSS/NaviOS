@@ -1,4 +1,4 @@
-use tests::test_module;
+use macros::test_module;
 
 #[test_module]
 pub mod testing_module {
