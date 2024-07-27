@@ -83,10 +83,16 @@ fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     #[cfg(feature = "test")]
     test::testing_module::test_main();
-
     println!("Hello, world!");
     loop {}
 }
+
+// whenever a key is pressed this function should be called
+// this executes a few other kernel-functions
+pub fn __navi_key_pressed() {
+    terminal().on_key_pressed()
+}
+
 static CONFIG: bootloader_api::BootloaderConfig = {
     use bootloader_api::{
         config::{Mapping, Mappings},

@@ -1,10 +1,15 @@
+use spin::MutexGuard;
+
 use core::{fmt, ptr};
 
 use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 
-// max console size if reached we will move buffer down a little bit and put it in the ecess buffer so we can scroll
-const MAX_CONSOLE_SIZE: usize = 0;
+use crate::{
+    drivers::keyboard::{KeyCode, KeyFlags, __navi_keyboard_key_is_pressed},
+    utils::Locked,
+};
+
 const RASTER_HEIGHT: RasterHeight = RasterHeight::Size20;
 const WRITE_COLOR: Color = (222, 255, 30);
 
@@ -13,12 +18,18 @@ pub type Color = (u32, u32, u32);
 pub struct Terminal<'a> {
     row: usize,
     column: usize,
-    pub buffer: &'a mut [u8],
-    // the second value is how much bytes are written
-    extra_buffer: ([u8; MAX_CONSOLE_SIZE], usize),
+    buffer: &'a mut [u8],
+    viewport_start: usize,
     pub info: FrameBufferInfo,
     pub x_pos: usize,
     pub y_pos: usize,
+}
+const MAX_VIEWPORT_LEN: usize = 4000000 * 4;
+
+static VIEWPORT: Locked<[u8; MAX_VIEWPORT_LEN]> = Locked::new([0u8; MAX_VIEWPORT_LEN]); // TODO use
+                                                                                        // a vec instead after we finish scrolling
+fn viewport() -> MutexGuard<'static, [u8; MAX_VIEWPORT_LEN]> {
+    VIEWPORT.inner.lock()
 }
 
 impl<'a> Terminal<'a> {
@@ -35,41 +46,58 @@ impl<'a> Terminal<'a> {
             row: 0,
             column: 0,
             buffer,
-            extra_buffer: ([0u8; MAX_CONSOLE_SIZE], 0),
+            viewport_start: 0,
             info,
             x_pos: 0,
             y_pos: 0,
         }
     }
 
-    pub fn width(&self) -> usize {
+    pub fn on_key_pressed(&mut self) {
+        if __navi_keyboard_key_is_pressed(KeyCode::PageDown, KeyFlags::empty()) {
+            self.scroll_down()
+        } else if __navi_keyboard_key_is_pressed(KeyCode::PageUp, KeyFlags::empty()) {
+            self.scroll_up()
+        }
+    }
+
+    fn width(&self) -> usize {
         self.info.width
     }
 
-    pub fn height(&self) -> usize {
+    fn height(&self) -> usize {
         self.info.height
+    }
+
+    pub fn draw_viewport(&mut self) {
+        self.buffer.copy_from_slice(
+            &viewport()[self.viewport_start..self.buffer.len() + self.viewport_start],
+        );
     }
 
     fn get_byte_offset(&self, x: usize, y: usize) -> usize {
         (y * self.info.stride + x) * self.info.bytes_per_pixel
     }
 
+    #[inline]
+    fn scroll_amount(&self) -> usize {
+        self.info.stride * self.info.bytes_per_pixel * RASTER_HEIGHT.val()
+    }
+
     fn scroll_up(&mut self) {
-        // copy the buffer up
-        let len = self.buffer.len();
-        self.buffer.copy_within(
-            self.get_byte_offset(self.x_pos, RASTER_HEIGHT.val()) /* the first line in buffer */ ..len - 1,
-            0,
-        );
-
-        // overwriting the last line
-        self.y_pos -= RASTER_HEIGHT.val();
-
-        let last_line = self.get_byte_offset(0, self.y_pos);
-        if last_line >= len {
-            self.scroll_up()
+        let scroll_amount = self.scroll_amount();
+        if self.viewport_start >= scroll_amount {
+            self.viewport_start -= scroll_amount;
+            self.draw_viewport()
         }
-        self.buffer[last_line..len].fill(0);
+    }
+
+    fn scroll_down(&mut self) {
+        let scroll_amount = self.scroll_amount();
+        if viewport().len() - 1 >= (self.viewport_start + scroll_amount + self.buffer.len()) {
+            self.viewport_start += scroll_amount;
+            self.draw_viewport()
+        }
     }
 
     fn newline(&mut self) {
@@ -96,7 +124,7 @@ impl<'a> Terminal<'a> {
             (color[3] >> 8 & 0xff) as u8,
         ];
 
-        self.buffer[byte_offset..(byte_offset + bytes_per_pixel)]
+        viewport()[byte_offset..(byte_offset + bytes_per_pixel)]
             .copy_from_slice(&color[..bytes_per_pixel]);
 
         unsafe {
@@ -109,8 +137,10 @@ impl<'a> Terminal<'a> {
             self.newline();
         }
 
-        if (self.y_pos + glyph.height()) > self.height() {
-            self.scroll_up()
+        if self.y_pos * self.info.stride * self.info.bytes_per_pixel + self.scroll_amount()
+            >= self.viewport_start + self.buffer.len()
+        {
+            self.scroll_down();
         }
 
         for (row, rows) in glyph.raster().iter().enumerate() {
@@ -144,6 +174,7 @@ impl<'a> Terminal<'a> {
         for c in str.chars() {
             self.putc(c, color);
         }
+        self.draw_viewport()
     }
 }
 
