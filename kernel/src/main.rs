@@ -57,7 +57,7 @@ fn panic(info: &PanicInfo) -> ! {
 }
 
 pub extern "C" fn kinit(boot_info: &'static mut bootloader_api::BootInfo) {
-    // initing terminal
+    // initing globals
     let phy_offset = &mut boot_info.physical_memory_offset;
     let phy_offset = phy_offset.as_mut().unwrap();
 
@@ -75,10 +75,6 @@ pub extern "C" fn kinit(boot_info: &'static mut bootloader_api::BootInfo) {
     };
     // initing the arch
     arch_init!(); // macro is defined for each arch
-
-    unsafe {
-        memory::init_memory().unwrap();
-    };
 }
 
 #[no_mangle]

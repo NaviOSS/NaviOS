@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 use super::read_msr;
 use bitflags::bitflags;
 use lazy_static::lazy_static;
@@ -138,4 +140,34 @@ pub unsafe fn write_ioapic_irq(ioapic_addr: VirtAddr, n: u8, table: IOREDTBL) {
 
     write_ioapic_val_to_reg(ioapic_addr, offset1, lower);
     write_ioapic_val_to_reg(ioapic_addr, offset2, higher);
+}
+
+fn enable_apic_keyboard(ioapic_addr: VirtAddr, apic_id: u8) {
+    unsafe {
+        let keyboard = IOREDTBL::new(
+            LVTEntry {
+                entry: 0x21,
+                flags: LVTEntryFlags::empty(),
+            },
+            apic_id,
+        );
+
+        write_ioapic_irq(ioapic_addr, 1, keyboard);
+    }
+}
+
+pub fn enable_apic_interrupts() {
+    unsafe { asm!("sti") };
+
+    let address = get_local_apic_addr();
+    let sivr = get_local_apic_reg(address, 0xF0) as *mut u32;
+
+    unsafe {
+        core::ptr::write_volatile(sivr, 0x1ff);
+
+        let madt = get_madt();
+        let ioapic_addr = get_io_apic_addr(madt);
+        let apic_id = *(get_local_apic_reg(address, 0x20) as *const u8);
+        enable_apic_keyboard(ioapic_addr, apic_id)
+    }
 }

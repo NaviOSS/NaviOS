@@ -4,7 +4,9 @@ mod interrupts;
 
 use core::arch::asm;
 
-use interrupts::{enable_apic_interrupts, init_idt};
+use interrupts::{apic, init_idt};
+
+use crate::memory;
 
 use self::gdt::init_gdt;
 
@@ -22,16 +24,17 @@ pub fn outb(port: u16, value: u8) {
     }
 }
 
-pub extern "C" fn init() {
+pub fn init() {
     init_gdt();
     init_idt();
-    enable_apic_interrupts();
+
+    unsafe { memory::init_memory().unwrap() }
+    apic::enable_apic_interrupts();
 }
 
 #[macro_export]
 macro_rules! arch_init {
     () => {
-        use arch::x86_64::init;
-        init()
+        arch::x86_64::init()
     };
 }
