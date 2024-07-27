@@ -1,3 +1,6 @@
+// TODO: impl our own Optional type
+pub use bootloader_api::info::Optional;
+
 use spin::Mutex;
 
 pub struct Locked<T> {
