@@ -6,7 +6,7 @@ use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 
 use crate::{
-    drivers::keyboard::{Key, KeyCode, KeyFlags, __navi_keyboard_key_is_pressed},
+    drivers::keyboard::{Key, KeyCode},
     utils::Locked,
 };
 
