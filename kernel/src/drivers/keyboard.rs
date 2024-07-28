@@ -266,7 +266,7 @@ fn add_pressed_keycode(code: KeyCode) {
 
     let key = Key::process_keycode(code);
     current_keys().push(key);
-    crate::__navi_key_pressed()
+    crate::__navi_key_pressed(key)
 }
 
 fn remove_pressed_keycode(code: KeyCode) {

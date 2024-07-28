@@ -6,7 +6,7 @@ use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 
 use crate::{
-    drivers::keyboard::{KeyCode, KeyFlags, __navi_keyboard_key_is_pressed},
+    drivers::keyboard::{Key, KeyCode, KeyFlags, __navi_keyboard_key_is_pressed},
     utils::Locked,
 };
 
@@ -53,11 +53,11 @@ impl<'a> Terminal<'a> {
         }
     }
 
-    pub fn on_key_pressed(&mut self) {
-        if __navi_keyboard_key_is_pressed(KeyCode::PageDown, KeyFlags::empty()) {
-            self.scroll_down()
-        } else if __navi_keyboard_key_is_pressed(KeyCode::PageUp, KeyFlags::empty()) {
-            self.scroll_up()
+    pub fn on_key_pressed(&mut self, key: Key) {
+        match key.code {
+            KeyCode::PageDown => self.scroll_down(),
+            KeyCode::PageUp => self.scroll_up(),
+            _ => (),
         }
     }
 
@@ -137,7 +137,7 @@ impl<'a> Terminal<'a> {
             self.newline();
         }
 
-        if self.y_pos * self.info.stride * self.info.bytes_per_pixel + self.scroll_amount()
+        if self.y_pos * self.info.stride * self.info.bytes_per_pixel
             >= self.viewport_start + self.buffer.len()
         {
             self.scroll_down();

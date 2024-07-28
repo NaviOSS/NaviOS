@@ -20,6 +20,7 @@ mod utils;
 extern crate alloc;
 use bootloader_api::info::MemoryRegions;
 
+use drivers::keyboard::Key;
 use globals::*;
 
 use memory::frame_allocator::RegionAllocator;
@@ -89,8 +90,8 @@ fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
 // whenever a key is pressed this function should be called
 // this executes a few other kernel-functions
-pub fn __navi_key_pressed() {
-    terminal().on_key_pressed()
+pub fn __navi_key_pressed(key: Key) {
+    terminal().on_key_pressed(key)
 }
 
 static CONFIG: bootloader_api::BootloaderConfig = {
