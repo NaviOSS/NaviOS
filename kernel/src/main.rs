@@ -57,25 +57,28 @@ fn panic(info: &PanicInfo) -> ! {
     loop {}
 }
 
-pub extern "C" fn kinit(boot_info: &'static mut bootloader_api::BootInfo) {
+pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
     // initing globals
-    let phy_offset = &mut boot_info.physical_memory_offset;
+    let phy_offset = &mut bootinfo.physical_memory_offset;
     let phy_offset = phy_offset.as_mut().unwrap();
 
-    let regions: &'static mut MemoryRegions = &mut boot_info.memory_regions;
+    let regions: &'static mut MemoryRegions = &mut bootinfo.memory_regions;
 
     unsafe {
-        RSDP_ADDR = boot_info.rsdp_addr.into();
+        RSDP_ADDR = bootinfo.rsdp_addr.into();
         FRAME_ALLOCATOR = Some(RegionAllocator::new(&mut *regions));
-
-        let terminal: Terminal<'static> = Terminal::init(boot_info.framebuffer.as_mut().unwrap());
-        TERMINAL = Some(terminal);
 
         let mapper = Mapper::new(*phy_offset as usize, level_4_table(*phy_offset));
         PAGING_MAPPER = Some(mapper);
+        let terminal: Terminal<'static> = Terminal::init(bootinfo.framebuffer.as_mut().unwrap());
+        TERMINAL = Some(terminal);
     };
+
     // initing the arch
     arch_init!(); // macro is defined for each arch
+    unsafe {
+        memory::init_memory().unwrap();
+    }
 }
 
 #[no_mangle]

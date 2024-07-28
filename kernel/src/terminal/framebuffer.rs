@@ -96,6 +96,7 @@ impl<'a> Terminal<'a> {
         let scroll_amount = self.scroll_amount();
         if viewport().len() - 1 >= (self.viewport_start + scroll_amount + self.buffer.len()) {
             self.viewport_start += scroll_amount;
+            /*             self.screen.resize(self.screen.len() + scroll_amount, 0); */
             self.draw_viewport()
         }
     }

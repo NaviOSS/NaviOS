@@ -6,8 +6,6 @@ use core::arch::asm;
 
 use interrupts::{apic, init_idt};
 
-use crate::memory;
-
 use self::gdt::init_gdt;
 
 pub fn inb(port: u16) -> u8 {
@@ -23,12 +21,11 @@ pub fn outb(port: u16, value: u8) {
         asm!("out dx, al", in("dx") port, in("al") value, options(nomem, nostack, preserves_flags));
     }
 }
-
+#[inline]
 pub fn init() {
     init_gdt();
     init_idt();
 
-    unsafe { memory::init_memory().unwrap() }
     apic::enable_apic_interrupts();
 }
 

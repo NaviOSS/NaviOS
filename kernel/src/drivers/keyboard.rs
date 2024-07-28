@@ -1,7 +1,8 @@
+// no alloc vec
 use core::fmt::{Display, LowerHex, UpperHex};
+use heapless::Vec;
 
 use crate::utils::{Locked, Optional};
-use alloc::vec::Vec;
 use bitflags::bitflags;
 use int_enum::IntEnum;
 use macros::EncodeKey;
@@ -10,8 +11,9 @@ use spin::MutexGuard;
 static mut CURRENT_UNENCODED_KEY: [u8; 8] = [0; 8]; // multibyte key
 static mut LATEST_UNENCODED_BYTE: usize = 0; // pointer in ^^^
 
-static CURRENT_KEYS: Locked<Vec<Key>> = Locked::new(Vec::new());
-fn current_keys() -> MutexGuard<'static, Vec<Key>> {
+const MAX_KEYS: usize = 256;
+static CURRENT_KEYS: Locked<Vec<Key, MAX_KEYS>> = Locked::new(Vec::new());
+fn current_keys() -> MutexGuard<'static, Vec<Key, MAX_KEYS>> {
     CURRENT_KEYS.inner.lock()
 }
 
@@ -265,7 +267,10 @@ fn add_pressed_keycode(code: KeyCode) {
     }
 
     let key = Key::process_keycode(code);
-    current_keys().push(key);
+    let attempt = current_keys().push(key);
+    if attempt.is_err() {
+        *current_keys().last_mut().unwrap() = attempt.unwrap_err();
+    }
     crate::__navi_key_pressed(key)
 }
 
