@@ -87,7 +87,7 @@ fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     #[cfg(feature = "test")]
     test::testing_module::test_main();
-    println!("Hello, world!");
+    println!(r"\[fg: (0, 255, 0) |Hello, world!|]");
     loop {}
 }
 

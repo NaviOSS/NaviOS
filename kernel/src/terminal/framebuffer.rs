@@ -10,6 +10,8 @@ use crate::{
     utils::Locked,
 };
 
+use super::navitts::NaviTTES;
+
 const RASTER_HEIGHT: RasterHeight = RasterHeight::Size20;
 const WRITE_COLOR: Color = (222, 255, 30);
 
@@ -24,7 +26,7 @@ pub struct Terminal<'a> {
     pub x_pos: usize,
     pub y_pos: usize,
 }
-const MAX_VIEWPORT_LEN: usize = 4000000 * 4;
+const MAX_VIEWPORT_LEN: usize = 4000000 * 8;
 
 static VIEWPORT: Locked<[u8; MAX_VIEWPORT_LEN]> = Locked::new([0u8; MAX_VIEWPORT_LEN]); // TODO use
                                                                                         // a vec instead after we finish scrolling
@@ -171,11 +173,19 @@ impl<'a> Terminal<'a> {
         }
     }
 
-    pub fn write(&mut self, str: &str, color: (u32, u32, u32)) {
+    fn write_slice(&mut self, str: &str, color: (u32, u32, u32)) {
         for c in str.chars() {
             self.putc(c, color);
         }
-        self.draw_viewport()
+
+        self.draw_viewport();
+    }
+    pub fn write(&mut self, str: &str, color: (u32, u32, u32)) {
+        let parsed = NaviTTES::parse_str(str);
+        match parsed {
+            NaviTTES::Slice(s) => self.write_slice(s, color),
+            u => todo!("{:#?}", u),
+        }
     }
 }
 
