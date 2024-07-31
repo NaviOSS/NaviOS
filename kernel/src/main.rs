@@ -44,16 +44,14 @@ macro_rules! println {
 #[allow(unused_imports)]
 use core::panic::PanicInfo;
 
-#[allow(unused_imports)]
-use terminal::kerr;
-
 #[allow(dead_code)]
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    println!("kernel panic: {}", info.message());
+    println!("\\[fg: (255, 0, 0) |\nkernel panic: |]");
+    println!("{}", info.message());
 
-    kerr("\ncannot continue execution kernel will now hang");
+    println!("\\[fg: (255, 0, 0) |cannot continue execution kernel will now hang|]");
     loop {}
 }
 
@@ -87,7 +85,7 @@ fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     #[cfg(feature = "test")]
     test::testing_module::test_main();
-    println!(r"\[fg: (0, 255, 0) |Hello, world!|]");
+    println!(r"\[fg: (0, 255, 0) |Hello, world!| fg: (255, 0, 0) | red text!|]");
     loop {}
 }
 

@@ -43,8 +43,7 @@ pub enum Value {
     Calle(String, Vec<Value>),
 }
 
-type CAttribute = (&'static str, Type<'static>);
-type Attribute = (&'static str, Value);
+type Attribute = (String, Value);
 
 #[derive(Debug, Clone)]
 pub enum NaviTTES<'a> {
@@ -54,8 +53,38 @@ pub enum NaviTTES<'a> {
     OwnedSlice(String),
 }
 
-const ATTRIBUTES: &[CAttribute] = &[("fg", Type::Tuple(&[Type::Byte, Type::Byte, Type::Byte]))];
+#[derive(Debug, Clone)]
+pub struct Attributes {
+    pub fg: (u8, u8, u8),
+}
 
+impl Default for Attributes {
+    fn default() -> Self {
+        Self {
+            fg: (255, 255, 255),
+        }
+    }
+}
+
+impl Attributes {
+    pub fn from_list(attr_list: &[Attribute], default: Attributes) -> Self {
+        let mut attrs = default;
+
+        for (key, value) in attr_list {
+            match (key.as_str(), value) {
+                ("fg", Value::Tuple(ref vals)) => {
+                    if let [Value::Byte(r), Value::Byte(g), Value::Byte(b)] = vals[..] {
+                        attrs.fg = (r, g, b);
+                    }
+                }
+
+                _ => {}
+            }
+        }
+
+        attrs
+    }
+}
 impl<'a> NaviTTES<'a> {
     pub fn parse_str(str: &'a str) -> Self {
         let mut result = NaviTTES::Slice(str);
@@ -225,7 +254,7 @@ impl<'a, 'r> Parser<'a> {
         Ok(NaviTTES::NaviESS(ttes))
     }
 
-    fn parse_attributes(&mut self) -> Result<Vec<(&'static str, Value)>, ()> {
+    fn parse_attributes(&mut self) -> Result<Vec<Attribute>, ()> {
         let mut results = Vec::new();
 
         results.push(self.parse_attribute()?);
@@ -239,7 +268,7 @@ impl<'a, 'r> Parser<'a> {
         Ok(results)
     }
 
-    fn parse_attribute(&mut self) -> Result<(&'static str, Value), ()> {
+    fn parse_attribute(&mut self) -> Result<Attribute, ()> {
         let Token::Ident(id) = self.eat() else {
             return Err(());
         };
@@ -247,12 +276,12 @@ impl<'a, 'r> Parser<'a> {
         self.expect(Token::Colon)?;
         let val = self.parse_value()?;
 
-        for (attr_name, _) in ATTRIBUTES {
-            if *attr_name == id.as_str() {
-                return Ok((attr_name, val));
-            }
-        }
-        Err(())
+        // for (attr_name, _) in ATTRIBUTES {
+        //     if *attr_name == id.as_str() {
+        //         return Ok((attr_name, val));
+        //     }
+        // }
+        return Ok((id, val));
     }
 
     fn parse_value(&mut self) -> Result<Value, ()> {

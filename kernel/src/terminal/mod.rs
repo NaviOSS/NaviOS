@@ -11,10 +11,3 @@ pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     terminal().write_fmt(args).unwrap();
 }
-
-// safe wrappers around TERMINAL
-
-#[no_mangle]
-pub fn kerr(str: &str) {
-    terminal().write(str, (200, 0, 0))
-}

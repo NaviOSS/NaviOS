@@ -10,12 +10,10 @@ use crate::{
     utils::Locked,
 };
 
-use super::navitts::NaviTTES;
+use super::navitts::{Attributes, NaviTTES};
 
 const RASTER_HEIGHT: RasterHeight = RasterHeight::Size20;
-const WRITE_COLOR: Color = (222, 255, 30);
-
-pub type Color = (u32, u32, u32);
+const WRITE_COLOR: (u8, u8, u8) = (222, 255, 30);
 
 pub struct Terminal<'a> {
     row: usize,
@@ -108,7 +106,9 @@ impl<'a> Terminal<'a> {
         self.x_pos = 0;
     }
 
-    fn set_pixel(&mut self, x: usize, y: usize, intens: u32, color: (u32, u32, u32)) {
+    fn set_pixel(&mut self, x: usize, y: usize, intens: u32, color: (u8, u8, u8)) {
+        let color = (color.0 as u32, color.1 as u32, color.2 as u32);
+
         let color = match self.info.pixel_format {
             PixelFormat::Rgb => [intens * color.0, intens * color.1, intens * color.2, 0],
             PixelFormat::Bgr => [intens * color.2, intens * color.1, intens * color.0, 0],
@@ -135,7 +135,7 @@ impl<'a> Terminal<'a> {
         }
     }
 
-    fn draw_char(&mut self, glyph: RasterizedChar, color: (u32, u32, u32)) {
+    fn draw_char(&mut self, glyph: RasterizedChar, color: (u8, u8, u8)) {
         if (self.x_pos + glyph.width()) > self.width() {
             self.newline();
         }
@@ -155,7 +155,7 @@ impl<'a> Terminal<'a> {
         self.x_pos += glyph.width();
     }
 
-    pub fn putc(&mut self, c: char, color: (u32, u32, u32)) {
+    pub fn putc(&mut self, c: char, color: (u8, u8, u8)) {
         match c {
             '\n' => {
                 self.newline();
@@ -173,31 +173,43 @@ impl<'a> Terminal<'a> {
         }
     }
 
-    fn write_slice(&mut self, str: &str, color: (u32, u32, u32)) {
+    fn write_slice(&mut self, str: &str, attributes: Attributes) {
         for c in str.chars() {
-            self.putc(c, color);
+            self.putc(c, attributes.fg);
         }
 
         self.draw_viewport();
     }
-    pub fn write(&mut self, str: &str, color: (u32, u32, u32)) {
-        let parsed = NaviTTES::parse_str(str);
-        match parsed {
-            NaviTTES::Slice(s) => self.write_slice(s, color),
-            u => todo!("{:#?}", u),
+
+    pub fn write_es(&mut self, escape_seq: NaviTTES, default_attributes: Attributes) {
+        match escape_seq {
+            NaviTTES::Slice(s) => self.write_slice(s, default_attributes),
+            NaviTTES::OwnedSlice(s) => self.write_slice(s.as_str(), default_attributes),
+
+            NaviTTES::NaviESS(escape_seqs) => {
+                for escape_seq in escape_seqs {
+                    self.write_es(escape_seq, default_attributes.clone())
+                }
+            }
+            NaviTTES::NaviES(attributes, seq) => {
+                let attributes = Attributes::from_list(&attributes, default_attributes);
+
+                self.write_es(*seq, attributes)
+            }
         }
+    }
+    pub fn write(&mut self, str: &str) {
+        let parsed = NaviTTES::parse_str(str);
+        let mut default_attributes = Attributes::default();
+        default_attributes.fg = WRITE_COLOR;
+        self.write_es(parsed, default_attributes)
     }
 }
 
 impl fmt::Write for Terminal<'static> {
     // i can add color escapes later on like parsing \(u8, u8, u8)str$ as coloring str into (u8, u8, u8)
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.write(s, WRITE_COLOR);
-        Ok(())
-    }
-
-    fn write_char(&mut self, c: char) -> fmt::Result {
-        self.putc(c, WRITE_COLOR);
+        self.write(s);
         Ok(())
     }
 }
