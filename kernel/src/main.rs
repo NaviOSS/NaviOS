@@ -85,7 +85,10 @@ fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     #[cfg(feature = "test")]
     test::testing_module::test_main();
-    println!(r"\[fg: (0, 255, 0) |Hello, world!| fg: (255, 0, 0) | red text!|]");
+    println!(
+        r"\[fg: (0, 255, 0) |Boot success! press ctrl + shift + C to clear screen (and enter input mode)|]"
+    );
+
     loop {}
 }
 

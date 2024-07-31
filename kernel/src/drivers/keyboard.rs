@@ -62,19 +62,19 @@ impl Key {
     pub fn process_keycode(keycode: KeyCode) -> Self {
         let mut flags = KeyFlags::empty();
 
-        if Self::CTRL_KEY.is_pressed() && keycode != KeyCode::Ctrl {
+        if Self::CTRL_KEY.code.is_pressed() && keycode != KeyCode::Ctrl {
             flags |= KeyFlags::CTRL;
         }
 
-        if Self::SHIFT_KEY.is_pressed() && keycode != KeyCode::Shift {
+        if Self::SHIFT_KEY.code.is_pressed() && keycode != KeyCode::Shift {
             flags |= KeyFlags::SHIFT;
         }
 
-        if Self::ALT_KEY.is_pressed() && keycode != KeyCode::Alt {
+        if Self::ALT_KEY.code.is_pressed() && keycode != KeyCode::Alt {
             flags |= KeyFlags::ALT;
         }
 
-        if Self::CAPSLOCK_KEY.is_pressed() && keycode != KeyCode::CapsLock {
+        if Self::CAPSLOCK_KEY.code.is_pressed() && keycode != KeyCode::CapsLock {
             flags |= KeyFlags::CAPS_LOCK;
         }
 
@@ -203,6 +203,15 @@ pub enum KeyCode {
     End,
 }
 
+impl KeyCode {
+    #[inline]
+    pub fn is_pressed(&self) -> bool {
+        __navi_keyboard_get_pressed_key_flags(*self)
+            .into_option()
+            .is_some()
+    }
+}
+
 impl LowerHex for KeyCode {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         LowerHex::fmt(&(*self as u8), f)
@@ -248,7 +257,11 @@ pub enum Set1Key {
 
     // row 2
     KeyQ = 0x10,
-
+    // row 4
+    KeyC = 0x2E,
+    // row 5
+    Ctrl = 0x1D,
+    Shift = 0x2A,
     // row 6
     PageUp = 0x49e0,
     PageDown = 0x51e0,

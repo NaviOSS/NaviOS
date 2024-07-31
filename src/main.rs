@@ -13,7 +13,12 @@ fn main() {
         cmd.arg("-drive")
             .arg(format!("format=raw,file={uefi_path}"))
             .arg("-display")
-            .arg("sdl");
+            .arg("sdl")
+            .arg("-enable-kvm")
+            .arg("-m")
+            .arg("512M")
+            .arg("-smp")
+            .arg("2");
     }
     let mut child = cmd.spawn().unwrap();
     child.wait().unwrap();

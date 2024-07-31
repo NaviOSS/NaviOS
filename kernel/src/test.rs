@@ -36,7 +36,7 @@ pub mod testing_module {
     fn allocator() {
         let mut test = Vec::new();
 
-        for i in 0..100 {
+        for i in 0..280 {
             test.push(i);
         }
 

@@ -6,7 +6,7 @@ use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 
 use crate::{
-    drivers::keyboard::{Key, KeyCode},
+    drivers::keyboard::{Key, KeyCode, KeyFlags},
     utils::Locked,
 };
 
@@ -27,7 +27,7 @@ pub struct Terminal<'a> {
 const MAX_VIEWPORT_LEN: usize = 4000000 * 8;
 
 static VIEWPORT: Locked<[u8; MAX_VIEWPORT_LEN]> = Locked::new([0u8; MAX_VIEWPORT_LEN]); // TODO use
-                                                                                        // a vec instead after we finish scrolling
+                                                                                        // a vec instead after we impl io serial for panics
 fn viewport() -> MutexGuard<'static, [u8; MAX_VIEWPORT_LEN]> {
     VIEWPORT.inner.lock()
 }
@@ -55,8 +55,13 @@ impl<'a> Terminal<'a> {
 
     pub fn on_key_pressed(&mut self, key: Key) {
         match key.code {
-            KeyCode::PageDown => self.scroll_down(),
+            KeyCode::PageDown => self.scroll_down(false),
             KeyCode::PageUp => self.scroll_up(),
+            KeyCode::KeyC => {
+                if key.flags == KeyFlags::CTRL | KeyFlags::SHIFT {
+                    self.clear()
+                }
+            }
             _ => (),
         }
     }
@@ -73,6 +78,12 @@ impl<'a> Terminal<'a> {
         self.buffer.copy_from_slice(
             &viewport()[self.viewport_start..self.buffer.len() + self.viewport_start],
         );
+    }
+
+    pub fn clear(&mut self) {
+        self.viewport_start = 0;
+        viewport()[self.viewport_start..self.buffer.len()].fill(0);
+        self.draw_viewport()
     }
 
     fn get_byte_offset(&self, x: usize, y: usize) -> usize {
@@ -92,12 +103,15 @@ impl<'a> Terminal<'a> {
         }
     }
 
-    fn scroll_down(&mut self) {
+    fn scroll_down(&mut self, make_space: bool) {
         let scroll_amount = self.scroll_amount();
-        if viewport().len() - 1 >= (self.viewport_start + scroll_amount + self.buffer.len()) {
+        // here we cannot just check for scroll_amount and viewport_start because viewport may not
+        // be aligned to buffer
+        if viewport().len() >= (self.viewport_start + scroll_amount + self.buffer.len()) {
             self.viewport_start += scroll_amount;
-            /*             self.screen.resize(self.screen.len() + scroll_amount, 0); */
             self.draw_viewport()
+        } else if make_space {
+            // self.shift_by_one_line() // DOESNT WORK cuz viewport too big it crashes
         }
     }
 
@@ -143,7 +157,7 @@ impl<'a> Terminal<'a> {
         if self.y_pos * self.info.stride * self.info.bytes_per_pixel
             >= self.viewport_start + self.buffer.len()
         {
-            self.scroll_down();
+            self.scroll_down(true);
         }
 
         for (row, rows) in glyph.raster().iter().enumerate() {
