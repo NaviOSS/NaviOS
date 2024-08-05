@@ -29,8 +29,6 @@ use memory::paging::Mapper;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
 use terminal::framebuffer::Terminal;
-use terminal::framebuffer::TerminalMode;
-
 #[macro_export]
 macro_rules! print {
    ($($arg:tt)*) => ($crate::terminal::_print(format_args!($($arg)*)));
