@@ -7,8 +7,8 @@
 // - comments
 
 // kernel implementation of Navi Terminal Textual Escape Sequences
-// it appears to be mostly in the format \[attributes |slice|]
-// each attribute has a value \[attribute: value |slice|] a value can be a\an:
+// it appears to be mostly in the format \[attributes ||slice||]
+// each attribute has a value \[attribute: value ||slice||] a value can be a\an:
 /*
     byte: it is 8 bits, default as base 10 and has a hex form where it starts with 0x and then digits which is of base 16 or it starts with 0b and it is digits are base
     tuple: has a var number of items sep by , stars with ( and ends with  )
@@ -92,8 +92,8 @@ impl<'a> NaviTTES<'a> {
 
         while let Some(char) = chars.next() {
             match char {
-                '\\' => match chars.next().unwrap() {
-                    '[' => {
+                '\\' => match chars.next() {
+                    Some('[') => {
                         let mut ttes = match result.clone() {
                             NaviTTES::NaviESS(ttes) => ttes,
                             NaviTTES::Slice(_) => Vec::from([result.clone()]),
@@ -141,7 +141,14 @@ impl<'a> NaviTTES<'a> {
 
                 '0'..='9' => Token::Byte(Self::lex_number(chars, char)),
                 'a'..='z' | 'A'..='Z' => Token::Ident(Self::lex_ident(chars, char)),
-                '|' => Token::Slice(Self::lex_slice(chars)),
+                '|' => {
+                    if chars.peek() == Some(&'|') {
+                        chars.next();
+                        Token::Slice(Self::lex_slice(chars))
+                    } else {
+                        continue;
+                    }
+                }
                 _ => return Vec::new(),
             };
 
@@ -187,8 +194,10 @@ impl<'a> NaviTTES<'a> {
 
         while let Some(char) = chars.next() {
             if char == '|' {
-                break;
-            } // for now you cannot use the char '|' in your slice TODO add an escape for that
+                if chars.peek() == Some(&'|') {
+                    break;
+                }
+            } // for now you cannot use the char '||' in your slice TODO add an escape for that
 
             results.push(char)
         }

@@ -1,6 +1,7 @@
 mod acpi;
 mod gdt;
 mod interrupts;
+pub mod serial;
 
 use core::arch::asm;
 

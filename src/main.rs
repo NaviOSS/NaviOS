@@ -14,6 +14,8 @@ fn main() {
             .arg(format!("format=raw,file={uefi_path}"))
             .arg("-display")
             .arg("sdl")
+            .arg("-serial")
+            .arg("stdio")
             .arg("-enable-kvm")
             .arg("-m")
             .arg("512M")

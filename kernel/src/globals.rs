@@ -18,6 +18,9 @@ pub fn frame_allocator() -> &'static mut RegionAllocator {
 }
 
 pub static mut TERMINAL: Option<Terminal<'static>> = None;
+pub fn terminal_inited() -> bool {
+    unsafe { TERMINAL.is_some() }
+}
 
 pub fn terminal() -> &'static mut Terminal<'static> {
     unsafe { TERMINAL.as_mut().unwrap() }

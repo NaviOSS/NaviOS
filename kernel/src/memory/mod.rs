@@ -9,7 +9,10 @@ pub type PhysAddr = usize;
 use frame_allocator::Frame;
 use paging::{EntryFlags, MapToError, Page};
 
-use crate::globals::{frame_allocator, global_allocator, paging_mapper};
+use crate::{
+    globals::{frame_allocator, global_allocator, paging_mapper},
+    serial,
+};
 
 #[inline]
 pub fn map_present(addr: PhysAddr) {
@@ -75,10 +78,11 @@ pub const fn align_down(x: usize, alignment: usize) -> usize {
 
 pub const HEAP_START: usize = 0xAAA_AAA_AAA;
 
-pub const HEAP_SIZE: usize = 1000 * 1024;
+pub const HEAP_SIZE: usize = 9 * 9 * 1024 * 1024;
 
 // TODO! make the memory module more generic for different architectures; for now we can only support x86_64 because of the bootloader crate so take into account making our own bootloader for aarch64
 pub unsafe fn init_memory() -> Result<(), MapToError> {
+    serial!("initing memory...\n");
     let page_range = {
         let heap_start = HEAP_START;
         let heap_end = heap_start + HEAP_SIZE - 1;
@@ -86,6 +90,7 @@ pub unsafe fn init_memory() -> Result<(), MapToError> {
         let heap_end_page = Page::containing_address(heap_end);
         Page::iter_pages(heap_start_page, heap_end_page)
     };
+    serial!("Iter created!\n");
 
     let flags = EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE;
     for page in page_range {
@@ -97,5 +102,6 @@ pub unsafe fn init_memory() -> Result<(), MapToError> {
     }
 
     global_allocator().lock().init(HEAP_START, HEAP_SIZE);
+    serial!("init done\n");
     Ok(())
 }

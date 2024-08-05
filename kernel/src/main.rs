@@ -29,16 +29,24 @@ use memory::paging::Mapper;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
 use terminal::framebuffer::Terminal;
+use terminal::framebuffer::TerminalMode;
 
 #[macro_export]
 macro_rules! print {
-    ($($arg:tt)*) => ($crate::terminal::_print(format_args!($($arg)*)));
+   ($($arg:tt)*) => ($crate::terminal::_print(format_args!($($arg)*)));
 }
 
 #[macro_export]
 macro_rules! println {
     () => (print!("\n"));
     ($($arg:tt)*) => (crate::print!("{}\n", format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! serial {
+    ($($arg:tt)*) => {
+        crate::arch::x86_64::serial::_serial(format_args!($($arg)*));
+    };
 }
 
 #[allow(unused_imports)]
@@ -48,10 +56,13 @@ use core::panic::PanicInfo;
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    println!("\\[fg: (255, 0, 0) |\nkernel panic: |]");
-    println!("{}", info.message());
+    serial!("kernel panic: ");
+    serial!("{}, at {}", info.message(), info.location().unwrap());
 
-    println!("\\[fg: (255, 0, 0) |cannot continue execution kernel will now hang|]");
+    // println!("\\[fg: (255, 0, 0) |\nkernel panic: |]");
+    // println!("{}, at {}", info.message(), info.location());
+    //
+    // println!("\\[fg: (255, 0, 0) |cannot continue execution kernel will now hang|]");
     loop {}
 }
 
@@ -68,26 +79,28 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
 
         let mapper = Mapper::new(*phy_offset as usize, level_4_table(*phy_offset));
         PAGING_MAPPER = Some(mapper);
-        let terminal: Terminal<'static> = Terminal::init(bootinfo.framebuffer.as_mut().unwrap());
-        TERMINAL = Some(terminal);
     };
 
     // initing the arch
     arch_init!(); // macro is defined for each arch
     unsafe {
         memory::init_memory().unwrap();
+        let terminal: Terminal<'static> = Terminal::init(bootinfo.framebuffer.as_mut().unwrap());
+        TERMINAL = Some(terminal);
     }
 }
 
 #[no_mangle]
 fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     kinit(boot_info);
+    serial!("hello, world!\n");
 
     #[cfg(feature = "test")]
     test::testing_module::test_main();
     println!(
-        r"\[fg: (0, 255, 0) |Boot success! press ctrl + shift + C to clear screen (and enter input mode)|]"
+        "\\[fg: (0, 255, 0) ||Boot success! press ctrl + shift + C to clear screen (and enter input mode)\n||]"
     );
+    serial!("finished initing...\n");
 
     loop {}
 }
@@ -95,7 +108,9 @@ fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 // whenever a key is pressed this function should be called
 // this executes a few other kernel-functions
 pub fn __navi_key_pressed(key: Key) {
-    terminal().on_key_pressed(key)
+    if globals::terminal_inited() {
+        terminal().on_key_pressed(key)
+    }
 }
 
 static CONFIG: bootloader_api::BootloaderConfig = {
