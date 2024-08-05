@@ -78,7 +78,7 @@ pub const fn align_down(x: usize, alignment: usize) -> usize {
 
 pub const HEAP_START: usize = 0xAAA_AAA_AAA;
 
-pub const HEAP_SIZE: usize = 9 * 9 * 1024 * 1024;
+pub const HEAP_SIZE: usize = 4 * 9 * 1024 * 1024;
 
 // TODO! make the memory module more generic for different architectures; for now we can only support x86_64 because of the bootloader crate so take into account making our own bootloader for aarch64
 pub unsafe fn init_memory() -> Result<(), MapToError> {

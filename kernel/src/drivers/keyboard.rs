@@ -356,6 +356,7 @@ fn add_pressed_keycode(code: KeyCode) {
     if attempt.is_err() {
         *current_keys().last_mut().unwrap() = attempt.unwrap_err();
     }
+
     crate::__navi_key_pressed(key)
 }
 

@@ -11,17 +11,21 @@ use crate::{
     print, println,
 };
 
-use super::navitts::{Attributes, NaviTTES};
+use super::{
+    navitts::{Attributes, NaviTTES},
+    process_command,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalMode {
     Init,
     Stdout,
     Stdin,
+    Input,
 }
 
 const RASTER_HEIGHT: RasterHeight = RasterHeight::Size20;
-const WRITE_COLOR: (u8, u8, u8) = (222, 255, 30);
+const WRITE_COLOR: (u8, u8, u8) = (255, 255, 255);
 
 pub struct Terminal<'a> {
     row: usize,
@@ -32,8 +36,8 @@ pub struct Terminal<'a> {
     viewport_start: usize,
 
     pub mode: TerminalMode,
-    stdin_buffer: String,
-    stdout_buffer: String,
+    pub stdin_buffer: String,
+    pub stdout_buffer: String,
 
     pub info: FrameBufferInfo,
     pub x_pos: usize,
@@ -82,19 +86,36 @@ impl<'a> Terminal<'a> {
             _ => (),
         }
 
-        if self.mode == TerminalMode::Stdin {
-            let mapped = key.map_key();
+        match self.mode {
+            TerminalMode::Stdin => {
+                let mapped = key.map_key();
 
-            if mapped == '\n' {
-                self.newline();
-                super::process_command(&mut self.stdin_buffer);
-                self.enter_stdin();
-                return;
+                if mapped != '\0' {
+                    self.stdin_putc(mapped)
+                }
             }
 
-            if mapped != '\0' {
-                self.stdin_putc(mapped)
+            // input mode is just stdin however we dont have a 'program' which executes
+            // process_command everytime a \n happens (like `readln()`) and we cannot do that
+            // without threading
+            TerminalMode::Input => {
+                let mapped = key.map_key();
+
+                if mapped == '\n' {
+                    self.newline();
+
+                    let buffer = self.stdin_buffer.clone();
+                    self.stdin_buffer.clear();
+
+                    process_command(buffer);
+                    return;
+                }
+
+                if mapped != '\0' {
+                    self.stdin_putc(mapped)
+                }
             }
+            _ => (),
         }
     }
 
@@ -195,13 +216,8 @@ impl<'a> Terminal<'a> {
         self.x_pos = 0;
     }
 
-    pub fn backspace(&mut self) {
-        self.stdin_buffer.pop(); // popping backspace
-        let Some(char) = self.stdin_buffer.pop() else {
-            return;
-        };
-
-        let glyph = Self::raster(char);
+    pub fn remove_char(&mut self, c: char) {
+        let glyph = Self::raster(c);
 
         if self.x_pos >= glyph.width() {
             self.x_pos -= glyph.width();
@@ -216,6 +232,14 @@ impl<'a> Terminal<'a> {
                 self.set_pixel(self.x_pos + col, self.y_pos + row, 0, (0, 0, 0));
             }
         }
+    }
+
+    pub fn backspace(&mut self) {
+        self.stdin_buffer.pop(); // popping backspace
+        let Some(char) = self.stdin_buffer.pop() else {
+            return;
+        };
+        self.remove_char(char)
     }
 
     fn set_pixel(&mut self, x: usize, y: usize, intens: u32, color: (u8, u8, u8)) {
@@ -288,16 +312,29 @@ impl<'a> Terminal<'a> {
         }
     }
 
+    const INPUT_CHAR: (u8, u8, u8) = (170, 200, 30);
     pub fn stdin_putc(&mut self, c: char) {
         self.stdin_buffer.push(c);
+
+        // removing the _ if we are in input mode
+        if self.mode == TerminalMode::Input {
+            self.remove_char('_')
+        }
+
         self.putc(c, (255, 255, 255));
+
+        // puts it back
+        if self.mode == TerminalMode::Input {
+            self.putc('_', Self::INPUT_CHAR);
+        }
 
         self.draw_viewport()
     }
 
     pub fn enter_stdin(&mut self) {
         print!(">> ");
-        self.mode = TerminalMode::Stdin;
+        self.mode = TerminalMode::Input;
+        self.putc('_', Self::INPUT_CHAR);
     }
 
     fn write_slice(&mut self, str: &str, attributes: Attributes) {
