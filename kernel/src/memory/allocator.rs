@@ -102,6 +102,16 @@ impl LinkedListAllocator {
             }
         }
 
+        // extanding the heap
+        // let (page, mapper) = paging_mapper()
+        //     .map_free_page_from(HEAP_START, EntryFlags::WRITABLE)
+        //     .ok()?;
+        //
+        // unsafe {
+        //     mapper.flush();
+        //     self.add_free_node(page.start_address, PAGE_SIZE);
+        // }
+        // self.find_free_node(size, align)
         None
     }
 

@@ -92,7 +92,7 @@ pub unsafe fn init_memory() -> Result<(), MapToError> {
     };
     serial!("Iter created!\n");
 
-    let flags = EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE;
+    let flags = EntryFlags::PRESENT | EntryFlags::WRITABLE;
     for page in page_range {
         let frame = frame_allocator()
             .allocate_frame()
