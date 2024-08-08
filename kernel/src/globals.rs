@@ -7,8 +7,15 @@ use crate::{
         paging::{self, Mapper},
     },
     terminal::framebuffer::Terminal,
+    threading::Scheduler,
     utils::Locked,
 };
+
+pub static mut SCHEDULER: Option<Scheduler> = None;
+
+pub fn scheduler() -> &'static mut Scheduler {
+    unsafe { SCHEDULER.as_mut().unwrap() }
+}
 
 // globals are initialized using the kinit function below is there definition and getters
 pub static mut FRAME_ALLOCATOR: Option<RegionAllocator> = None;

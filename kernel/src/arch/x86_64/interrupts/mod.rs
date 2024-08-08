@@ -1,5 +1,5 @@
 pub mod apic;
-mod handlers;
+pub mod handlers;
 mod idt;
 
 use core::arch::asm;

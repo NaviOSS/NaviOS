@@ -1,12 +1,10 @@
 #![no_std]
 #![no_main]
-#![allow(dead_code)]
 #![feature(abi_x86_interrupt)]
 #![feature(iter_advance_by)]
 #![feature(const_mut_refs)]
 #![feature(custom_test_frameworks)]
 #![feature(proc_macro_hygiene)]
-#![feature(custom_inner_attributes)]
 #[cfg(feature = "test")]
 mod test;
 
@@ -19,6 +17,7 @@ mod threading;
 mod utils;
 
 extern crate alloc;
+use arch::CPUStatus;
 use bootloader_api::info::MemoryRegions;
 
 use drivers::keyboard::Key;
@@ -30,6 +29,7 @@ use memory::paging::Mapper;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
 use terminal::framebuffer::Terminal;
+use threading::Scheduler;
 #[macro_export]
 macro_rules! print {
    ($($arg:tt)*) => ($crate::terminal::_print(format_args!($($arg)*)));
@@ -48,6 +48,7 @@ macro_rules! serial {
     };
 }
 
+use core::arch::asm;
 #[allow(unused_imports)]
 use core::panic::PanicInfo;
 
@@ -101,7 +102,25 @@ fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     );
     serial!("finished initing...\n");
 
-    loop {}
+    unsafe {
+        SCHEDULER = Some(Scheduler::init(kidle as usize));
+        scheduler().add_process(CPUStatus::save_with_address(kwork as usize));
+    }
+
+    kidle()
+}
+
+fn kidle() -> ! {
+    loop {
+        unsafe {
+            asm!("hlt");
+        }
+    }
+}
+
+fn kwork() {
+    #[cfg(target_arch = "x86_64")]
+    arch::x86_64::interrupts::handlers::handle_ps2_keyboard();
 }
 
 // whenever a key is pressed this function should be called

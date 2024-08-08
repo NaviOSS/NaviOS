@@ -28,8 +28,6 @@ const RASTER_HEIGHT: RasterHeight = RasterHeight::Size20;
 const WRITE_COLOR: (u8, u8, u8) = (255, 255, 255);
 
 pub struct Terminal<'a> {
-    row: usize,
-    column: usize,
     buffer: &'a mut [u8],
 
     viewport: Vec<u8>,
@@ -58,8 +56,6 @@ impl<'a> Terminal<'a> {
         viewport.resize(buffer.len(), 0);
 
         Self {
-            row: 0,
-            column: 0,
             buffer,
             viewport,
             viewport_start: 0,

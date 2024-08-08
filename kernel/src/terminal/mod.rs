@@ -16,7 +16,7 @@ pub fn _print(args: fmt::Arguments) {
 }
 
 /// doesnt work rn
-pub fn readln() -> String {
+pub fn _readln() -> String {
     let old_mode = terminal().mode;
     terminal().mode = TerminalMode::Stdin;
 

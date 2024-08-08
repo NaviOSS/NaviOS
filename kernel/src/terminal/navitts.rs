@@ -31,16 +31,11 @@ enum Token {
     Colon,
     Byte(u8),
 }
-#[derive(Debug, Clone)]
-pub enum Type<'a> {
-    Tuple(&'a [Type<'a>]),
-    Byte,
-}
+
 #[derive(Debug, Clone)]
 pub enum Value {
     Byte(u8),
     Tuple(Vec<Value>),
-    Calle(String, Vec<Value>),
 }
 
 type Attribute = (String, Value);

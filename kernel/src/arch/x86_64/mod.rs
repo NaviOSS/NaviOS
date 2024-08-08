@@ -7,6 +7,7 @@ pub mod threading;
 use core::arch::asm;
 
 use interrupts::{apic, init_idt};
+use serial::init_serial;
 
 use self::gdt::init_gdt;
 
@@ -25,6 +26,7 @@ pub fn outb(port: u16, value: u8) {
 }
 #[inline]
 pub fn init() {
+    init_serial();
     init_gdt();
     init_idt();
 

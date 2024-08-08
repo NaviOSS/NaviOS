@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 
-use crate::arch::CPUStatus;
+use crate::{arch::CPUStatus, serial};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ProcessStatus {
@@ -17,7 +17,7 @@ struct Process {
     next: Option<Box<Process>>,
 }
 
-struct Scheduler {
+pub struct Scheduler {
     head: Process,
     current_process: Process,
 }
@@ -26,7 +26,7 @@ impl Scheduler {
     #[inline]
     pub fn init(idle_insturaction_address: usize) -> Self {
         let context = CPUStatus::save_with_address(idle_insturaction_address);
-
+        serial!("not now\n");
         let process = Process {
             status: ProcessStatus::Running,
             context,
@@ -40,7 +40,7 @@ impl Scheduler {
     }
 
     /// context switches into next process, takes current context outputs new context
-    pub fn advance(&mut self, context: CPUStatus) -> CPUStatus {
+    pub fn switch(&mut self, context: CPUStatus) -> CPUStatus {
         self.current_process.context = context;
         self.current_process.status = ProcessStatus::Waiting;
 
@@ -58,5 +58,20 @@ impl Scheduler {
         }
 
         return self.current_process.context;
+    }
+
+    pub fn add_process(&mut self, context: CPUStatus) {
+        let process = Process {
+            status: ProcessStatus::Waiting,
+            context,
+            next: None,
+        };
+
+        let mut current = &mut self.head;
+        while let Some(ref mut process) = current.next {
+            current = &mut **process;
+        }
+
+        current.next = Some(Box::new(process));
     }
 }

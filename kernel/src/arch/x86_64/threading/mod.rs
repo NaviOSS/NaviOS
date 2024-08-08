@@ -1,96 +1,70 @@
 use core::arch::asm;
+
+use crate::{println, serial};
+use core::mem::size_of;
+
 #[derive(Debug, Clone, Copy, Default)]
+#[repr(C)]
 pub struct CPUStatus {
-    rax: u64,
-    rbx: u64,
-
-    rip: u64,
-    rsp: u64,
-
-    cs: u64,
     ss: u64,
+    cs: u64,
+
+    rsp: u64,
+    rip: u64,
+
+    rbx: u64,
+    rax: u64
 }
 
-#[macro_export]
-macro_rules! push_general {
-    () => {
-        unsafe {
-        asm!("
-        push rax
-        push rbx
-        ")
-        }
-    };
-}
 
-#[macro_export]
-macro_rules! pop_general {
-    () => {
-        unsafe {
-        asm!("
-        pop rbx
-        pop rax
-        ")
-        }
-    };
-}
 impl CPUStatus {
-    #[inline]
-    pub fn save(insturaction: usize, stack_segment: usize, code_segment: usize, stack_pointer: usize) -> Self {
-        pop_general!();
-        let (rax, rbx, rip, rsp, ss, cs);
-
+    extern "C" fn save_inner(self) -> Self {
+        serial!("{:#?}", self.clone());
         unsafe {
-            asm!(
-                "
-        mov {}, rax
-        mov {}, rbx
-
-        ", 
-        out(reg) rax, 
-        out(reg) rbx,
-        options(nostack, nomem))
+            asm!("add rsp, {}", in(reg) size_of::<CPUStatus>())
         }
+        self
+    }
 
-        rip = insturaction as u64;
-        rsp = stack_pointer as u64;
+    #[inline]
+    pub fn save(insturaction: usize, stack_segment: usize, code_segment: usize, stack_pointer: usize) -> Self {        
+        unsafe {
+            asm!("
+            push rax
+            push rbx
+            
+            push {}
+            push {}
 
-        ss = stack_segment as u64;
-        cs = code_segment as u64;
-        
-        CPUStatus {
-            rax,
-            rbx,
-
-            rip,
-            rsp,
-
-            ss,
-            cs
+            push {}
+            push {}
+            push 0
+            jmp {}
+            ",  
+            in(reg) insturaction, 
+            in(reg) stack_pointer, 
+            in(reg) code_segment, 
+            in(reg) stack_segment, 
+            sym Self::save_inner, options(noreturn));
         }
     }
     
     /// saves the current status expect for rip
     #[inline]
     pub fn save_with_address(instruaction: usize) -> Self {
-        let (ss, cs, rsp);
-
+        let rsp;
         unsafe {
             asm!("
             mov {}, rsp
-            mov {}, ss
-            mov {}, cs
             ", 
             out(reg) rsp,
+            options(nostack, nomem))
+        }
 
-            out(reg) ss,
-            out(reg) cs,
+        let save  = Self::save(instruaction, 0x10, 0x8, rsp);
+        save
+    }
 
-            options(nostack, nomem)) }
-
-        Self::save(instruaction, ss, cs, rsp)
-    
-}
     
     #[inline]
     pub fn restore(self) -> ! {

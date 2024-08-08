@@ -69,8 +69,13 @@ extern "x86-interrupt" fn timer_interrupt_handler(_frame: InterruptFrame) {
     send_eoi();
 }
 
-extern "x86-interrupt" fn keyboard_interrupt_handler() {
+#[inline]
+pub fn handle_ps2_keyboard() {
     let key = inb(0x60);
     drivers::keyboard::encode_ps2_set_1(key);
+}
+
+pub extern "x86-interrupt" fn keyboard_interrupt_handler() {
+    handle_ps2_keyboard();
     send_eoi();
 }

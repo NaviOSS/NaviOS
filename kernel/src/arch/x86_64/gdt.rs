@@ -49,20 +49,15 @@ impl GDTEntry {
     }
 }
 
-const ACCESS_ACCESSED: u8 = 1 << 0;
+// TODO convert to bitflags
 const ACCESS_WRITE_READ: u8 = 1 << 1;
-const ACCESS_DIR_DOWN: u8 = 1 << 2;
 const ACCESS_EXECUTABLE: u8 = 1 << 3;
 const NON_SYSTEM: u8 = 1 << 4;
-const RING1: u8 = 1 << 5;
-const RING2: u8 = 1 << 6;
-const RING3: u8 = RING1 as u8 | RING2 as u8;
 const ACCESS_VAILD: u8 = 1 << 7;
 
 const ACCESS_TYPE_TSS: u8 = 0x9;
 
 const FLAG_LONG: u8 = 1 << 5;
-const FLAG_IS32BIT: u8 = 1 << 6;
 const FLAG_PAGELIMIT: u8 = 1 << 7;
 
 // TSS setup

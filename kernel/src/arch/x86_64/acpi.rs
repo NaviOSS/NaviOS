@@ -51,12 +51,12 @@ pub struct RSDT {
     table: [u32; 0], // uint32_t table[];?
 }
 
-#[repr(C)]
-#[derive(Debug, Clone, Copy)]
-pub struct XSDT {
-    pub header: ACPIHeader,
-    table: [u64; 0],
-}
+// #[repr(C)]
+// #[derive(Debug, Clone, Copy)]
+// pub struct XSDT {
+//     pub header: ACPIHeader,
+//     table: [u64; 0],
+// }
 
 #[repr(C, packed)]
 #[derive(Debug)]
