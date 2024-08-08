@@ -15,6 +15,7 @@ mod drivers;
 mod globals;
 mod memory;
 mod terminal;
+mod threading;
 mod utils;
 
 extern crate alloc;

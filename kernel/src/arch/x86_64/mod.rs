@@ -2,6 +2,7 @@ mod acpi;
 mod gdt;
 pub mod interrupts;
 pub mod serial;
+pub mod threading;
 
 use core::arch::asm;
 

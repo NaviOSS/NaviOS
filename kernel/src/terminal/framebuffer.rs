@@ -135,15 +135,15 @@ impl<'a> Terminal<'a> {
 
     pub fn clear(&mut self) {
         println!("clearing");
-        self.viewport.fill(0);
         self.viewport_start = 0;
+        self.viewport.truncate(self.buffer.len());
+        self.viewport.fill(0);
 
         self.x_pos = 0;
         self.y_pos = 0;
 
         self.stdin_buffer = String::new();
         self.stdout_buffer = String::new();
-
         if self.mode == TerminalMode::Init {
             print!(
                 r"\[fg: (0, 255, 0) ||
