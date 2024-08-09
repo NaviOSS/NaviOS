@@ -17,6 +17,9 @@ pub fn scheduler() -> &'static mut Scheduler {
     unsafe { SCHEDULER.as_mut().unwrap() }
 }
 
+pub fn scheduler_inited() -> bool {
+    unsafe { SCHEDULER.is_some() }
+}
 // globals are initialized using the kinit function below is there definition and getters
 pub static mut FRAME_ALLOCATOR: Option<RegionAllocator> = None;
 

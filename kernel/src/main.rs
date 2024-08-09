@@ -106,9 +106,10 @@ fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
         let kidle = CPUStatus::save_with_address(kidle as usize);
         let kwork = CPUStatus::save_with_address(kwork as usize);
 
-        SCHEDULER = Some(Scheduler::init(kidle));
+        let mut scheduler = Scheduler::init(kidle);
 
-        scheduler().add_process(kwork);
+        scheduler.add_process(kwork);
+        SCHEDULER = Some(scheduler);
         serial!("idle process: {:#?}\n", kidle);
     }
 
@@ -116,6 +117,7 @@ fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 }
 
 fn kidle() -> ! {
+    serial!("idle!\n");
     loop {
         unsafe {
             asm!("hlt");
@@ -124,8 +126,11 @@ fn kidle() -> ! {
 }
 
 fn kwork() {
-    #[cfg(target_arch = "x86_64")]
-    arch::x86_64::interrupts::handlers::handle_ps2_keyboard();
+    serial!("work!\n");
+    loop {
+        #[cfg(target_arch = "x86_64")]
+        arch::x86_64::interrupts::handlers::handle_ps2_keyboard();
+    }
 }
 
 // whenever a key is pressed this function should be called

@@ -1,7 +1,7 @@
 pub mod framebuffer;
 pub mod navitts;
 
-use core::fmt;
+use core::{fmt, ptr::read};
 
 use alloc::{string::String, vec::Vec};
 use framebuffer::TerminalMode;
@@ -61,6 +61,9 @@ fn clear(args: Vec<&str>) {
         println!("{}: expected 1 arg", args[0]);
         return;
     }
+
+    // println!("you sure? y\\n");
+    // let confirm = _readln();
 
     terminal().clear()
 }

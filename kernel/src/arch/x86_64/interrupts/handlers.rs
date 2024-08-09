@@ -8,7 +8,7 @@ use super::idt::{InterruptFrame, TrapFrame};
 use crate::arch::x86_64::inb;
 use crate::arch::x86_64::interrupts::apic::send_eoi;
 use crate::arch::CPUStatus;
-use crate::{drivers, print, println};
+use crate::{drivers, println, scheduler, scheduler_inited, serial};
 const ATTR_TRAP: u8 = 0xF;
 const ATTR_INT: u8 = 0xE;
 const EMPTY_TABLE: IDTT = [GateDescriptor::default(); 256]; // making sure it is made at compile-time
@@ -42,7 +42,7 @@ lazy_static! {
         (8, dobule_fault_handler, ATTR_TRAP, 0),
         (13, general_protection_fault_handler, ATTR_TRAP),
         (14, page_fault_handler, ATTR_TRAP),
-        (0x20, timer_interrupt_stub, ATTR_INT),
+        (0x20, timer_interrupt_handler, ATTR_INT),
         (0x21, keyboard_interrupt_handler, ATTR_INT)
     );
 }
@@ -67,21 +67,25 @@ extern "x86-interrupt" fn page_fault_handler(frame: TrapFrame) {
     panic!("page fault exception\nframe: {:#?}", frame)
 }
 
-extern "x86-interrupt" fn timer_interrupt_stub() {
-    unsafe {
-        asm!("
-        push rax
-        push rbx
-        call {}
-        pop rbx
-        pop rax
-        ", sym timer_interrupt_handler)
-    }
+extern "x86-interrupt" fn timer_interrupt_handler(frame: InterruptFrame) {
+    serial!("tick\n");
 
     send_eoi();
-}
+    if scheduler_inited() {
+        let mut capture = CPUStatus::save();
+        capture.rsp = frame.stack_pointer;
+        capture.rip = frame.insturaction;
 
-extern "C" fn timer_interrupt_handler(_context: CPUStatus, _frame: InterruptFrame) {}
+        capture.cs = frame.code_segment;
+        capture.ss = frame.stack_segment;
+        capture.rflags = frame.flags;
+
+        send_eoi();
+        scheduler().switch(capture).restore();
+    } else {
+        send_eoi();
+    }
+}
 
 #[inline]
 pub fn handle_ps2_keyboard() {

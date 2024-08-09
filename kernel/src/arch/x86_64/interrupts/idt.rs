@@ -57,20 +57,20 @@ lazy_static! {
 #[derive(Debug)]
 #[repr(C, packed)]
 pub struct InterruptFrame {
-    insturaction: u64,
-    code_segment: u64,
-    flags: u64,
-    stack_pointer: u64,
-    stack_segment: u64,
+    pub insturaction: u64,
+    pub code_segment: u64,
+    pub flags: u64,
+    pub stack_pointer: u64,
+    pub stack_segment: u64,
 }
 
 #[derive(Debug)]
 #[repr(C, packed)]
 pub struct TrapFrame {
-    insturaction: u64,
-    code_segment: u64,
-    flags: u64,
-    stack_pointer: u64,
-    stack_segment: u64,
+    pub insturaction: u64,
+    pub code_segment: u64,
+    pub flags: u64,
+    pub stack_pointer: u64,
+    pub stack_segment: u64,
     error_code: u64,
 }

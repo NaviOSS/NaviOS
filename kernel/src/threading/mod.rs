@@ -11,7 +11,7 @@ enum ProcessStatus {
 }
 
 #[derive(Debug, Clone)]
-struct Process {
+pub struct Process {
     status: ProcessStatus,
     context: CPUStatus,
     next: Option<Box<Process>>,
