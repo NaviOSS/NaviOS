@@ -103,8 +103,13 @@ fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     serial!("finished initing...\n");
 
     unsafe {
-        SCHEDULER = Some(Scheduler::init(kidle as usize));
-        scheduler().add_process(CPUStatus::save_with_address(kwork as usize));
+        let kidle = CPUStatus::save_with_address(kidle as usize);
+        let kwork = CPUStatus::save_with_address(kwork as usize);
+
+        SCHEDULER = Some(Scheduler::init(kidle));
+
+        scheduler().add_process(kwork);
+        serial!("idle process: {:#?}\n", kidle);
     }
 
     kidle()

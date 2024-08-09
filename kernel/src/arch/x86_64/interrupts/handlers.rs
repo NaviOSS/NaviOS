@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 use lazy_static::lazy_static;
 
 use super::idt::{GateDescriptor, IDTT};
@@ -5,6 +7,7 @@ use super::idt::{InterruptFrame, TrapFrame};
 
 use crate::arch::x86_64::inb;
 use crate::arch::x86_64::interrupts::apic::send_eoi;
+use crate::arch::CPUStatus;
 use crate::{drivers, print, println};
 const ATTR_TRAP: u8 = 0xF;
 const ATTR_INT: u8 = 0xE;
@@ -39,7 +42,7 @@ lazy_static! {
         (8, dobule_fault_handler, ATTR_TRAP, 0),
         (13, general_protection_fault_handler, ATTR_TRAP),
         (14, page_fault_handler, ATTR_TRAP),
-        (0x20, timer_interrupt_handler, ATTR_INT),
+        (0x20, timer_interrupt_stub, ATTR_INT),
         (0x21, keyboard_interrupt_handler, ATTR_INT)
     );
 }
@@ -64,10 +67,21 @@ extern "x86-interrupt" fn page_fault_handler(frame: TrapFrame) {
     panic!("page fault exception\nframe: {:#?}", frame)
 }
 
-extern "x86-interrupt" fn timer_interrupt_handler(_frame: InterruptFrame) {
-    print!(".");
+extern "x86-interrupt" fn timer_interrupt_stub() {
+    unsafe {
+        asm!("
+        push rax
+        push rbx
+        call {}
+        pop rbx
+        pop rax
+        ", sym timer_interrupt_handler)
+    }
+
     send_eoi();
 }
+
+extern "C" fn timer_interrupt_handler(_context: CPUStatus, _frame: InterruptFrame) {}
 
 #[inline]
 pub fn handle_ps2_keyboard() {

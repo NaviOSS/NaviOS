@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 
-use crate::{arch::CPUStatus, serial};
+use crate::arch::CPUStatus;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ProcessStatus {
@@ -24,9 +24,7 @@ pub struct Scheduler {
 
 impl Scheduler {
     #[inline]
-    pub fn init(idle_insturaction_address: usize) -> Self {
-        let context = CPUStatus::save_with_address(idle_insturaction_address);
-        serial!("not now\n");
+    pub fn init(context: CPUStatus) -> Self {
         let process = Process {
             status: ProcessStatus::Running,
             context,
