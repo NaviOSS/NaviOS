@@ -5,6 +5,7 @@
 #![feature(const_mut_refs)]
 #![feature(custom_test_frameworks)]
 #![feature(proc_macro_hygiene)]
+#![feature(asm_const)]
 #[cfg(feature = "test")]
 mod test;
 
@@ -17,7 +18,6 @@ mod threading;
 mod utils;
 
 extern crate alloc;
-use arch::CPUStatus;
 use bootloader_api::info::MemoryRegions;
 
 use drivers::keyboard::Key;
@@ -29,6 +29,7 @@ use memory::paging::Mapper;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
 use terminal::framebuffer::Terminal;
+use threading::Process;
 use threading::Scheduler;
 #[macro_export]
 macro_rules! print {
@@ -103,10 +104,10 @@ fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     serial!("finished initing...\n");
 
     unsafe {
-        let kidle = CPUStatus::save_with_address(kidle as usize);
-        let kwork = CPUStatus::save_with_address(kwork as usize);
+        let kidle = Process::create(kidle as usize);
+        let kwork = Process::create(kwork as usize);
 
-        let mut scheduler = Scheduler::init(kidle);
+        let mut scheduler = Scheduler::init(kidle.clone());
 
         scheduler.add_process(kwork);
         SCHEDULER = Some(scheduler);
@@ -128,8 +129,8 @@ fn kidle() -> ! {
 fn kwork() {
     serial!("work!\n");
     loop {
-        #[cfg(target_arch = "x86_64")]
-        arch::x86_64::interrupts::handlers::handle_ps2_keyboard();
+        // #[cfg(target_arch = "x86_64")]
+        // arch::x86_64::interrupts::handlers::handle_ps2_keyboard();
     }
 }
 

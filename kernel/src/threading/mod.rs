@@ -1,6 +1,21 @@
+use core::alloc::Layout;
+
 use alloc::boxed::Box;
 
-use crate::arch::CPUStatus;
+use crate::{arch::CPUStatus, global_allocator, VirtAddr};
+
+pub const STACK_SIZE: usize = 4096 * 4;
+pub const STACK_LAYOUT: Layout = Layout::new::<[u8; STACK_SIZE]>();
+
+/// returns a pointer to the end of the stack
+pub fn alloc_stack() -> VirtAddr {
+    unsafe {
+        global_allocator()
+            .lock()
+            .alloc_mut(STACK_LAYOUT)
+            .add(STACK_SIZE) as usize
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ProcessStatus {
@@ -17,6 +32,29 @@ pub struct Process {
     next: Option<Box<Process>>,
 }
 
+impl Process {
+    pub fn create(function: usize) -> Self {
+        let status = ProcessStatus::Waiting;
+        let mut context = CPUStatus::default();
+
+        #[cfg(target_arch = "x86_64")]
+        {
+            context.rsp = alloc_stack() as u64;
+            context.rip = function as u64;
+            context.rflags = 0x202;
+
+            context.ss = 0x10;
+            context.cs = 0x8;
+        }
+
+        Process {
+            status,
+            context,
+            next: None,
+        }
+    }
+}
+
 pub struct Scheduler {
     head: Process,
     current_process: Process,
@@ -24,13 +62,7 @@ pub struct Scheduler {
 
 impl Scheduler {
     #[inline]
-    pub fn init(context: CPUStatus) -> Self {
-        let process = Process {
-            status: ProcessStatus::Running,
-            context,
-            next: None,
-        };
-
+    pub fn init(process: Process) -> Self {
         Self {
             head: process.clone(),
             current_process: process,
@@ -58,13 +90,7 @@ impl Scheduler {
         return self.current_process.context;
     }
 
-    pub fn add_process(&mut self, context: CPUStatus) {
-        let process = Process {
-            status: ProcessStatus::Waiting,
-            context,
-            next: None,
-        };
-
+    pub fn add_process(&mut self, process: Process) {
         let mut current = &mut self.head;
         while let Some(ref mut process) = current.next {
             current = &mut **process;

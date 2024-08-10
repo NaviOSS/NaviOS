@@ -7,6 +7,7 @@ use super::idt::{InterruptFrame, TrapFrame};
 
 use crate::arch::x86_64::inb;
 use crate::arch::x86_64::interrupts::apic::send_eoi;
+use crate::arch::x86_64::threading::restore_cpu_status;
 use crate::arch::CPUStatus;
 use crate::{drivers, println, scheduler, scheduler_inited, serial};
 const ATTR_TRAP: u8 = 0xF;
@@ -81,7 +82,10 @@ extern "x86-interrupt" fn timer_interrupt_handler(frame: InterruptFrame) {
         capture.rflags = frame.flags;
 
         send_eoi();
-        scheduler().switch(capture).restore();
+        let switch = scheduler().switch(capture);
+        unsafe {
+            restore_cpu_status(&switch);
+        }
     } else {
         send_eoi();
     }

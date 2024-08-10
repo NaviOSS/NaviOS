@@ -62,8 +62,8 @@ fn clear(args: Vec<&str>) {
         return;
     }
 
-    // println!("you sure? y\\n");
-    // let confirm = _readln();
+    println!("you sure? y\\n");
+    let confirm = _readln();
 
     terminal().clear()
 }
