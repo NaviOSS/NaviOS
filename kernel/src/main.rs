@@ -105,11 +105,9 @@ fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
 
     unsafe {
         let kidle = Process::create(kidle as usize);
-        let kwork = Process::create(kwork as usize);
-
         let mut scheduler = Scheduler::init(kidle.clone());
 
-        scheduler.add_process(kwork);
+        scheduler.create_process(terminal::shell as usize);
         SCHEDULER = Some(scheduler);
         serial!("idle process: {:#?}\n", kidle);
     }
@@ -126,13 +124,16 @@ fn kidle() -> ! {
     }
 }
 
-fn kwork() {
-    serial!("work!\n");
-    loop {
-        // #[cfg(target_arch = "x86_64")]
-        // arch::x86_64::interrupts::handlers::handle_ps2_keyboard();
-    }
-}
+// /// does some pooling and stuff stops interrupts to do it's work first!
+// fn kwork() {
+//     serial!("work!\n");
+//     loop {
+//         // unsafe { asm!("cli") }
+//         // #[cfg(target_arch = "x86_64")]
+//         // arch::x86_64::interrupts::handlers::handle_ps2_keyboard();
+//         // unsafe { asm!("sti") }
+//     }
+// }
 
 // whenever a key is pressed this function should be called
 // this executes a few other kernel-functions

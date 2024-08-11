@@ -53,24 +53,3 @@ lazy_static! {
         base: (&*IDT).as_ptr() as usize
     };
 }
-
-#[derive(Debug)]
-#[repr(C, packed)]
-pub struct InterruptFrame {
-    pub insturaction: u64,
-    pub code_segment: u64,
-    pub flags: u64,
-    pub stack_pointer: u64,
-    pub stack_segment: u64,
-}
-
-#[derive(Debug)]
-#[repr(C, packed)]
-pub struct TrapFrame {
-    pub insturaction: u64,
-    pub code_segment: u64,
-    pub flags: u64,
-    pub stack_pointer: u64,
-    pub stack_segment: u64,
-    error_code: u64,
-}

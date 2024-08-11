@@ -1,12 +1,12 @@
 pub mod framebuffer;
 pub mod navitts;
 
-use core::{fmt, ptr::read};
+use core::fmt;
 
 use alloc::{string::String, vec::Vec};
 use framebuffer::TerminalMode;
 
-use crate::{globals::terminal, println};
+use crate::{globals::terminal, print, println, serial};
 
 #[doc(hidden)]
 #[no_mangle]
@@ -16,7 +16,7 @@ pub fn _print(args: fmt::Arguments) {
 }
 
 /// doesnt work rn
-pub fn _readln() -> String {
+pub fn readln() -> String {
     let old_mode = terminal().mode;
     terminal().mode = TerminalMode::Stdin;
 
@@ -63,7 +63,7 @@ fn clear(args: Vec<&str>) {
     }
 
     println!("you sure? y\\n");
-    let confirm = _readln();
+    let confirm = readln();
 
     terminal().clear()
 }
@@ -96,4 +96,24 @@ pub fn process_command(command: String) {
     }
 
     terminal().enter_stdin()
+}
+
+pub fn shell() {
+    // waits until we leave init mode which happens on the first terminal().clear()
+    while terminal().mode == TerminalMode::Init {}
+    print!(
+        r"\[fg: (0, 255, 0) ||
+ _   _             _  ____   _____
+| \ | |           (_)/ __ \ / ____|
+|  \| | __ ___   ___| |  | | (___
+| . ` |/ _` \ \ / / | |  | |\___ \
+| |\  | (_| |\ V /| | |__| |____) |
+|_| \_|\__,_| \_/ |_|\____/|_____/
+||]"
+    );
+    print!("\\[fg: (255, 255, 255) ||\nwelcome to NaviOS!\ntype help or ? for a list of avalible commands\n||]");
+
+    loop {
+        terminal().enter_stdin()
+    }
 }

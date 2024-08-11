@@ -1,5 +1,7 @@
 use core::arch::{asm, global_asm};
 
+use crate::{scheduler, scheduler_inited, serial};
+
 
 #[derive(Debug, Clone, Copy, Default)]
 #[repr(C)]
@@ -32,6 +34,8 @@ pub struct CPUStatus {
 
 global_asm!("
 .global restore_cpu_status
+.global context_switch_stub
+
 restore_cpu_status:
     // push the iretq frame
     push [rdi + 16]     // push ss
@@ -61,56 +65,65 @@ restore_cpu_status:
     mov rdi, [rdi + 112]
 
     iretq
+
+context_switch_stub:
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    
+    push rsi
+    push rdi
+    push rbp
+    
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+
+    push 0    // rip
+    push 0x8  // cs
+    push 0x10 // ss
+    pushfq 
+    push 0 // rsp
+    call context_switch
+    // UNREACHABLE!!!
+    ud2
 ");
 
-extern "C" { pub fn restore_cpu_status(status: &CPUStatus); }
+extern "C" { 
+    pub fn restore_cpu_status(status: &CPUStatus);
+}
+
+extern "x86-interrupt" { pub fn context_switch_stub(); }
+
+#[no_mangle]
+pub extern "C" fn context_switch(mut capture: CPUStatus, frame: super::interrupts::InterruptFrame) {        
+    capture.rsp = frame.stack_pointer;
+    capture.rip = frame.insturaction;
+
+    capture.cs = frame.code_segment;
+    capture.ss = frame.stack_segment;
+    capture.rflags = frame.flags;
+
+    serial!("tick\n");
+
+    if scheduler_inited() {
+        // actual context switching:
+        capture = scheduler().switch(capture); 
+    }  
+
+    super::interrupts::apic::send_eoi();
+    unsafe {
+        restore_cpu_status(&capture);
+    }
+}
 
 impl CPUStatus {
-    pub extern "C" fn save_inner(self) -> Self {
-        self
-    }
-
-    pub extern "C" fn save() -> Self {
-        unsafe {        
-            asm!("
-            push rax
-            push rbx
-            push rcx
-            push rdx
-            
-            push rsi
-            push rdi
-            push rbp
-            
-            push r8
-            push r9
-            push r10
-            push r11
-            push r12
-            push r13
-            push r14
-            push r15
-
-            push 0
-            push 0x8
-            push 0x10
-            pushfq 
-            push 0 // rsp
-            call {}
-            add rsp, {}
-            ret
-            ", sym Self::save_inner, const core::mem::size_of::<CPUStatus>() + 8, options(noreturn))
-        }
-    }
-    
-    /// saves the current cpu status expect for the rip it instead uses a provided address
-    #[inline]
-    pub fn save_with_address(address: usize) -> Self {
-        let mut captured = Self::save();
-        captured.rip = address as u64;
-        captured
-    }
-
     pub extern "C" fn restore(self) -> ! {
         unsafe {
             asm!("

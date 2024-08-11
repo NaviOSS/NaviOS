@@ -141,23 +141,10 @@ impl<'a> Terminal<'a> {
         self.stdin_buffer = String::new();
         self.stdout_buffer = String::new();
         if self.mode == TerminalMode::Init {
-            print!(
-                r"\[fg: (0, 255, 0) ||
- _   _             _  ____   _____
-| \ | |           (_)/ __ \ / ____|
-|  \| | __ ___   ___| |  | | (___
-| . ` |/ _` \ \ / / | |  | |\___ \
-| |\  | (_| |\ V /| | |__| |____) |
-|_| \_|\__,_| \_/ |_|\____/|_____/
-||]"
-            );
-            print!(
-                "\\[fg: (255, 255, 255) ||\nwelcome to NaviOS!\ntype help or ? for a list of avalible commands\n||]"
-            );
+            self.mode = TerminalMode::Stdin;
         }
 
         self.draw_viewport();
-        self.enter_stdin()
     }
 
     fn get_byte_offset(&self, x: usize, y: usize) -> usize {
@@ -329,8 +316,7 @@ impl<'a> Terminal<'a> {
 
     pub fn enter_stdin(&mut self) {
         print!(">> ");
-        self.mode = TerminalMode::Input;
-        self.putc('_', Self::INPUT_CHAR);
+        super::process_command(super::readln())
     }
 
     fn write_slice(&mut self, str: &str, attributes: Attributes) {

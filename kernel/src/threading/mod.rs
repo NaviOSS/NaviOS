@@ -1,8 +1,8 @@
-use core::alloc::Layout;
+use core::{alloc::Layout, arch::asm};
 
 use alloc::boxed::Box;
 
-use crate::{arch::CPUStatus, global_allocator, VirtAddr};
+use crate::{arch::CPUStatus, global_allocator, serial, VirtAddr};
 
 pub const STACK_SIZE: usize = 4096 * 4;
 pub const STACK_LAYOUT: Layout = Layout::new::<[u8; STACK_SIZE]>();
@@ -54,7 +54,7 @@ impl Process {
         }
     }
 }
-
+#[derive(Debug)]
 pub struct Scheduler {
     head: Process,
     current_process: Process,
@@ -71,6 +71,8 @@ impl Scheduler {
 
     /// context switches into next process, takes current context outputs new context
     pub fn switch(&mut self, context: CPUStatus) -> CPUStatus {
+        unsafe { asm!("cli") }
+
         self.current_process.context = context;
         self.current_process.status = ProcessStatus::Waiting;
 
@@ -81,7 +83,7 @@ impl Scheduler {
                 self.current_process = self.head.clone();
             }
 
-            if !(self.current_process.status == ProcessStatus::WaitingForBurying) {
+            if self.current_process.status == ProcessStatus::Waiting {
                 self.current_process.status = ProcessStatus::Running;
                 break;
             }
@@ -97,5 +99,10 @@ impl Scheduler {
         }
 
         current.next = Some(Box::new(process));
+    }
+    /// wrapper around `Process::create` that also adds the result to self using
+    /// `Self::add_process`
+    pub fn create_process(&mut self, function: usize) {
+        self.add_process(Process::create(function))
     }
 }

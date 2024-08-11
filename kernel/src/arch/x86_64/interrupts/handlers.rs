@@ -1,15 +1,11 @@
-use core::arch::asm;
-
 use lazy_static::lazy_static;
 
 use super::idt::{GateDescriptor, IDTT};
-use super::idt::{InterruptFrame, TrapFrame};
+use super::{InterruptFrame, TrapFrame};
 
-use crate::arch::x86_64::inb;
 use crate::arch::x86_64::interrupts::apic::send_eoi;
-use crate::arch::x86_64::threading::restore_cpu_status;
-use crate::arch::CPUStatus;
-use crate::{drivers, println, scheduler, scheduler_inited, serial};
+use crate::arch::x86_64::{inb, threading};
+use crate::{drivers, println};
 const ATTR_TRAP: u8 = 0xF;
 const ATTR_INT: u8 = 0xE;
 const EMPTY_TABLE: IDTT = [GateDescriptor::default(); 256]; // making sure it is made at compile-time
@@ -43,7 +39,7 @@ lazy_static! {
         (8, dobule_fault_handler, ATTR_TRAP, 0),
         (13, general_protection_fault_handler, ATTR_TRAP),
         (14, page_fault_handler, ATTR_TRAP),
-        (0x20, timer_interrupt_handler, ATTR_INT),
+        (0x20, threading::context_switch_stub, ATTR_INT),
         (0x21, keyboard_interrupt_handler, ATTR_INT)
     );
 }
@@ -66,29 +62,6 @@ extern "x86-interrupt" fn general_protection_fault_handler(frame: TrapFrame) {
 
 extern "x86-interrupt" fn page_fault_handler(frame: TrapFrame) {
     panic!("page fault exception\nframe: {:#?}", frame)
-}
-
-extern "x86-interrupt" fn timer_interrupt_handler(frame: InterruptFrame) {
-    serial!("tick\n");
-
-    send_eoi();
-    if scheduler_inited() {
-        let mut capture = CPUStatus::save();
-        capture.rsp = frame.stack_pointer;
-        capture.rip = frame.insturaction;
-
-        capture.cs = frame.code_segment;
-        capture.ss = frame.stack_segment;
-        capture.rflags = frame.flags;
-
-        send_eoi();
-        let switch = scheduler().switch(capture);
-        unsafe {
-            restore_cpu_status(&switch);
-        }
-    } else {
-        send_eoi();
-    }
 }
 
 #[inline]
