@@ -62,10 +62,12 @@ fn clear(args: Vec<&str>) {
         return;
     }
 
-    println!("you sure? y\\n");
+    println!("you sure? y\\N");
     let confirm = readln();
 
-    terminal().clear()
+    if confirm.to_uppercase() == "Y" {
+        terminal().clear()
+    }
 }
 
 // bad shell
@@ -98,7 +100,9 @@ pub fn process_command(command: String) {
     terminal().enter_stdin()
 }
 
+// badly written shell process
 pub fn shell() {
+    serial!("shell!\n");
     // waits until we leave init mode which happens on the first terminal().clear()
     while terminal().mode == TerminalMode::Init {}
     print!(

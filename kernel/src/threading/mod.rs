@@ -1,6 +1,6 @@
 use core::{alloc::Layout, arch::asm};
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, rc::Rc};
 
 use crate::{arch::CPUStatus, global_allocator, serial, VirtAddr};
 
@@ -56,44 +56,44 @@ impl Process {
 }
 #[derive(Debug)]
 pub struct Scheduler {
-    head: Process,
-    current_process: Process,
+    head: Box<Process>,
+    current_process: *mut Process,
 }
 
 impl Scheduler {
     #[inline]
     pub fn init(process: Process) -> Self {
+        let mut process = Box::new(process);
         Self {
-            head: process.clone(),
-            current_process: process,
+            current_process: &mut *process,
+            head: process,
         }
     }
 
     /// context switches into next process, takes current context outputs new context
-    pub fn switch(&mut self, context: CPUStatus) -> CPUStatus {
+    pub unsafe fn switch(&mut self, context: CPUStatus) -> CPUStatus {
         unsafe { asm!("cli") }
 
-        self.current_process.context = context;
-        self.current_process.status = ProcessStatus::Waiting;
+        (*self.current_process).context = context;
+        (*self.current_process).status = ProcessStatus::Waiting;
 
         loop {
-            if self.current_process.next.is_some() {
-                self.current_process = *self.current_process.next.take().unwrap();
+            if (*self.current_process).next.is_some() {
+                self.current_process = &mut **(*self.current_process).next.as_mut().unwrap();
             } else {
-                self.current_process = self.head.clone();
+                self.current_process = &mut *self.head;
             }
 
-            if self.current_process.status == ProcessStatus::Waiting {
-                self.current_process.status = ProcessStatus::Running;
+            if (*self.current_process).status == ProcessStatus::Waiting {
+                (*self.current_process).status = ProcessStatus::Running;
                 break;
             }
         }
-
-        return self.current_process.context;
+        return (*self.current_process).context;
     }
 
     pub fn add_process(&mut self, process: Process) {
-        let mut current = &mut self.head;
+        let mut current = &mut *self.head;
         while let Some(ref mut process) = current.next {
             current = &mut **process;
         }
