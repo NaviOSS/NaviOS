@@ -15,7 +15,6 @@ pub fn _print(args: fmt::Arguments) {
     terminal().write_fmt(args).unwrap();
 }
 
-/// doesnt work rn
 pub fn readln() -> String {
     let old_mode = terminal().mode;
     terminal().mode = TerminalMode::Stdin;
@@ -62,7 +61,7 @@ fn clear(args: Vec<&str>) {
         return;
     }
 
-    println!("you sure? y\\N");
+    print!("you sure? y\\N: ");
     let confirm = readln();
 
     if confirm.to_uppercase() == "Y" {

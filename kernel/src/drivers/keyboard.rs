@@ -351,6 +351,14 @@ fn add_pressed_keycode(code: KeyCode) {
         return;
     }
 
+    // the 'lock' in capslock
+    if code == KeyCode::CapsLock {
+        if code.is_pressed() {
+            remove_pressed_keycode(code);
+            return;
+        }
+    }
+
     let key = Key::process_keycode(code);
     let attempt = current_keys().push(key);
     if attempt.is_err() {
@@ -402,7 +410,9 @@ pub fn encode_ps2_set_1(code: u8) {
     let encoded = key.encode();
 
     if break_code {
-        remove_pressed_keycode(encoded)
+        if encoded != KeyCode::CapsLock {
+            remove_pressed_keycode(encoded)
+        }
     } else {
         add_pressed_keycode(encoded)
     }

@@ -11,17 +11,13 @@ use crate::{
     print, println,
 };
 
-use super::{
-    navitts::{Attributes, NaviTTES},
-    process_command,
-};
+use super::navitts::{Attributes, NaviTTES};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalMode {
     Init,
     Stdout,
     Stdin,
-    Input,
 }
 
 const RASTER_HEIGHT: RasterHeight = RasterHeight::Size20;
@@ -91,26 +87,6 @@ impl<'a> Terminal<'a> {
                 }
             }
 
-            // input mode is just stdin however we dont have a 'program' which executes
-            // process_command everytime a \n happens (like `readln()`) and we cannot do that
-            // without threading
-            TerminalMode::Input => {
-                let mapped = key.map_key();
-
-                if mapped == '\n' {
-                    self.newline();
-
-                    let buffer = self.stdin_buffer.clone();
-                    self.stdin_buffer.clear();
-
-                    process_command(buffer);
-                    return;
-                }
-
-                if mapped != '\0' {
-                    self.stdin_putc(mapped)
-                }
-            }
             _ => (),
         }
     }
@@ -297,17 +273,17 @@ impl<'a> Terminal<'a> {
 
     const INPUT_CHAR: (u8, u8, u8) = (170, 200, 30);
     pub fn stdin_putc(&mut self, c: char) {
-        self.stdin_buffer.push(c);
-
-        // removing the _ if we are in input mode
-        if self.mode == TerminalMode::Input {
+        // removing the _ if we are in stdin mode
+        if self.mode == TerminalMode::Stdin && !self.stdin_buffer.is_empty() {
             self.remove_char('_')
         }
+
+        self.stdin_buffer.push(c);
 
         self.putc(c, (255, 255, 255));
 
         // puts it back
-        if self.mode == TerminalMode::Input {
+        if self.mode == TerminalMode::Stdin && c != '\n' && !self.stdin_buffer.is_empty() {
             self.putc('_', Self::INPUT_CHAR);
         }
 
