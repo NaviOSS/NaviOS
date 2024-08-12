@@ -27,11 +27,6 @@ pub fn set_used(row: usize, col: usize) {
     unsafe { BITMAP[row] &= 1 << col }
 }
 
-pub fn set_used_addr(address: usize) {
-    let (row, col) = bitmap_get_location(address);
-    set_used(row, col);
-}
-
 /// fetches a free page starting from address
 pub fn get_free_page_from(address: usize) -> Option<Page> {
     let address = if address != 0 {
@@ -57,7 +52,7 @@ pub fn get_free_page_from(address: usize) -> Option<Page> {
     None
 }
 /// fetches a free Page and marks it as used returns None if no free pages avalible
-pub fn get_free_page() -> Option<Page> {
+pub fn _get_free_page() -> Option<Page> {
     get_free_page_from(0)
 }
 

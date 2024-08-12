@@ -1,6 +1,6 @@
 use core::arch::global_asm;
 
-use crate::{scheduler, scheduler_inited, serial};
+use crate::{scheduler, scheduler_inited};
 
 #[derive(Debug, Clone, Copy, Default)]
 #[repr(C)]

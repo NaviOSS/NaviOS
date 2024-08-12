@@ -119,9 +119,9 @@ impl<'a> Terminal<'a> {
         self.info.width
     }
 
-    fn height(&self) -> usize {
-        self.info.height
-    }
+    // fn height(&self) -> usize {
+    //     self.info.height
+    // }
 
     pub fn draw_viewport(&mut self) {
         self.buffer.copy_from_slice(

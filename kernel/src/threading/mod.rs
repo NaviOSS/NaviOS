@@ -1,8 +1,8 @@
 use core::{alloc::Layout, arch::asm};
 
-use alloc::{boxed::Box, rc::Rc};
+use alloc::boxed::Box;
 
-use crate::{arch::CPUStatus, global_allocator, serial, VirtAddr};
+use crate::{arch::CPUStatus, global_allocator, VirtAddr};
 
 pub const STACK_SIZE: usize = 4096 * 4;
 pub const STACK_LAYOUT: Layout = Layout::new::<[u8; STACK_SIZE]>();
@@ -57,6 +57,7 @@ impl Process {
 #[derive(Debug)]
 pub struct Scheduler {
     head: Box<Process>,
+    // raw pointers for peformance, we are ring0 we need the lowest stuff
     current_process: *mut Process,
 }
 
