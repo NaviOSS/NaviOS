@@ -83,7 +83,7 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
     };
 
     // initing the arch
-    arch_init!(); // macro is defined for each arch
+    arch::init();
     unsafe {
         memory::init_memory().unwrap();
         let terminal: Terminal<'static> = Terminal::init(bootinfo.framebuffer.as_mut().unwrap());
@@ -152,6 +152,7 @@ static CONFIG: bootloader_api::BootloaderConfig = {
     let mut config = BootloaderConfig::new_default();
     let mut mappings = Mappings::new_default();
     mappings.physical_memory = Some(Mapping::Dynamic);
+    mappings.dynamic_range_start = Some(0xffff_8000_0000_0000);
     config.mappings = mappings;
     config
 };

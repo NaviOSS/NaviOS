@@ -32,10 +32,3 @@ pub fn init() {
 
     apic::enable_apic_interrupts();
 }
-
-#[macro_export]
-macro_rules! arch_init {
-    () => {
-        arch::x86_64::init()
-    };
-}
