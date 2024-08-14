@@ -1,61 +1,5 @@
 const ENTRY_COUNT: usize = 512;
 pub const PAGE_SIZE: usize = 4096;
-const BITMAP_BITS_PER_ROW: usize = 64;
-const ROWS: usize = 16313;
-static mut BITMAP: [u64; ROWS] = [0; ROWS];
-
-#[inline]
-fn bitmap_get_bitnumber(row: usize, col: usize) -> usize {
-    (row * BITMAP_BITS_PER_ROW) + col
-}
-
-#[inline]
-fn bitmap_get_address(bitnumber: usize) -> usize {
-    bitnumber * PAGE_SIZE
-}
-
-#[inline]
-fn bitmap_get_location(address: usize) -> (usize, usize) {
-    let bitnumber = address / PAGE_SIZE;
-    (
-        bitnumber / BITMAP_BITS_PER_ROW,
-        bitnumber % BITMAP_BITS_PER_ROW,
-    )
-}
-
-pub fn set_used(row: usize, col: usize) {
-    unsafe { BITMAP[row] &= 1 << col }
-}
-
-/// fetches a free page starting from address
-pub fn get_free_page_from(address: usize) -> Option<Page> {
-    let address = if address != 0 {
-        align_up(address, PAGE_SIZE)
-    } else {
-        address
-    };
-
-    let (c_row, c_col) = bitmap_get_location(address);
-    for row in c_row..ROWS {
-        let col = if row == c_row { c_col } else { 0 };
-
-        for col in col..BITMAP_BITS_PER_ROW {
-            let bitnumber = bitmap_get_bitnumber(row, col);
-
-            if unsafe { BITMAP[row] as usize & 1 << col == 0 } {
-                set_used(row, col);
-                return Some(Page::containing_address(bitmap_get_address(bitnumber)));
-            }
-        }
-    }
-
-    None
-}
-/// fetches a free Page and marks it as used returns None if no free pages avalible
-pub fn _get_free_page() -> Option<Page> {
-    get_free_page_from(0)
-}
-
 use crate::{
     globals::frame_allocator,
     memory::{translate, PhysAddr},
@@ -68,7 +12,7 @@ use core::{
 
 use crate::memory::frame_allocator::Frame;
 
-use super::{align_down, align_up, frame_allocator::RegionAllocator, VirtAddr};
+use super::{align_down, frame_allocator::RegionAllocator, VirtAddr};
 
 #[derive(Debug, Clone, Copy)]
 pub struct Page {
@@ -281,28 +225,5 @@ impl Mapper {
     pub unsafe fn flush(&self) {
         #[cfg(target_arch = "x86_64")]
         asm!("invlpg [{}]", in(reg) 0 as *const u8);
-    }
-
-    /// maps a page starting from an address
-    pub fn map_free_page_from(
-        &mut self,
-        address: usize,
-        flags: EntryFlags,
-    ) -> Result<(Page, &mut Self), MapToError> {
-        let allocator = frame_allocator();
-
-        let frame = allocator
-            .allocate_frame()
-            .ok_or(MapToError::FrameAllocationFailed)?;
-
-        let page = get_free_page_from(address).ok_or(MapToError::FrameAllocationFailed)?;
-        self.map_to(page, frame, flags | EntryFlags::PRESENT)?;
-
-        Ok((page, self))
-    }
-
-    /// maps a free page, wrapper around map_free_page_from starting from 0
-    pub fn map_free_page(&mut self, flags: EntryFlags) -> Result<(Page, &mut Self), MapToError> {
-        self.map_free_page_from(0, flags)
     }
 }

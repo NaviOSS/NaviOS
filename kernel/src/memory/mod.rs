@@ -68,10 +68,6 @@ pub const fn align(addr: usize, align: usize) -> usize {
     }
 }
 
-pub const fn align_up(x: usize, alignment: usize) -> usize {
-    (x + alignment - 1) & !(alignment - 1)
-}
-
 pub const fn align_down(x: usize, alignment: usize) -> usize {
     x & !(alignment - 1)
 }

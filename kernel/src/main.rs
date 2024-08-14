@@ -18,6 +18,7 @@ mod threading;
 mod utils;
 
 extern crate alloc;
+use arch::threading::restore_cpu_status;
 use bootloader_api::info::MemoryRegions;
 
 use drivers::keyboard::Key;
@@ -29,7 +30,6 @@ use memory::paging::Mapper;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
 use terminal::framebuffer::Terminal;
-use threading::Process;
 use threading::Scheduler;
 #[macro_export]
 macro_rules! print {
@@ -89,34 +89,40 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
         let terminal: Terminal<'static> = Terminal::init(bootinfo.framebuffer.as_mut().unwrap());
         TERMINAL = Some(terminal);
     }
+
+    serial!("kernel init phase 1 done\n");
+
+    unsafe {
+        asm!("cli");
+        let mut scheduler = Scheduler::init(kidle as usize, "kernel");
+
+        scheduler.create_process(terminal::shell as usize, "shell");
+        SCHEDULER = Some(scheduler);
+
+        restore_cpu_status(&(*SCHEDULER.as_ref().unwrap().current_process).context)
+    }
 }
 
 #[no_mangle]
 fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     kinit(boot_info);
-    serial!("hello, world!\n");
-
-    #[cfg(feature = "test")]
-    test::testing_module::test_main();
-    println!(
-        "\\[fg: (0, 255, 0) ||Boot success! press ctrl + shift + C to clear screen (and enter input mode)\n||]"
-    );
-    serial!("finished initing...\n");
-
-    unsafe {
-        let kidle = Process::create(kidle as usize);
-        let mut scheduler = Scheduler::init(kidle.clone());
-
-        scheduler.create_process(terminal::shell as usize);
-        SCHEDULER = Some(scheduler);
-        serial!("idle process: {:#?}\n", kidle);
-    }
-
-    kidle()
+    serial!("failed context switching to kidle! ...\n");
+    loop {}
 }
 
 fn kidle() -> ! {
+    serial!("Hello, world!, running tests...\n");
+
+    #[cfg(feature = "test")]
+    test::testing_module::test_main();
+
+    println!(
+        "\\[fg: (0, 255, 0) ||Boot success! press ctrl + shift + C to clear screen (and enter input mode)\n||]"
+    );
+
+    serial!("finished initing...\n");
     serial!("idle!\n");
+
     loop {
         unsafe {
             asm!("hlt");

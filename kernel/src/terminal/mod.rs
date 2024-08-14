@@ -1,12 +1,12 @@
 pub mod framebuffer;
 pub mod navitts;
 
-use core::fmt;
+use core::{fmt, str};
 
 use alloc::{string::String, vec::Vec};
 use framebuffer::TerminalMode;
 
-use crate::{arch, globals::terminal, print, println, serial};
+use crate::{arch, globals::terminal, print, println, scheduler, serial};
 
 #[doc(hidden)]
 #[no_mangle]
@@ -48,18 +48,24 @@ fn help(args: Vec<&str>) {
     }
 
     println!(
-        "commands:
+        "info:
+    scroll up using `page up` and scroll down using `page down`,
+    this shell supports string slices starting with '\"'
+commands:
     help, ?: displays this
-    echo: echoes back text
+    echo `text`: echoes back text
     clear: clears the screen
     shutdown: shutdowns qemu and bochs only for now
-    reboot: force-reboots the PC for now"
+    reboot: force-reboots the PC for now
+    plist: list the avalible process' pids and names
+    pkill `pid`: kills a process with pid `pid`
+    pkillall `name`: kills all processs with name `name`"
     );
 }
 
 fn clear(args: Vec<&str>) {
     if args.len() != 1 {
-        println!("{}: expected 1 arg", args[0]);
+        println!("{}: expected 0 args", args[0]);
         return;
     }
 
@@ -73,7 +79,7 @@ fn clear(args: Vec<&str>) {
 
 fn reboot_cmd(args: Vec<&str>) {
     if args.len() != 1 {
-        println!("{}: expected one arg", args[0]);
+        println!("{}: expected 0 args", args[0]);
         return;
     }
 
@@ -82,12 +88,77 @@ fn reboot_cmd(args: Vec<&str>) {
 
 fn shutdown_cmd(args: Vec<&str>) {
     if args.len() != 1 {
-        println!("{}: expected one arg", args[0]);
+        println!("{}: expected 0 args", args[0]);
         return;
     }
 
     arch::power::shutdown();
 }
+
+fn plist(args: Vec<&str>) {
+    if args.len() != 1 {
+        println!("{}: expected 0 args", args[0]);
+        return;
+    }
+
+    let mut process_list: Vec<(u64, [u8; 64])> = Vec::new();
+
+    let mut current = &scheduler().head;
+    process_list.push((current.pid, current.name));
+
+    while let Some(ref process) = current.next {
+        process_list.push((process.pid, process.name));
+        current = process;
+    }
+
+    println!("{} process(s) is currently running:", process_list.len());
+    println!("name:  pid");
+    for (pid, name) in process_list {
+        let mut name = name.to_vec();
+        while name.last() == Some(&0) {
+            name.pop();
+        }
+
+        println!("{}:  {}", str::from_utf8(&name).unwrap(), pid);
+    }
+}
+
+fn pkill(args: Vec<&str>) {
+    if args.len() != 2 {
+        println!("{}: expected one arg which is the pid", args[0]);
+        return;
+    }
+
+    let pid = args[1].parse();
+    if pid.is_err() {
+        println!("couldn't parse pid make sure it is a vaild number...");
+        return;
+    }
+
+    let pid = pid.unwrap();
+
+    if pid == 0 {
+        println!("it looks like you are trying to kill us sadly this doesn't work duo to a bug which will never be fixed\nwe will try to do that anyways you monster!")
+    }
+
+    scheduler()
+        .pkill(pid)
+        .unwrap_or_else(|_| println!("couldn't find a process with pid `{}`", pid));
+}
+
+fn pkillall(args: Vec<&str>) {
+    if args.len() != 2 {
+        println!("{}: expected one arg which is the process name", args[0]);
+        return;
+    }
+
+    let name = args[1].as_bytes();
+
+    scheduler()
+        .pkillall(name)
+        .unwrap_or_else(|_| println!("couldn't find a process with name `{}`", args[1]));
+}
+
 // bad shell
 pub fn process_command(command: String) {
     let mut unterminated_str_slice = false;
@@ -114,6 +185,10 @@ pub fn process_command(command: String) {
         "clear" => return clear(command),
         "reboot" => return reboot_cmd(command),
         "shutdown" => return shutdown_cmd(command),
+
+        "plist" => plist(command),
+        "pkill" => pkill(command),
+        "pkillall" => pkillall(command),
         _ => println!("unknown command {}", command[0]),
     }
 
@@ -124,7 +199,9 @@ pub fn process_command(command: String) {
 pub fn shell() {
     serial!("shell!\n");
     // waits until we leave init mode which happens on the first terminal().clear()
-    while terminal().mode == TerminalMode::Init {}
+    while terminal().mode != TerminalMode::Stdin {}
+    serial!("entering stdin... {:?}\n", terminal().mode);
+
     print!(
         r"\[fg: (0, 255, 0) ||
  _   _             _  ____   _____
