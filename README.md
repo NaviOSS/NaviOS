@@ -49,6 +49,8 @@ note: i dont know much about osdev stuff prefixed with ? is missing info and mor
     - [ ] writing?
 - [ ] networking
     - [ ] ?
+- [ ] GUI
+    - [ ] ?
 - [ ] apps
     - [X] context switching, and simple processes
     - [ ] more advanced context switching, (pid, name, priority)
