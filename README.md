@@ -16,19 +16,19 @@ for now am using a crate called `bootloader` which i dont understands much about
 # roadmap
 note: i dont know much about osdev stuff prefixed with ? is missing info and more stuff may be added in the feature
 
-- [ ] x86_64 basics
-    - [ ] GDT
-    - [ ] interrupts
-    - [ ] APIC
-    - [ ] framebuffer terminal
+- [X] x86_64 basics
+    - [X] GDT
+    - [X] interrupts
+    - [X] APIC
+    - [X] framebuffer terminal
 - [ ] keyboard
-    - [ ] ps/2 keyboard interrupt handling
+    - [X] ps/2 keyboard interrupt handling
     - [ ] usb keyboard handling
-    - [ ] keyboard driver
-    - [ ] key mapping
-- [ ] memory
-    - [ ] pagging
-    - [ ] kernel heap
+    - [X] keyboard driver
+    - [X] key mapping
+- [X] memory
+    - [X] pagging
+    - [X] kernel heap
     - [ ] more pagging
     - [ ] figure out how should i give apps memory?
     - [ ] bitmap?
@@ -39,7 +39,8 @@ note: i dont know much about osdev stuff prefixed with ? is missing info and mor
 - [ ] networking
  - [ ] ?
 - [ ] apps
-    - [ ] context switching
+    - [X] context switching, and simple processes
+    - [ ] more advanced context switching
     - [ ] userspace
     - [ ] more about processes?
     - [ ] ELF support
