@@ -21,6 +21,16 @@ note: i dont know much about osdev stuff prefixed with ? is missing info and mor
     - [X] interrupts
     - [X] APIC
     - [X] framebuffer terminal
+- [X] framebuffer terminal
+    - [X] scrolling
+    - [ ] locking the terminal (threading, context switching)
+    - [X] terminal shell process
+- [ ] ACPI parsing
+    - [X] RSDT parsing
+    - [ ] XSDT parsing
+    - [X] MADT parsing
+    - [X] FADT parsing
+- [ ] ACPI powermangment
 - [ ] keyboard
     - [X] ps/2 keyboard interrupt handling
     - [ ] usb keyboard handling
@@ -33,14 +43,15 @@ note: i dont know much about osdev stuff prefixed with ? is missing info and mor
     - [ ] figure out how should i give apps memory?
     - [ ] bitmap?
     - [ ] pooling?
+    - [ ] higher half kernel?
 - [ ] fs
     - [ ] reading?
     - [ ] writing?
 - [ ] networking
- - [ ] ?
+    - [ ] ?
 - [ ] apps
     - [X] context switching, and simple processes
-    - [ ] more advanced context switching
+    - [ ] more advanced context switching, (pid, name, priority)
     - [ ] userspace
     - [ ] more about processes?
     - [ ] ELF support
