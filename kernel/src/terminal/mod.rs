@@ -6,7 +6,7 @@ use core::fmt;
 use alloc::{string::String, vec::Vec};
 use framebuffer::TerminalMode;
 
-use crate::{globals::terminal, print, println, serial};
+use crate::{arch, globals::terminal, print, println, serial};
 
 #[doc(hidden)]
 #[no_mangle]
@@ -41,7 +41,7 @@ pub fn echo(args: Vec<&str>) {
     println!("{}", args[1]);
 }
 
-pub fn help(args: Vec<&str>) {
+fn help(args: Vec<&str>) {
     if args.len() != 1 {
         println!("{}: expected 1 arg", args[0]);
         return;
@@ -51,7 +51,9 @@ pub fn help(args: Vec<&str>) {
         "commands:
     help, ?: displays this
     echo: echoes back text
-    clear: clears the screen"
+    clear: clears the screen
+    shutdown: shutdowns qemu and bochs only for now
+    reboot: force-reboots the PC for now"
     );
 }
 
@@ -69,6 +71,23 @@ fn clear(args: Vec<&str>) {
     }
 }
 
+fn reboot_cmd(args: Vec<&str>) {
+    if args.len() != 1 {
+        println!("{}: expected one arg", args[0]);
+        return;
+    }
+
+    arch::power::reboot();
+}
+
+fn shutdown_cmd(args: Vec<&str>) {
+    if args.len() != 1 {
+        println!("{}: expected one arg", args[0]);
+        return;
+    }
+
+    arch::power::shutdown();
+}
 // bad shell
 pub fn process_command(command: String) {
     let mut unterminated_str_slice = false;
@@ -93,6 +112,8 @@ pub fn process_command(command: String) {
         "echo" => echo(command),
         "?" | "help" => help(command),
         "clear" => return clear(command),
+        "reboot" => return reboot_cmd(command),
+        "shutdown" => return shutdown_cmd(command),
         _ => println!("unknown command {}", command[0]),
     }
 

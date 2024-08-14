@@ -45,7 +45,7 @@ macro_rules! println {
 #[macro_export]
 macro_rules! serial {
     ($($arg:tt)*) => {
-        crate::arch::x86_64::serial::_serial(format_args!($($arg)*));
+        crate::arch::x86_64::serial::_serial(format_args!($($arg)*))
     };
 }
 

@@ -4,7 +4,7 @@ use super::read_msr;
 use bitflags::bitflags;
 
 use crate::{
-    arch::x86_64::acpi::{get_sdt, MADT},
+    arch::x86_64::acpi::{self, MADT},
     memory::map_writeable,
     VirtAddr,
 };
@@ -57,11 +57,6 @@ pub struct MADTIOApic {
     _r: u8,
     pub ioapic_address: u32,
     global_system_interrupt_base: u32,
-}
-
-pub fn get_madt() -> &'static MADT {
-    let sdt = get_sdt();
-    unsafe { &*(sdt.get_entry_of_signatrue(*b"APIC").unwrap() as *const MADT) }
 }
 
 #[inline]
@@ -185,7 +180,7 @@ pub fn enable_apic_interrupts() {
     unsafe {
         core::ptr::write_volatile(sivr, 0x1ff);
 
-        let madt = get_madt();
+        let madt = MADT::get(acpi::get_sdt());
         let ioapic_addr = get_io_apic_addr(madt);
         let apic_id = *(get_local_apic_reg(local_apic_addr, 0x20) as *const u8);
         enable_apic_timer(local_apic_addr);
