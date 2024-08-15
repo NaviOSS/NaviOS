@@ -53,9 +53,9 @@ note: i dont know much about osdev stuff prefixed with ? is missing info and mor
     - [ ] ?
 - [ ] apps
     - [X] context switching, and simple processes
-    - [ ] more advanced context switching, (pid, name, priority)
+    - [X] more advanced context switching, (pid, name, each process has it's own page table)
+    - [ ] the ability for each process to have multiple threads
     - [ ] userspace
-    - [ ] more about processes?
     - [ ] ELF support
     - [ ] wasm VM
     - [ ] more wasm

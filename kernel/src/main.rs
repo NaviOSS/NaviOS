@@ -26,7 +26,6 @@ use drivers::keyboard::Key;
 use globals::*;
 
 use memory::frame_allocator::RegionAllocator;
-use memory::paging::level_4_table;
 use memory::paging::Mapper;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
@@ -62,10 +61,12 @@ fn panic(info: &PanicInfo) -> ! {
     serial!("kernel panic: ");
     serial!("{}, at {}", info.message(), info.location().unwrap());
 
-    // println!("\\[fg: (255, 0, 0) |\nkernel panic: |]");
-    // println!("{}, at {}", info.message(), info.location());
-    //
-    // println!("\\[fg: (255, 0, 0) |cannot continue execution kernel will now hang|]");
+    if terminal_inited() {
+        println!("\\[fg: (255, 0, 0) |\nkernel panic: |]");
+        println!("{}, at {}", info.message(), info.location().unwrap());
+
+        println!("\\[fg: (255, 0, 0) |cannot continue execution kernel will now hang|]");
+    }
     loop {}
 }
 
@@ -80,7 +81,7 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
         RSDP_ADDR = bootinfo.rsdp_addr.into();
         FRAME_ALLOCATOR = Some(RegionAllocator::new(&mut *regions));
 
-        let mapper = Mapper::new(*phy_offset as usize, level_4_table(*phy_offset));
+        let mapper = Mapper::new(*phy_offset as usize);
         PAGING_MAPPER = Some(mapper);
     };
 

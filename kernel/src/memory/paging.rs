@@ -100,13 +100,21 @@ bitflags! {
 
 #[derive(Debug, Clone)]
 pub struct PageTable {
-    entries: [Entry; ENTRY_COUNT],
+    pub entries: [Entry; ENTRY_COUNT],
 }
 
 impl PageTable {
     pub fn zeroize(&mut self) {
         for entry in &mut self.entries {
             entry.0 = 0;
+        }
+    }
+
+    /// copies the higher half entries of the current pml4 to this page table
+    pub fn copy_higher_half(&mut self, phy_offset: VirtAddr) {
+        unsafe {
+            self.entries[256..ENTRY_COUNT]
+                .clone_from_slice(&level_4_table(phy_offset).entries[256..ENTRY_COUNT])
         }
     }
 }
@@ -125,7 +133,7 @@ impl IndexMut<usize> for PageTable {
 }
 
 #[cfg(target_arch = "x86_64")]
-pub unsafe fn level_4_table(phy_offset: u64) -> &'static mut PageTable {
+pub unsafe fn level_4_table(phy_offset: VirtAddr) -> &'static mut PageTable {
     let phys_addr: PhysAddr;
     unsafe {
         asm!("mov {}, cr3", out(reg) phys_addr);
@@ -142,21 +150,17 @@ pub enum MapToError {
 }
 
 pub struct Mapper {
-    level_4_table: &'static mut PageTable,
-    offset: PhysAddr,
+    phy_offset: PhysAddr,
 }
 
 impl Mapper {
-    pub const fn new(offset: PhysAddr, level_4_table: &'static mut PageTable) -> Self {
-        Self {
-            level_4_table,
-            offset,
-        }
+    pub const fn new(phy_offset: PhysAddr) -> Self {
+        Self { phy_offset }
     }
 
     #[cfg(target_arch = "x86_64")]
     fn map_page_table_entry(
-        offset: PhysAddr,
+        phy_offset: VirtAddr,
         flags: EntryFlags,
         entry: &mut Entry,
         frame_allocator: &mut RegionAllocator,
@@ -165,7 +169,7 @@ impl Mapper {
             let addr = entry.frame().unwrap().start_address;
 
             entry.set(flags | entry.flags(), addr);
-            let virt_addr = addr + offset;
+            let virt_addr = addr + phy_offset;
             let entry_ptr = virt_addr as *mut PageTable;
 
             Ok(unsafe { &mut *(entry_ptr) })
@@ -177,7 +181,7 @@ impl Mapper {
             let addr = frame.start_address;
             entry.set(flags, addr);
 
-            let virt_addr = addr + offset;
+            let virt_addr = addr + phy_offset;
             let table_ptr = virt_addr as *mut PageTable;
 
             Ok(unsafe {
@@ -197,19 +201,21 @@ impl Mapper {
             translate(page.start_address);
         let frame_allocator = frame_allocator();
 
-        let level_4_entry = &mut self.level_4_table[level_4_index];
+        let level_4_table = unsafe { level_4_table(self.phy_offset) };
+
+        let level_4_entry = &mut level_4_table[level_4_index];
         let level_3_table =
-            Self::map_page_table_entry(self.offset, flags, level_4_entry, frame_allocator)?;
+            Self::map_page_table_entry(self.phy_offset, flags, level_4_entry, frame_allocator)?;
 
         let level_2_table = Self::map_page_table_entry(
-            self.offset,
+            self.phy_offset,
             flags,
             &mut level_3_table[level_3_index],
             frame_allocator,
         )?;
 
         let level_1_table = Self::map_page_table_entry(
-            self.offset,
+            self.phy_offset,
             flags,
             &mut level_2_table[level_2_index],
             frame_allocator,
@@ -224,5 +230,20 @@ impl Mapper {
     pub unsafe fn flush(&self) {
         #[cfg(target_arch = "x86_64")]
         asm!("invlpg [{}]", in(reg) 0 as *const u8);
+    }
+
+    /// allocates a pml4 and returns its physical address
+    pub fn allocate_pml4(&self) -> Result<PhysAddr, MapToError> {
+        let frame = frame_allocator()
+            .allocate_frame()
+            .ok_or(MapToError::FrameAllocationFailed)?;
+
+        let virt_start_addr = frame.start_address + self.phy_offset;
+        let table = unsafe { &mut *(virt_start_addr as *mut PageTable) };
+
+        table.zeroize();
+        table.copy_higher_half(self.phy_offset);
+
+        Ok(frame.start_address)
     }
 }

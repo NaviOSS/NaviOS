@@ -2,7 +2,7 @@ use core::{alloc::Layout, arch::asm};
 
 use alloc::{boxed::Box, vec::Vec};
 
-use crate::{arch::threading::CPUStatus, global_allocator, VirtAddr};
+use crate::{arch::threading::CPUStatus, global_allocator, paging_mapper, VirtAddr};
 
 pub const STACK_SIZE: usize = 4096 * 4;
 pub const STACK_LAYOUT: Layout = Layout::new::<[u8; STACK_SIZE]>();
@@ -63,6 +63,7 @@ impl Process {
 
             context.ss = 0x10;
             context.cs = 0x8;
+            context.cr3 = paging_mapper().allocate_pml4().unwrap() as u64;
         }
 
         Process {
@@ -124,6 +125,7 @@ impl Scheduler {
                 break;
             }
         }
+
         return (*self.current_process).context;
     }
 

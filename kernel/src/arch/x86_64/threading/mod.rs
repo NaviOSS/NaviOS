@@ -28,6 +28,7 @@ pub struct CPUStatus {
     rdx: u64,
     rcx: u64,
     rbx: u64,
+    pub cr3: u64,
     rax: u64,
 }
 
@@ -60,14 +61,23 @@ restore_cpu_status:
     mov rdx, [rdi + 128]
     mov rcx, [rdi + 136]
     mov rbx, [rdi + 144]
-    mov rax, [rdi + 152]
+    
+    push [rdi + 0x70] // rdi
+    push [rdi + 0xA0] // rax
 
-    mov rdi, [rdi + 112]
+    mov rax, [rdi + 0x98]
+    mov cr3, rax
+    
+    pop rax
+    pop rdi
 
     iretq
 
 context_switch_stub:
     push rax
+    mov rax, cr3
+    push rax
+
     push rbx
     push rcx
     push rdx
