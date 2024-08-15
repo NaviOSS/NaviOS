@@ -39,11 +39,8 @@ note: i dont know much about osdev stuff prefixed with ? is missing info and mor
 - [X] memory
     - [X] pagging
     - [X] kernel heap
-    - [ ] more pagging
     - [ ] figure out how should i give apps memory?
-    - [ ] bitmap?
-    - [ ] pooling?
-    - [ ] higher half kernel?
+    - [X] higher half kernel
 - [ ] fs
     - [ ] reading?
     - [ ] writing?
