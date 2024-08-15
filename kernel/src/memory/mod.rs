@@ -78,7 +78,7 @@ pub unsafe fn init_memory(heap_start: usize) -> Result<(), MapToError> {
     );
     let page_range = {
         let heap_start = heap_start;
-        let heap_end = heap_start + INIT_HEAP_SIZE - 1;
+        let heap_end = heap_start + INIT_HEAP_SIZE;
         let heap_start_page = Page::containing_address(heap_start);
         let heap_end_page = Page::containing_address(heap_end);
         Page::iter_pages(heap_start_page, heap_end_page)

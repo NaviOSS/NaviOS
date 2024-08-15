@@ -4,7 +4,7 @@ use macros::test_module;
 pub mod testing_module {
     use alloc::vec::Vec;
 
-    use crate::println;
+    use crate::{global_allocator, println};
     use core::arch::asm;
 
     fn print() {
@@ -41,5 +41,27 @@ pub mod testing_module {
         }
 
         println!("{:#?}\nAllocated Vec with len {}", test, test.len());
+    }
+
+    // TODO: add asserts for the extend_test
+    fn extending_the_heap() {
+        global_allocator()
+            .lock()
+            .extend_heap()
+            .unwrap_or_else(|_| panic!());
+        println!("extended the heap successfully!");
+    }
+
+    fn double_extending_the_heap() {
+        global_allocator()
+            .lock()
+            .extend_heap()
+            .unwrap_or_else(|_| panic!());
+        global_allocator()
+            .lock()
+            .extend_heap()
+            .unwrap_or_else(|_| panic!());
+
+        println!("double extended the heap successfully!");
     }
 }

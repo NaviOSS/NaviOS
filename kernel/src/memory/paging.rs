@@ -218,7 +218,6 @@ impl Mapper {
         let entry = &mut level_1_table[level_1_index];
 
         *entry = Entry::new(flags, frame.start_address);
-        /*         set_used_addr(page.start_address); */
         Ok(self)
     }
 

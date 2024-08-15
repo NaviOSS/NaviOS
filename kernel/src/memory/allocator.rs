@@ -3,7 +3,15 @@ use core::{
     ptr,
 };
 
-use crate::{memory::align_up, utils::Locked};
+use crate::{
+    frame_allocator,
+    memory::{
+        align_up,
+        paging::{EntryFlags, IterPage, Page, PAGE_SIZE},
+    },
+    paging_mapper,
+    utils::Locked,
+};
 
 #[derive(Debug)]
 pub struct Node {
@@ -45,6 +53,8 @@ impl Node {
 #[derive(Debug)]
 pub struct LinkedListAllocator {
     head: Node,
+    /// keeps track of the current heap_end so we can extend it later
+    pub heap_end: usize,
 }
 
 impl LinkedListAllocator {
@@ -54,11 +64,22 @@ impl LinkedListAllocator {
                 size: 0,
                 next: None,
             },
+
+            heap_end: 0,
         }
     }
-    // heap_start has to be aligned
-    pub unsafe fn init(&mut self, heap_start: usize, size: usize) {
-        self.add_free_node(align_up(heap_start, align_of::<Node>()), size);
+
+    /// size may not be equal to `size`, heap_start may not be equal to `possible_start` these are
+    /// just boundaries
+    /// unsafe because possible_start has to be mapped first
+    pub unsafe fn init(&mut self, possible_start: usize, size: usize) {
+        let heap_start = align_up(possible_start, size_of::<Node>());
+        let size = size - (heap_start - possible_start);
+
+        let heap_end = heap_start + size;
+        self.heap_end = heap_end;
+
+        self.add_free_node(heap_start, size);
     }
 
     pub unsafe fn alloc_mut(&mut self, layout: Layout) -> *mut u8 {
@@ -103,17 +124,8 @@ impl LinkedListAllocator {
             }
         }
 
-        // extanding the heap
-        // let (page, mapper) = paging_mapper()
-        //     .map_free_page_from(HEAP_START, EntryFlags::WRITABLE)
-        //     .ok()?;
-        //
-        // unsafe {
-        //     mapper.flush();
-        //     self.add_free_node(page.start_address, PAGE_SIZE);
-        // }
-        // self.find_free_node(size, align)
-        None
+        self.extend_heap().ok()?;
+        self.find_free_node(size, align)
     }
 
     pub unsafe fn add_free_node(&mut self, addr: usize, size: usize) {
@@ -128,6 +140,53 @@ impl LinkedListAllocator {
         ptr::write(node_ptr, node);
 
         self.head.next = Some(&mut *node_ptr);
+    }
+
+    pub const PAGES_PER_EXTEND: usize = 128;
+    /// extends the heap by `PAGES_PER_EXTEND` pages
+    pub fn extend_heap(&mut self) -> Result<(), ()> {
+        let start_page = Page::containing_address(self.heap_end + PAGE_SIZE);
+        let end_page = Page::containing_address(self.heap_end + PAGE_SIZE * Self::PAGES_PER_EXTEND);
+        let iter = IterPage {
+            start: start_page,
+            end: end_page,
+        };
+
+        for page in iter {
+            unsafe {
+                paging_mapper()
+                    .map_to(
+                        page,
+                        frame_allocator().allocate_frame().ok_or(())?,
+                        EntryFlags::PRESENT | EntryFlags::WRITABLE,
+                    )
+                    .or(Err(()))?
+                    .flush();
+            }
+        }
+        unsafe {
+            self.add_free_node(start_page.start_address, PAGE_SIZE * Self::PAGES_PER_EXTEND);
+        }
+        // self.head.next should contain our extended Node we combine all the extended Nodes
+        // togther
+        while let Some(ref mut node) = self.head.next.as_mut().unwrap().next {
+            if !(node.size % (PAGE_SIZE * Self::PAGES_PER_EXTEND) == 0) {
+                break;
+            }
+
+            let node_next = node.next.take();
+            let node_size = node.size;
+
+            let to_combine = self.head.next.take().unwrap();
+            to_combine.next = node_next;
+
+            to_combine.size = to_combine.size + node_size;
+
+            self.head.next = Some(to_combine);
+        }
+
+        self.heap_end = end_page.start_address + PAGE_SIZE;
+        Ok(())
     }
 
     fn size_align(layout: Layout) -> (usize, usize) {
