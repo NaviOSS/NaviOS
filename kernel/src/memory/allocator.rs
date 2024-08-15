@@ -3,9 +3,8 @@ use core::{
     ptr,
 };
 
-use crate::utils::Locked;
+use crate::{memory::align_up, utils::Locked};
 
-use super::align;
 #[derive(Debug)]
 pub struct Node {
     size: usize,
@@ -17,31 +16,33 @@ impl Node {
         Self { size, next: None }
     }
 
-    pub fn start(&self) -> usize {
+    pub fn start_addr(&self) -> usize {
         self as *const Self as usize
     }
 
-    pub fn end(&self) -> usize {
-        self.start() + self.size
+    pub fn end_addr(&self) -> usize {
+        self.start_addr() + self.size
     }
 
+    /// checks if a node can hold `size` bytes aligned to `align_amount`
     pub fn can_hold(&self, size: usize, align_amount: usize) -> Result<usize, ()> {
-        let start = align(self.start(), align_amount);
+        let start = align_up(self.start_addr(), align_amount);
         let end = start.checked_add(size).ok_or(())?;
 
-        if end > self.end() {
+        if end > self.end_addr() {
             return Err(());
         }
 
-        let ecess_size = end - self.size;
-        // if ecess is bigger than 0 then it should be able to hold a Node so we can divide our node
+        let ecess_size = self.end_addr() - end;
         if ecess_size > 0 && ecess_size < size_of::<Node>() {
+            // if we have an excess we check if we can use it for a new node or not if not Err
             return Err(());
         }
 
         Ok(start)
     }
 }
+#[derive(Debug)]
 pub struct LinkedListAllocator {
     head: Node,
 }
@@ -57,7 +58,7 @@ impl LinkedListAllocator {
     }
     // heap_start has to be aligned
     pub unsafe fn init(&mut self, heap_start: usize, size: usize) {
-        self.add_free_node(heap_start, size);
+        self.add_free_node(align_up(heap_start, align_of::<Node>()), size);
     }
 
     pub unsafe fn alloc_mut(&mut self, layout: Layout) -> *mut u8 {
@@ -66,7 +67,7 @@ impl LinkedListAllocator {
         if let Some((node, addr)) = self.find_free_node(size, align) {
             let alloc_end = addr.checked_add(size).expect("overflow");
             // divide block
-            let excess_size = node.end() - alloc_end;
+            let excess_size = node.end_addr() - alloc_end;
             if excess_size > 0 {
                 self.add_free_node(alloc_end, excess_size);
             }
@@ -79,7 +80,6 @@ impl LinkedListAllocator {
 
     pub unsafe fn dealloc_mut(&mut self, ptr: *mut u8, layout: Layout) {
         let (size, _) = Self::size_align(layout);
-
         self.add_free_node(ptr as usize, size)
     }
 
@@ -92,8 +92,9 @@ impl LinkedListAllocator {
 
         while let Some(ref mut node) = current.next {
             if let Ok(addr) = node.can_hold(size, align) {
-                let node = current.next.take().unwrap();
                 let next = node.next.take();
+                let node = current.next.take().unwrap();
+
                 current.next = next;
 
                 return Some((node, addr));
@@ -116,6 +117,9 @@ impl LinkedListAllocator {
     }
 
     pub unsafe fn add_free_node(&mut self, addr: usize, size: usize) {
+        assert_eq!(align_up(addr, align_of::<Node>()), addr);
+        assert!(size >= size_of::<Node>());
+
         let mut node = Node::new(size);
 
         node.next = self.head.next.take();

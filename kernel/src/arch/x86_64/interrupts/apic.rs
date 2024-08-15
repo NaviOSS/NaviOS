@@ -167,7 +167,7 @@ fn enable_apic_timer(local_apic_addr: VirtAddr) {
     unsafe {
         core::ptr::write_volatile(addr, timer.encode_u32());
         core::ptr::write_volatile(divide, 0xB);
-        core::ptr::write_volatile(init, 0xFFFFFFF);
+        core::ptr::write_volatile(init, 0xFFFFFF);
     }
 }
 

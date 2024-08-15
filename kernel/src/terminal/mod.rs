@@ -55,8 +55,10 @@ commands:
     help, ?: displays this
     echo `text`: echoes back text
     clear: clears the screen
+
     shutdown: shutdowns qemu and bochs only for now
     reboot: force-reboots the PC for now
+
     plist: list the avalible process' pids and names
     pkill `pid`: kills a process with pid `pid`
     pkillall `name`: kills all processs with name `name`"
@@ -125,7 +127,7 @@ fn plist(args: Vec<&str>) {
 
 fn pkill(args: Vec<&str>) {
     if args.len() != 2 {
-        println!("{}: expected one arg which is the pid", args[0]);
+        println!("{}: expected 1 arg which is the pid", args[0]);
         return;
     }
 

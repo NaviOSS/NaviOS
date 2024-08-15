@@ -19,6 +19,7 @@ mod utils;
 
 extern crate alloc;
 use arch::threading::restore_cpu_status;
+use arch::x86_64::serial;
 use bootloader_api::info::MemoryRegions;
 
 use drivers::keyboard::Key;
@@ -57,6 +58,7 @@ use core::panic::PanicInfo;
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
+    unsafe { asm!("cli") }
     serial!("kernel panic: ");
     serial!("{}, at {}", info.message(), info.location().unwrap());
 
@@ -85,7 +87,16 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
     // initing the arch
     arch::init();
     unsafe {
-        memory::init_memory().unwrap();
+        serial!(
+            "image: 0x{:x}\nlen: 0x{:x}\nphy_offset: 0x{:x}\n",
+            bootinfo.kernel_image_offset,
+            bootinfo.kernel_len,
+            phy_offset
+        );
+
+        memory::init_memory((bootinfo.kernel_image_offset + bootinfo.kernel_len + 1) as usize)
+            .unwrap();
+
         let terminal: Terminal<'static> = Terminal::init(bootinfo.framebuffer.as_mut().unwrap());
         TERMINAL = Some(terminal);
     }
@@ -105,6 +116,12 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
 
 #[no_mangle]
 fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
+    let rsp: u64;
+    unsafe {
+        asm!("mov {}, rsp", out(reg) rsp);
+    }
+    serial!("rsp: 0x{:x}\n", rsp);
+
     kinit(boot_info);
     serial!("failed context switching to kidle! ...\n");
     loop {}

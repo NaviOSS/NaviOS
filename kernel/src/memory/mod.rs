@@ -59,29 +59,26 @@ pub fn translate(addr: VirtAddr) -> (PhysAddr, usize, usize, usize, usize) {
     )
 }
 
-pub const fn align(addr: usize, align: usize) -> usize {
-    let remainder = addr % align;
-    if remainder == 0 {
-        addr
-    } else {
-        addr - remainder + align
-    }
+pub const fn align_up(address: usize, alignment: usize) -> usize {
+    (address + alignment - 1) & !(alignment - 1)
 }
 
 pub const fn align_down(x: usize, alignment: usize) -> usize {
     x & !(alignment - 1)
 }
 
-pub const HEAP_START: usize = 0xAAA_AAA_AAA;
-
-pub const HEAP_SIZE: usize = 4 * 9 * 1024 * 1024;
+pub const INIT_HEAP_SIZE: usize = 4 * 9 * 1024 * 1024;
 
 // TODO! make the memory module more generic for different architectures; for now we can only support x86_64 because of the bootloader crate so take into account making our own bootloader for aarch64
-pub unsafe fn init_memory() -> Result<(), MapToError> {
-    serial!("initing memory...\n");
+pub unsafe fn init_memory(heap_start: usize) -> Result<(), MapToError> {
+    serial!(
+        "initing the heap... 0x{:x}..0x{:x}\n",
+        heap_start,
+        heap_start + INIT_HEAP_SIZE
+    );
     let page_range = {
-        let heap_start = HEAP_START;
-        let heap_end = heap_start + HEAP_SIZE - 1;
+        let heap_start = heap_start;
+        let heap_end = heap_start + INIT_HEAP_SIZE - 1;
         let heap_start_page = Page::containing_address(heap_start);
         let heap_end_page = Page::containing_address(heap_end);
         Page::iter_pages(heap_start_page, heap_end_page)
@@ -97,7 +94,7 @@ pub unsafe fn init_memory() -> Result<(), MapToError> {
         unsafe { paging_mapper().map_to(page, frame, flags)?.flush() };
     }
 
-    global_allocator().lock().init(HEAP_START, HEAP_SIZE);
+    global_allocator().lock().init(heap_start, INIT_HEAP_SIZE);
     serial!("init done\n");
     Ok(())
 }
