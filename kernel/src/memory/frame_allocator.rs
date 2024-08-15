@@ -1,9 +1,11 @@
+// TODO: configure this into a bitmap or anything different such as a linked list to allow
+// deallocating
 // a pmm i believe
 
 use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 
 use super::{align_down, PhysAddr};
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Frame {
     pub start_address: PhysAddr,
 }
@@ -50,4 +52,6 @@ impl RegionAllocator {
         self.next += 1;
         region
     }
+
+    pub fn deallocate_frame(&mut self, frame: Frame) {}
 }

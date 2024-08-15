@@ -55,3 +55,9 @@ static GLOBAL_ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAll
 pub fn global_allocator() -> &'static Mutex<LinkedListAllocator> {
     &GLOBAL_ALLOCATOR.inner
 }
+
+pub static mut PHY_OFFSET: usize = 0;
+
+pub fn phy_offset() -> usize {
+    unsafe { PHY_OFFSET }
+}

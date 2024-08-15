@@ -34,7 +34,7 @@ pub fn readln() -> String {
 
 pub fn echo(args: Vec<&str>) {
     if args.len() != 2 {
-        println!("echo: expected 2 args");
+        println!("echo: expected 1 arg");
         return;
     }
 
@@ -43,7 +43,7 @@ pub fn echo(args: Vec<&str>) {
 
 fn help(args: Vec<&str>) {
     if args.len() != 1 {
-        println!("{}: expected 1 arg", args[0]);
+        println!("{}: expected 0 args", args[0]);
         return;
     }
 
@@ -127,7 +127,7 @@ fn plist(args: Vec<&str>) {
 
 fn pkill(args: Vec<&str>) {
     if args.len() != 2 {
-        println!("{}: expected 1 arg which is the pid", args[0]);
+        println!("{}: expected the pid", args[0]);
         return;
     }
 
@@ -150,7 +150,7 @@ fn pkill(args: Vec<&str>) {
 
 fn pkillall(args: Vec<&str>) {
     if args.len() != 2 {
-        println!("{}: expected one arg which is the process name", args[0]);
+        println!("{}: expected the process name", args[0]);
         return;
     }
 

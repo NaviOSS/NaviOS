@@ -1,8 +1,11 @@
 const ENTRY_COUNT: usize = 512;
+const HIGHER_HALF_ENTRY: usize = 256;
+
 pub const PAGE_SIZE: usize = 4096;
 use crate::{
     globals::frame_allocator,
     memory::{translate, PhysAddr},
+    phy_offset,
 };
 use bitflags::bitflags;
 use core::{
@@ -79,6 +82,20 @@ impl Entry {
     pub const fn set(&mut self, flags: EntryFlags, addr: PhysAddr) {
         *self = Self::new(flags, addr)
     }
+
+    /// deallocates an entry depending on it's level if it is 1 it should just deallocate the frame
+    /// otherwise treat the frame as a page table and deallocate it
+    /// &mut self becomes invaild after
+    pub unsafe fn free(&mut self, level: u8) {
+        let frame = self.frame().unwrap();
+
+        if level == 1 {
+            frame_allocator().deallocate_frame(frame);
+        }
+
+        let table = &mut *((frame.start_address + phy_offset()) as *mut PageTable);
+        table.free(level - 1)
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -113,9 +130,20 @@ impl PageTable {
     /// copies the higher half entries of the current pml4 to this page table
     pub fn copy_higher_half(&mut self, phy_offset: VirtAddr) {
         unsafe {
-            self.entries[256..ENTRY_COUNT]
-                .clone_from_slice(&level_4_table(phy_offset).entries[256..ENTRY_COUNT])
+            self.entries[HIGHER_HALF_ENTRY..ENTRY_COUNT].clone_from_slice(
+                &level_4_table(phy_offset).entries[HIGHER_HALF_ENTRY..ENTRY_COUNT],
+            )
         }
+    }
+    /// deallocates a page table including it's entries, doesn't deallocate the higher half!
+    /// unsafe because self becomes invaild after
+    pub unsafe fn free(&mut self, level: u8) {
+        for entry in &mut self.entries {
+            entry.free(level - 1);
+        }
+
+        let frame = Frame::containing_address(phy_offset() - (self as *mut PageTable as usize));
+        frame_allocator().deallocate_frame(frame)
     }
 }
 

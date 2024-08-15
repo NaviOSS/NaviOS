@@ -80,7 +80,7 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
     unsafe {
         RSDP_ADDR = bootinfo.rsdp_addr.into();
         FRAME_ALLOCATOR = Some(RegionAllocator::new(&mut *regions));
-
+        PHY_OFFSET = *phy_offset as usize;
         let mapper = Mapper::new(*phy_offset as usize);
         PAGING_MAPPER = Some(mapper);
     };

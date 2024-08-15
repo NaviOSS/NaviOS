@@ -2,7 +2,10 @@ use core::{alloc::Layout, arch::asm};
 
 use alloc::{boxed::Box, vec::Vec};
 
-use crate::{arch::threading::CPUStatus, global_allocator, paging_mapper, VirtAddr};
+use crate::{
+    arch::threading::CPUStatus, global_allocator, memory::paging::PageTable, paging_mapper,
+    VirtAddr,
+};
 
 pub const STACK_SIZE: usize = 4096 * 4;
 pub const STACK_LAYOUT: Layout = Layout::new::<[u8; STACK_SIZE]>();
@@ -40,6 +43,9 @@ pub struct Process {
     pub name: [u8; 64],
     pub status: ProcessStatus,
     pub context: CPUStatus,
+
+    pub root_page_table: *mut PageTable,
+    pub stack_end: *mut u8,
     pub next: Option<Box<Process>>,
 }
 
@@ -55,15 +61,18 @@ impl Process {
         let status = ProcessStatus::Waiting;
         let mut context = CPUStatus::default();
 
+        let stack_end = alloc_stack() as *mut u8;
+        let root_page_table = paging_mapper().allocate_pml4().unwrap() as *mut PageTable;
+
         #[cfg(target_arch = "x86_64")]
         {
-            context.rsp = alloc_stack() as u64;
+            context.rsp = stack_end as u64;
             context.rip = function as u64;
             context.rflags = 0x202;
 
             context.ss = 0x10;
             context.cs = 0x8;
-            context.cr3 = paging_mapper().allocate_pml4().unwrap() as u64;
+            context.cr3 = root_page_table as u64;
         }
 
         Process {
@@ -71,8 +80,26 @@ impl Process {
             name,
             status,
             context,
+
+            stack_end,
+            root_page_table,
             next: None,
         }
+    }
+
+    /// frees self and then returns next
+    /// frees all resources that has something to do with this process even the process stack and
+    /// page table
+    pub fn free(self) -> Box<Process> {
+        unsafe {
+            global_allocator()
+                .lock()
+                .dealloc_mut(self.stack_end.sub(STACK_SIZE), STACK_LAYOUT);
+        }
+
+        let root_page_table = unsafe { &mut (*self.root_page_table) };
+        unsafe { root_page_table.free(4) };
+        todo!()
     }
 }
 #[derive(Debug)]
