@@ -4,7 +4,7 @@ use alloc::{boxed::Box, vec::Vec};
 
 use crate::{
     arch::threading::CPUStatus, global_allocator, memory::paging::PageTable, paging_mapper,
-    VirtAddr,
+    phy_offset, serial, VirtAddr,
 };
 
 pub const STACK_SIZE: usize = 4096 * 4;
@@ -62,7 +62,7 @@ impl Process {
         let mut context = CPUStatus::default();
 
         let stack_end = alloc_stack() as *mut u8;
-        let root_page_table = paging_mapper().allocate_pml4().unwrap() as *mut PageTable;
+        let root_page_table = paging_mapper().allocate_pml4().unwrap();
 
         #[cfg(target_arch = "x86_64")]
         {
@@ -74,6 +74,8 @@ impl Process {
             context.cs = 0x8;
             context.cr3 = root_page_table as u64;
         }
+
+        let root_page_table = (root_page_table + phy_offset()) as *mut PageTable;
 
         Process {
             pid,
@@ -90,16 +92,23 @@ impl Process {
     /// frees self and then returns next
     /// frees all resources that has something to do with this process even the process stack and
     /// page table
-    pub fn free(self) -> Box<Process> {
+    /// TODO: test this properly
+    pub fn free(&mut self) -> Option<Box<Process>> {
+        serial!("deallocating a process! ...\n");
+
         unsafe {
             global_allocator()
                 .lock()
                 .dealloc_mut(self.stack_end.sub(STACK_SIZE), STACK_LAYOUT);
         }
 
+        serial!("deallocated the stack!\n");
+
         let root_page_table = unsafe { &mut (*self.root_page_table) };
         unsafe { root_page_table.free(4) };
-        todo!()
+        serial!("deallocated the root page table!\n");
+
+        self.next.take()
     }
 }
 #[derive(Debug)]
@@ -138,7 +147,7 @@ impl Scheduler {
                 .is_some_and(|x| x.status == ProcessStatus::WaitingForBurying)
             {
                 (*self.current_process).next =
-                    (*self.current_process).next.as_mut().unwrap().next.take();
+                    (*self.current_process).next.as_mut().unwrap().free();
             }
 
             if (*self.current_process).next.is_some() {

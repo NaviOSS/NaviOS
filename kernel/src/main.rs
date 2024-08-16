@@ -53,6 +53,8 @@ use core::arch::asm;
 #[allow(unused_imports)]
 use core::panic::PanicInfo;
 
+static mut _PANICED_AT_TERMINAL: bool = false;
+
 #[allow(dead_code)]
 #[cfg(not(test))]
 #[panic_handler]
@@ -61,11 +63,14 @@ fn panic(info: &PanicInfo) -> ! {
     serial!("kernel panic: ");
     serial!("{}, at {}", info.message(), info.location().unwrap());
 
-    if terminal_inited() {
-        println!("\\[fg: (255, 0, 0) |\nkernel panic: |]");
+    if terminal_inited() && !unsafe { _PANICED_AT_TERMINAL } {
+        unsafe {
+            _PANICED_AT_TERMINAL = true;
+        }
+        println!("\\[fg: (255, 0, 0) ||\nkernel panic: ||]");
         println!("{}, at {}", info.message(), info.location().unwrap());
 
-        println!("\\[fg: (255, 0, 0) |cannot continue execution kernel will now hang|]");
+        println!("\\[fg: (255, 0, 0) ||cannot continue execution kernel will now hang!||]");
     }
     loop {}
 }
@@ -78,9 +83,10 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
     let regions: &'static mut MemoryRegions = &mut bootinfo.memory_regions;
 
     unsafe {
-        RSDP_ADDR = bootinfo.rsdp_addr.into();
-        FRAME_ALLOCATOR = Some(RegionAllocator::new(&mut *regions));
         PHY_OFFSET = *phy_offset as usize;
+        RSDP_ADDR = bootinfo.rsdp_addr.into();
+
+        FRAME_ALLOCATOR = Some(RegionAllocator::new(&mut *regions));
         let mapper = Mapper::new(*phy_offset as usize);
         PAGING_MAPPER = Some(mapper);
     };

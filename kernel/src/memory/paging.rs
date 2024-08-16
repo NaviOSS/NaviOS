@@ -89,12 +89,11 @@ impl Entry {
     pub unsafe fn free(&mut self, level: u8) {
         let frame = self.frame().unwrap();
 
-        if level == 1 {
+        if level == 0 {
             frame_allocator().deallocate_frame(frame);
         }
-
         let table = &mut *((frame.start_address + phy_offset()) as *mut PageTable);
-        table.free(level - 1)
+        table.free(level)
     }
 }
 
@@ -138,11 +137,15 @@ impl PageTable {
     /// deallocates a page table including it's entries, doesn't deallocate the higher half!
     /// unsafe because self becomes invaild after
     pub unsafe fn free(&mut self, level: u8) {
-        for entry in &mut self.entries {
-            entry.free(level - 1);
+        for entry in &mut self.entries[0..HIGHER_HALF_ENTRY] {
+            if entry.0 != 0 {
+                entry.free(level - 1);
+            }
         }
 
-        let frame = Frame::containing_address(phy_offset() - (self as *mut PageTable as usize));
+        let table_addr = self as *mut PageTable as VirtAddr;
+
+        let frame = Frame::containing_address(table_addr - phy_offset());
         frame_allocator().deallocate_frame(frame)
     }
 }
