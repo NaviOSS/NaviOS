@@ -173,6 +173,12 @@ impl<'a> Terminal<'a> {
     fn newline(&mut self) {
         self.y_pos += RASTER_HEIGHT.val();
         self.x_pos = 0;
+
+        if self.y_pos * self.info.stride * self.info.bytes_per_pixel
+            >= self.viewport_start + self.buffer.len()
+        {
+            self.scroll_down(true);
+        }
     }
 
     pub fn remove_char(&mut self, c: char) {
@@ -233,12 +239,6 @@ impl<'a> Terminal<'a> {
     fn draw_char(&mut self, glyph: RasterizedChar, color: (u8, u8, u8)) {
         if (self.x_pos + glyph.width()) > self.width() {
             self.newline();
-        }
-
-        if self.y_pos * self.info.stride * self.info.bytes_per_pixel
-            >= self.viewport_start + self.buffer.len()
-        {
-            self.scroll_down(true);
         }
 
         for (row, rows) in glyph.raster().iter().enumerate() {
