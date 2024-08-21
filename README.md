@@ -46,8 +46,7 @@ note: i dont know much about osdev stuff prefixed with ? is missing info and mor
     - [ ] figure out how should i give apps memory?
     - [X] higher half kernel
 - [ ] fs
-    - [ ] reading?
-    - [ ] writing?
+    - [X] basic vfs
 - [ ] networking
     - [ ] ?
 - [ ] GUI
