@@ -3,10 +3,19 @@ pub mod navitts;
 
 use core::{fmt, str};
 
-use alloc::{string::String, vec::Vec};
+use alloc::{
+    borrow::ToOwned,
+    string::{String, ToString},
+    vec::Vec,
+};
 use framebuffer::TerminalMode;
 
-use crate::{arch, globals::terminal, print, println, scheduler, serial};
+use crate::{
+    arch,
+    drivers::vfs::{vfs, FS},
+    globals::terminal,
+    print, println, scheduler, serial,
+};
 
 #[doc(hidden)]
 #[no_mangle]
@@ -61,7 +70,15 @@ commands:
 
     plist: list the avalible process' pids and names
     pkill `pid`: kills a process with pid `pid`
-    pkillall `name`: kills all processs with name `name`"
+    pkillall `name`: kills all processs with name `name`
+
+    touch `new_file_path`: creates a new empty file, the path of the new file would be equal to `new_file_path`
+    mkdir `new_dir_path`: creates a new empty directory, the path of the new directory would be equal to `new_dir_path` 
+    ls: lists all files and directories in the current dir
+    cd `target_dir`: changes the current dir to `target_dir`
+
+    cat `src_files`: echoes the contents of a file
+    write `target_file` `src_text`: writes `src_text` to `target_file`"
     );
 }
 
@@ -161,6 +178,168 @@ fn pkillall(args: Vec<&str>) {
         .unwrap_or_else(|_| println!("couldn't find a process with name `{}`", args[1]));
 }
 
+/// returns the absloutel path of a given path respecting `Ternminal.current_dir`
+/// returned path won't end with / if it is a directory
+fn get_path(path: String) -> String {
+    for c in path.clone().chars() {
+        if c == '/' || c == '\\' {
+            break;
+        }
+
+        if c == ':' {
+            return path;
+        }
+    }
+
+    return terminal().current_dir.clone() + &path;
+}
+
+fn mkdir(args: Vec<&str>) {
+    if args.len() != 2 {
+        println!("{}: expected just the new dir path", args[0]);
+        return;
+    }
+
+    let path = get_path(args[1].to_string());
+
+    let mut spilt: Vec<&str> = path.split(['/', '\\']).collect();
+
+    let dir_name = spilt.pop().unwrap();
+    let path = spilt.join("/");
+
+    let result = vfs().createdir(&path, dir_name.to_string());
+    if result.is_err() {
+        println!(
+            "failed touching `{dir_name}` in {path}, error: {:?}",
+            result.unwrap_err()
+        );
+    }
+}
+
+fn touch(args: Vec<&str>) {
+    if args.len() != 2 {
+        println!("{}: expected just the new file path", args[0]);
+        return;
+    }
+
+    let path = get_path(args[1].to_string());
+
+    let mut spilt: Vec<&str> = path.split(['/', '\\']).collect();
+
+    let file_name = spilt.pop().unwrap();
+    let path = spilt.join("/");
+
+    let result = vfs().create(&path, file_name.to_string());
+    if result.is_err() {
+        println!(
+            "failed touching `{file_name}` in {path}, error: {:?}",
+            result.unwrap_err()
+        );
+    }
+}
+
+fn ls(args: Vec<&str>) {
+    if args.len() != 1 {
+        println!("{}: expected 0 args", args[0]);
+        return;
+    }
+
+    let mut dir = vfs().open(&terminal().current_dir).unwrap();
+    let files = vfs().readdir(&mut dir).unwrap();
+    for file in files {
+        println!("{}", file.name());
+    }
+}
+
+fn cd(args: Vec<&str>) {
+    if args.len() != 2 {
+        println!("{}: expected only the target directory.", args[0]);
+        return;
+    }
+
+    let mut path = get_path(args[1].to_string());
+    let verify = vfs().verify_path_dir(&path);
+
+    if verify.is_err() {
+        println!("{}: path error: {:?}", args[0], verify.unwrap_err())
+    } else {
+        // must add / because it is stupid, if for example we set the current_dir to ram:/test
+        // using `touch` will create an empty file with path ram:/test`file_name`
+        // FIXME: consider fixing this next, the code is already spaghetti, the next update should
+        // fix all of this
+        if !path.ends_with('/') {
+            path.push('/');
+        }
+        terminal().current_dir = path
+    }
+}
+
+fn cat(args: Vec<&str>) {
+    if args.len() != 2 {
+        println!("{}: expected only the target file", args[0]);
+        return;
+    }
+
+    let path = get_path(args[1].to_string());
+    let res = vfs().open(&path);
+
+    if res.is_err() {
+        println!(
+            "{}: failed to open file error: {:?}",
+            args[0],
+            res.unwrap_err()
+        );
+    } else {
+        let mut opened = res.unwrap();
+        let mut buffer: Vec<u8> = Vec::new();
+        buffer.resize(opened.size(), 0);
+
+        let read = vfs().read(&mut opened, &mut buffer);
+        if read.is_err() {
+            println!(
+                "{}: failed to read file error: {:?}",
+                args[0],
+                read.unwrap_err()
+            );
+            return;
+        }
+
+        let output = unsafe { String::from_utf8_unchecked(buffer) };
+        println!("{}", output);
+    }
+}
+
+fn write(args: Vec<&str>) {
+    if args.len() != 3 {
+        println!("{}: expected the file path then the textual data", args[0]);
+        return;
+    }
+
+    let path = get_path(args[1].to_string());
+    let res = vfs().open(&path);
+
+    if res.is_err() {
+        println!(
+            "{}: failed to open file error: {:?}",
+            args[0],
+            res.unwrap_err()
+        );
+    } else {
+        let mut opened = res.unwrap();
+        let buffer = args[2].as_bytes();
+
+        let read = vfs().write(&mut opened, &buffer);
+        if read.is_err() {
+            println!(
+                "{}: failed to read file error: {:?}",
+                args[0],
+                read.unwrap_err()
+            );
+            return;
+        }
+    }
+}
+
 // bad shell
 pub fn process_command(command: String) {
     let mut unterminated_str_slice = false;
@@ -178,23 +357,33 @@ pub fn process_command(command: String) {
 
     if unterminated_str_slice {
         println!("unterminated string \" expected");
-        return terminal().enter_stdin();
+        return;
     }
 
-    match command[0] {
-        "echo" => echo(command),
-        "?" | "help" => help(command),
-        "clear" => return clear(command),
-        "reboot" => return reboot_cmd(command),
-        "shutdown" => return shutdown_cmd(command),
+    (match command[0] {
+        "echo" => echo,
+        "?" | "help" => help,
+        "clear" => clear,
+        "reboot" => reboot_cmd,
+        "shutdown" => shutdown_cmd,
 
-        "plist" => plist(command),
-        "pkill" => pkill(command),
-        "pkillall" => pkillall(command),
-        _ => println!("unknown command {}", command[0]),
-    }
+        "plist" => plist,
+        "pkill" => pkill,
+        "pkillall" => pkillall,
 
-    terminal().enter_stdin()
+        "ls" => ls,
+        "touch" => touch,
+        "mkdir" => mkdir,
+        "cd" => cd,
+
+        "cat" => cat,
+        "write" => write,
+        "" => return,
+        _ => {
+            println!("unknown command {}", command[0]);
+            return;
+        }
+    })(command)
 }
 
 // badly written shell process
@@ -217,6 +406,9 @@ pub fn shell() {
     print!("\\[fg: (255, 255, 255) ||\nwelcome to NaviOS!\ntype help or ? for a list of avalible commands\n||]");
 
     loop {
-        terminal().enter_stdin()
+        let prompt = (r"\[fg: (0, 255, 0) ||".to_owned() + &terminal().current_dir) + r"||]";
+
+        print!("{} # ", prompt);
+        process_command(readln());
     }
 }

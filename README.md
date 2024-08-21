@@ -12,7 +12,11 @@ to build do
 cargo build
 ```
 for now am using a crate called `bootloader` which i dont understands much about it is a bootloader it provides bootinfo and it also builds in os image using cargo TODO figure out more and maybe switch to my own bootloader or another one
-
+# next
+- kernel is getting complex i must do:
+    - globals, put alot of tought about that, one kernel struct? thread safety?
+    - overall improvments to the code
+    - make the code not spaghetti
 # roadmap
 note: i dont know much about osdev stuff prefixed with ? is missing info and more stuff may be added in the feature
 

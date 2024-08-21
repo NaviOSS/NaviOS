@@ -8,7 +8,7 @@ use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 use crate::{
     drivers::keyboard::{Key, KeyCode, KeyFlags},
     memory::align_down,
-    print, println,
+    println,
 };
 
 use super::navitts::{Attributes, NaviTTES};
@@ -30,8 +30,10 @@ pub struct Terminal<'a> {
     viewport_start: usize,
 
     pub mode: TerminalMode,
+
     pub stdin_buffer: String,
     pub stdout_buffer: String,
+    pub current_dir: String,
 
     pub info: FrameBufferInfo,
     pub x_pos: usize,
@@ -59,6 +61,7 @@ impl<'a> Terminal<'a> {
             mode: TerminalMode::Init,
             stdin_buffer: String::new(),
             stdout_buffer: String::new(),
+            current_dir: String::from("ram:/"),
 
             info,
             x_pos: 0,
@@ -288,11 +291,6 @@ impl<'a> Terminal<'a> {
         }
 
         self.draw_viewport()
-    }
-
-    pub fn enter_stdin(&mut self) {
-        print!(">> ");
-        super::process_command(super::readln())
     }
 
     fn write_slice(&mut self, str: &str, attributes: Attributes) {

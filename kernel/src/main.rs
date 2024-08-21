@@ -23,6 +23,7 @@ use arch::x86_64::serial;
 use bootloader_api::info::MemoryRegions;
 
 use drivers::keyboard::Key;
+use drivers::vfs::vfs_init;
 use globals::*;
 
 use memory::frame_allocator::RegionAllocator;
@@ -103,6 +104,7 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
 
         memory::init_memory((bootinfo.kernel_image_offset + bootinfo.kernel_len + 1) as usize)
             .unwrap();
+        vfs_init();
 
         let terminal: Terminal<'static> = Terminal::init(bootinfo.framebuffer.as_mut().unwrap());
         TERMINAL = Some(terminal);
