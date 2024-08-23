@@ -13,9 +13,6 @@ fn main() {
         let mut config = BootConfig::default();
         let farmebuffer = bootloader_boot_config::FrameBuffer::default();
 
-        // farmebuffer.minimum_framebuffer_width = Some(512);
-        // farmebuffer.minimum_framebuffer_height = Some(256);
-
         config.frame_buffer_logging = false;
         config.serial_logging = false;
         config.log_level = bootloader_boot_config::LevelFilter::Error;

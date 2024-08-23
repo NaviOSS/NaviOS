@@ -27,11 +27,11 @@ use drivers::vfs::vfs_init;
 use globals::*;
 
 use memory::frame_allocator::RegionAllocator;
-use memory::paging::Mapper;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
 use terminal::framebuffer::Terminal;
 use threading::Scheduler;
+
 #[macro_export]
 macro_rules! print {
    ($($arg:tt)*) => ($crate::terminal::_print(format_args!($($arg)*)));
@@ -51,29 +51,59 @@ macro_rules! serial {
 }
 
 use core::arch::asm;
+#[inline]
+pub fn khalt() -> ! {
+    loop {
+        unsafe { asm!("hlt") }
+    }
+}
+
 #[allow(unused_imports)]
 use core::panic::PanicInfo;
-
 static mut _PANICED_AT_TERMINAL: bool = false;
+
+/// prints to both the serial and the terminal doesn't print to the terminal if it panicked or if
+/// it is not ready...
+#[allow(unused)]
+macro_rules! cross_println {
+    ($($arg:tt)*) => {
+        serial!($($arg)*);
+        serial!("\n");
+        if terminal_inited() && !unsafe { _PANICED_AT_TERMINAL } {
+            println!($($arg)*);
+        }
+    };
+}
 
 #[allow(dead_code)]
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     unsafe { asm!("cli") }
-    serial!("kernel panic: ");
-    serial!("{}, at {}", info.message(), info.location().unwrap());
+    cross_println!(
+        "kernel panic:\n{}, at {}",
+        info.message(),
+        info.location().unwrap()
+    );
+    print_stack_trace();
 
-    if terminal_inited() && !unsafe { _PANICED_AT_TERMINAL } {
-        unsafe {
-            _PANICED_AT_TERMINAL = true;
+    khalt()
+}
+
+#[allow(unused)]
+fn print_stack_trace() {
+    let mut fp: usize;
+
+    unsafe {
+        core::arch::asm!("mov {}, rbp", out(reg) fp);
+
+        cross_println!("stack trace: ");
+        while fp != 0 {
+            let return_address = *(fp as *const usize).offset(1);
+            cross_println!("  {:#x}", return_address);
+            fp = *(fp as *const usize);
         }
-        println!("\\[fg: (255, 0, 0) ||\nkernel panic: ||]");
-        println!("{}, at {}", info.message(), info.location().unwrap());
-
-        println!("\\[fg: (255, 0, 0) ||cannot continue execution kernel will now hang!||]");
     }
-    loop {}
 }
 
 pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
@@ -82,28 +112,27 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
     let phy_offset = phy_offset.as_mut().unwrap();
 
     let regions: &'static mut MemoryRegions = &mut bootinfo.memory_regions;
+    let phy_offset = *phy_offset as usize;
+
+    serial!(
+        "image: 0x{:x}\nlen: 0x{:x}\nphy_offset: 0x{:x}\n",
+        bootinfo.kernel_image_offset,
+        bootinfo.kernel_len,
+        phy_offset
+    );
 
     unsafe {
-        PHY_OFFSET = *phy_offset as usize;
-        RSDP_ADDR = bootinfo.rsdp_addr.into();
-
-        FRAME_ALLOCATOR = Some(RegionAllocator::new(&mut *regions));
-        let mapper = Mapper::new(*phy_offset as usize);
-        PAGING_MAPPER = Some(mapper);
-    };
+        KERNEL = Some(Kernel {
+            phy_offset,
+            rsdp_addr: bootinfo.rsdp_addr.into(),
+            frame_allocator: RegionAllocator::new(&mut *regions, phy_offset),
+        });
+    }
 
     // initing the arch
     arch::init();
     unsafe {
-        serial!(
-            "image: 0x{:x}\nlen: 0x{:x}\nphy_offset: 0x{:x}\n",
-            bootinfo.kernel_image_offset,
-            bootinfo.kernel_len,
-            phy_offset
-        );
-
-        memory::init_memory((bootinfo.kernel_image_offset + bootinfo.kernel_len + 1) as usize)
-            .unwrap();
+        memory::init((bootinfo.kernel_image_offset + bootinfo.kernel_len + 1) as usize);
         vfs_init();
 
         let terminal: Terminal<'static> = Terminal::init(bootinfo.framebuffer.as_mut().unwrap());
@@ -113,8 +142,7 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
     serial!("kernel init phase 1 done\n");
 
     unsafe {
-        asm!("cli");
-        let mut scheduler = Scheduler::init(kidle as usize, "kernel");
+        let mut scheduler = Scheduler::init(kmain as usize, "kernel");
 
         scheduler.create_process(terminal::shell as usize, "shell");
         SCHEDULER = Some(scheduler);
@@ -124,19 +152,20 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
 }
 
 #[no_mangle]
-fn kmain(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
+fn kstart(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     let rsp: u64;
     unsafe {
+        asm!("cli");
         asm!("mov {}, rsp", out(reg) rsp);
     }
     serial!("rsp: 0x{:x}\n", rsp);
 
     kinit(boot_info);
-    serial!("failed context switching to kidle! ...\n");
-    loop {}
+    serial!("failed context switching to kmain! ...\n");
+    khalt()
 }
 
-fn kidle() -> ! {
+fn kmain() -> ! {
     serial!("Hello, world!, running tests...\n");
 
     #[cfg(feature = "test")]
@@ -149,11 +178,7 @@ fn kidle() -> ! {
     serial!("finished initing...\n");
     serial!("idle!\n");
 
-    loop {
-        unsafe {
-            asm!("hlt");
-        }
-    }
+    khalt()
 }
 
 // /// does some pooling and stuff stops interrupts to do it's work first!
@@ -188,4 +213,4 @@ static CONFIG: bootloader_api::BootloaderConfig = {
     config.mappings = mappings;
     config
 };
-bootloader_api::entry_point!(kmain, config = { &CONFIG });
+bootloader_api::entry_point!(kstart, config = { &CONFIG });

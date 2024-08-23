@@ -1,30 +1,32 @@
 use spin::Mutex;
 
 use crate::{
-    memory::{
-        allocator::LinkedListAllocator,
-        frame_allocator::RegionAllocator,
-        paging::{self, Mapper},
-    },
+    memory::{allocator::LinkedListAllocator, frame_allocator::RegionAllocator},
     terminal::framebuffer::Terminal,
     threading::Scheduler,
     utils::Locked,
 };
 
-pub static mut SCHEDULER: Option<Scheduler> = None;
+/// boot info
+#[derive(Debug)]
+pub struct Kernel {
+    pub frame_allocator: RegionAllocator,
 
-pub fn scheduler() -> &'static mut Scheduler {
-    unsafe { SCHEDULER.as_mut().unwrap() }
+    pub phy_offset: usize,
+    pub rsdp_addr: Option<u64>,
 }
 
-pub fn scheduler_inited() -> bool {
-    unsafe { SCHEDULER.is_some() }
+impl Kernel {
+    // TODO: lock the frame_allocator!!!
+    #[inline]
+    pub fn frame_allocator(&'static mut self) -> &mut RegionAllocator {
+        &mut self.frame_allocator
+    }
 }
-// globals are initialized using the kinit function below is there definition and getters
-pub static mut FRAME_ALLOCATOR: Option<RegionAllocator> = None;
+pub static mut KERNEL: Option<Kernel> = None;
 
-pub fn frame_allocator() -> &'static mut RegionAllocator {
-    unsafe { FRAME_ALLOCATOR.as_mut().unwrap() }
+pub fn kernel() -> &'static mut Kernel {
+    unsafe { KERNEL.as_mut().unwrap() }
 }
 
 pub static mut TERMINAL: Option<Terminal<'static>> = None;
@@ -36,28 +38,18 @@ pub fn terminal() -> &'static mut Terminal<'static> {
     unsafe { TERMINAL.as_mut().unwrap() }
 }
 
-pub static mut PAGING_MAPPER: Option<paging::Mapper> = None;
-pub fn paging_mapper() -> &'static mut Mapper {
-    unsafe { PAGING_MAPPER.as_mut().unwrap() }
+pub static mut SCHEDULER: Option<Scheduler> = None;
+pub fn scheduler_inited() -> bool {
+    unsafe { SCHEDULER.is_some() }
 }
 
-// Some in x86 family
-pub static mut RSDP_ADDR: Option<u64> = None;
-pub fn rsdp_addr() -> u64 {
-    unsafe { RSDP_ADDR.unwrap() }
+pub fn scheduler() -> &'static mut Scheduler {
+    unsafe { SCHEDULER.as_mut().unwrap() }
 }
 
-// safer globals that uses the locked type!
-// still has to be init'ed
 #[global_allocator]
 static GLOBAL_ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
 
 pub fn global_allocator() -> &'static Mutex<LinkedListAllocator> {
     &GLOBAL_ALLOCATOR.inner
-}
-
-pub static mut PHY_OFFSET: usize = 0;
-
-pub fn phy_offset() -> usize {
-    unsafe { PHY_OFFSET }
 }

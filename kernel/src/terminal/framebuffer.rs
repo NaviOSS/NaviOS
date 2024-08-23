@@ -22,7 +22,7 @@ pub enum TerminalMode {
 
 const RASTER_HEIGHT: RasterHeight = RasterHeight::Size20;
 const WRITE_COLOR: (u8, u8, u8) = (255, 255, 255);
-
+#[derive(Debug)]
 pub struct Terminal<'a> {
     buffer: &'a mut [u8],
 
@@ -95,7 +95,7 @@ impl<'a> Terminal<'a> {
     }
 
     fn width(&self) -> usize {
-        self.info.width
+        self.info.stride
     }
 
     // fn height(&self) -> usize {

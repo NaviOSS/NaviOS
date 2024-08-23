@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String, vec::Vec};
 
-use super::{FSError, FSResult, FileDescriptor, Inode, InodeOps, InodeType, FS};
+use super::{FSError, FSResult, FileDescriptor, Inode, InodeOps, InodeType, Path, FS};
 
 pub enum RamInode {
     Data(Vec<u8>),
@@ -34,14 +34,14 @@ impl InodeOps for RamInode {
         }
     }
 
-    fn get(&mut self, name: &String) -> FSResult<Option<&mut Inode>> {
+    fn get(&mut self, name: Path) -> FSResult<Option<&mut Inode>> {
         match self {
             Self::Children(tree) => Ok(tree.get_mut(name)),
             _ => Err(FSError::NotADirectory),
         }
     }
 
-    fn contains(&self, name: &String) -> bool {
+    fn contains(&self, name: Path) -> bool {
         match self {
             Self::Children(tree) => tree.contains_key(name),
             _ => false,
@@ -118,10 +118,8 @@ impl FS for RamFS {
         "ramfs"
     }
 
-    fn open(&mut self, path: &String) -> FSResult<FileDescriptor> {
-        let file = self
-            .reslove_path(path)
-            .ok_or(FSError::NoSuchAFileOrDirectory)?;
+    fn open(&mut self, path: Path) -> FSResult<FileDescriptor> {
+        let file = self.reslove_path(path)?;
 
         let file = file as *mut Inode;
         Ok(FileDescriptor {
@@ -183,12 +181,10 @@ impl FS for RamFS {
         Ok(())
     }
 
-    fn create(&mut self, path: &String, name: String) -> FSResult<()> {
+    fn create(&mut self, path: Path, name: String) -> FSResult<()> {
         let node = RamInode::new_file(name, &[]);
 
-        let resloved = self
-            .reslove_path(path)
-            .ok_or(FSError::NoSuchAFileOrDirectory)?;
+        let resloved = self.reslove_path(path)?;
         if resloved.inode_type != InodeType::Directory {
             return Err(FSError::NotADirectory);
         }
@@ -197,12 +193,10 @@ impl FS for RamFS {
         Ok(())
     }
 
-    fn createdir(&mut self, path: &String, name: String) -> FSResult<()> {
+    fn createdir(&mut self, path: Path, name: String) -> FSResult<()> {
         let node = RamInode::new_dir(name);
 
-        let resloved = self
-            .reslove_path(path)
-            .ok_or(FSError::NoSuchAFileOrDirectory)?;
+        let resloved = self.reslove_path(path)?;
         if resloved.inode_type != InodeType::Directory {
             return Err(FSError::NotADirectory);
         }

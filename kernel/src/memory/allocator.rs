@@ -1,17 +1,18 @@
+use crate::kernel;
 use core::{
     alloc::{GlobalAlloc, Layout},
     ptr,
 };
 
 use crate::{
-    frame_allocator,
     memory::{
         align_up,
         paging::{EntryFlags, IterPage, Page, PAGE_SIZE},
     },
-    paging_mapper,
     utils::Locked,
 };
+
+use super::paging::current_root_table;
 
 #[derive(Debug)]
 pub struct Node {
@@ -154,14 +155,15 @@ impl LinkedListAllocator {
 
         for page in iter {
             unsafe {
-                paging_mapper()
+                let allocated_frame = kernel().frame_allocator().allocate_frame().ok_or(())?;
+
+                current_root_table()
                     .map_to(
                         page,
-                        frame_allocator().allocate_frame().ok_or(())?,
+                        allocated_frame,
                         EntryFlags::PRESENT | EntryFlags::WRITABLE,
                     )
-                    .or(Err(()))?
-                    .flush();
+                    .or(Err(()))?;
             }
         }
         unsafe {

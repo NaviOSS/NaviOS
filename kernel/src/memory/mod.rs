@@ -7,33 +7,38 @@ pub type VirtAddr = usize;
 pub type PhysAddr = usize;
 
 use frame_allocator::Frame;
-use paging::{EntryFlags, MapToError, Page};
+use paging::{current_root_table, EntryFlags, MapToError, Page};
 
 use crate::{
-    globals::{frame_allocator, global_allocator, paging_mapper},
+    globals::{global_allocator, kernel},
     serial,
 };
 
+/// map the Page containing addr to the frame containing addr as a read-only present page
 #[inline]
-pub fn map_present(addr: PhysAddr) {
-    paging_mapper()
-        .map_to(
-            Page::containing_address(addr),
-            Frame::containing_address(addr),
-            EntryFlags::PRESENT,
-        )
-        .unwrap();
+pub fn identity_map_present(addr: PhysAddr) {
+    unsafe {
+        current_root_table()
+            .map_to(
+                Page::containing_address(addr),
+                Frame::containing_address(addr),
+                EntryFlags::PRESENT,
+            )
+            .unwrap();
+    }
 }
 
 #[inline]
-pub fn map_writeable(addr: PhysAddr) {
-    paging_mapper()
-        .map_to(
-            Page::containing_address(addr),
-            Frame::containing_address(addr),
-            EntryFlags::PRESENT | EntryFlags::WRITABLE,
-        )
-        .unwrap();
+pub fn identity_map_writeable(addr: PhysAddr) {
+    unsafe {
+        current_root_table()
+            .map_to(
+                Page::containing_address(addr),
+                Frame::containing_address(addr),
+                EntryFlags::PRESENT | EntryFlags::WRITABLE,
+            )
+            .unwrap();
+    }
 }
 
 fn p4_index(addr: VirtAddr) -> usize {
@@ -70,7 +75,7 @@ pub const fn align_down(x: usize, alignment: usize) -> usize {
 pub const INIT_HEAP_SIZE: usize = 4 * 9 * 1024 * 1024;
 
 // TODO! make the memory module more generic for different architectures; for now we can only support x86_64 because of the bootloader crate so take into account making our own bootloader for aarch64
-pub unsafe fn init_memory(heap_start: usize) -> Result<(), MapToError> {
+unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
     serial!(
         "initing the heap... 0x{:x}..0x{:x}\n",
         heap_start,
@@ -87,14 +92,22 @@ pub unsafe fn init_memory(heap_start: usize) -> Result<(), MapToError> {
 
     let flags = EntryFlags::PRESENT | EntryFlags::WRITABLE;
     for page in page_range {
-        let frame = frame_allocator()
+        let frame = kernel()
+            .frame_allocator()
             .allocate_frame()
             .ok_or(MapToError::FrameAllocationFailed)?;
 
-        unsafe { paging_mapper().map_to(page, frame, flags)?.flush() };
+        unsafe {
+            current_root_table().map_to(page, frame, flags)?;
+            paging::flush()
+        };
     }
 
     global_allocator().lock().init(heap_start, INIT_HEAP_SIZE);
     serial!("init done\n");
     Ok(())
+}
+
+pub fn init(heap_start: usize) {
+    unsafe { init_heap(heap_start).unwrap() }
 }

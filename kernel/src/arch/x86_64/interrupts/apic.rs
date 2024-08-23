@@ -1,11 +1,9 @@
-use core::arch::asm;
-
 use super::read_msr;
 use bitflags::bitflags;
 
 use crate::{
     arch::x86_64::acpi::{self, MADT},
-    memory::map_writeable,
+    memory::identity_map_writeable,
     VirtAddr,
 };
 
@@ -64,7 +62,7 @@ pub fn get_io_apic_addr(madt: &MADT) -> VirtAddr {
     unsafe {
         let record = madt.get_record_of_type(1).unwrap() as *const MADTIOApic;
         let addr = (*record).ioapic_address;
-        map_writeable(addr as usize);
+        identity_map_writeable(addr as usize);
         addr as VirtAddr
     }
 }
@@ -73,7 +71,7 @@ pub fn get_io_apic_addr(madt: &MADT) -> VirtAddr {
 pub fn get_local_apic_addr() -> VirtAddr {
     let address = read_msr(0x1B) & 0xFFFFF000;
 
-    map_writeable(address);
+    identity_map_writeable(address);
     address
 }
 
@@ -172,8 +170,6 @@ fn enable_apic_timer(local_apic_addr: VirtAddr) {
 }
 
 pub fn enable_apic_interrupts() {
-    unsafe { asm!("sti") };
-
     let local_apic_addr = get_local_apic_addr();
     let sivr = get_local_apic_reg(local_apic_addr, 0xF0) as *mut u32;
 

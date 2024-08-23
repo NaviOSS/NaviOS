@@ -1,4 +1,4 @@
-use crate::{arch::x86_64::inw, memory::map_present, rsdp_addr, serial};
+use crate::{arch::x86_64::inw, kernel, memory::identity_map_present, serial};
 
 use super::outb;
 
@@ -209,7 +209,7 @@ impl SDT for RSDT {
 
         let total_offset = (table_start as usize - (self as *const Self) as usize) + offset;
         let addr = *(table_start.byte_add(offset) as *const u32) as usize;
-        map_present(addr);
+        identity_map_present(addr);
 
         (addr, total_offset as u32)
     }
@@ -286,8 +286,8 @@ impl MADT {
 }
 
 fn get_rsdp() -> RSDPDesc {
-    map_present(rsdp_addr() as usize);
-    let ptr = rsdp_addr() as *mut RSDPDesc;
+    identity_map_present(kernel().rsdp_addr.unwrap() as usize);
+    let ptr = kernel().rsdp_addr.unwrap() as *mut RSDPDesc;
 
     let desc = unsafe { *ptr };
     desc
@@ -301,7 +301,7 @@ pub fn get_sdt() -> &'static dyn PTSD {
     //     return SDT::XSDT(rsdp.xsdt_addr as *const XSDT);
     // }
 
-    map_present(rsdp.rsdt_addr as usize);
+    identity_map_present(rsdp.rsdt_addr as usize);
 
     unsafe { &*(rsdp.rsdt_addr as *const RSDT) }
 }

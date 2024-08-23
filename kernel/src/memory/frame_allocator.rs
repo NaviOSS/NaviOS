@@ -3,8 +3,6 @@
 use alloc::slice;
 use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
 
-use crate::phy_offset;
-
 use super::{align_down, align_up, paging::PAGE_SIZE, PhysAddr};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Frame {
@@ -35,6 +33,7 @@ fn usable_frames(mmap: &MemoryRegions) -> impl Iterator<Item = Frame> + '_ {
     frames
 }
 
+#[derive(Debug)]
 pub struct RegionAllocator {
     memory_map: &'static mut MemoryRegions,
     /// keeps track of which frame is used or not
@@ -44,7 +43,7 @@ pub struct RegionAllocator {
 }
 
 impl RegionAllocator {
-    pub fn new(memory_map: &'static mut MemoryRegions) -> Self {
+    pub fn new(memory_map: &'static mut MemoryRegions, phy_offset: usize) -> Self {
         let frame_count = usable_frames(memory_map).count();
 
         // frame_count is the number of bits
@@ -87,7 +86,7 @@ impl RegionAllocator {
         most_stable_region.as_mut().unwrap().start = 0;
         most_stable_region.as_mut().unwrap().end = 0;
 
-        let bitmap_ptr = (bitmap_addr + phy_offset()) as *mut u8;
+        let bitmap_ptr = (bitmap_addr + phy_offset) as *mut u8;
 
         Self {
             memory_map,

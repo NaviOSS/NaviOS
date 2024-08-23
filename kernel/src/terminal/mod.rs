@@ -180,18 +180,18 @@ fn pkillall(args: Vec<&str>) {
 
 /// returns the absloutel path of a given path respecting `Ternminal.current_dir`
 /// returned path won't end with / if it is a directory
-fn get_path(path: String) -> String {
-    for c in path.clone().chars() {
+fn get_path(path: &str) -> String {
+    for c in path.chars() {
         if c == '/' || c == '\\' {
             break;
         }
 
         if c == ':' {
-            return path;
+            return path.to_string();
         }
     }
 
-    return terminal().current_dir.clone() + &path;
+    return terminal().current_dir.clone() + path;
 }
 
 fn mkdir(args: Vec<&str>) {
@@ -200,7 +200,7 @@ fn mkdir(args: Vec<&str>) {
         return;
     }
 
-    let path = get_path(args[1].to_string());
+    let path = get_path(args[1]);
 
     let mut spilt: Vec<&str> = path.split(['/', '\\']).collect();
 
@@ -222,7 +222,7 @@ fn touch(args: Vec<&str>) {
         return;
     }
 
-    let path = get_path(args[1].to_string());
+    let path = get_path(args[1]);
 
     let mut spilt: Vec<&str> = path.split(['/', '\\']).collect();
 
@@ -257,7 +257,7 @@ fn cd(args: Vec<&str>) {
         return;
     }
 
-    let mut path = get_path(args[1].to_string());
+    let mut path = get_path(args[1]);
     let verify = vfs().verify_path_dir(&path);
 
     if verify.is_err() {
@@ -280,7 +280,7 @@ fn cat(args: Vec<&str>) {
         return;
     }
 
-    let path = get_path(args[1].to_string());
+    let path = get_path(args[1]);
     let res = vfs().open(&path);
 
     if res.is_err() {
@@ -315,7 +315,7 @@ fn write(args: Vec<&str>) {
         return;
     }
 
-    let path = get_path(args[1].to_string());
+    let path = get_path(args[1]);
     let res = vfs().open(&path);
 
     if res.is_err() {

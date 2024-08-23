@@ -3,8 +3,10 @@ use core::{alloc::Layout, arch::asm};
 use alloc::{boxed::Box, vec::Vec};
 
 use crate::{
-    arch::threading::CPUStatus, global_allocator, memory::paging::PageTable, paging_mapper,
-    phy_offset, serial, VirtAddr,
+    arch::threading::CPUStatus,
+    global_allocator, kernel,
+    memory::paging::{allocate_pml4, PageTable},
+    serial, VirtAddr,
 };
 
 pub const STACK_SIZE: usize = 4096 * 4;
@@ -62,7 +64,7 @@ impl Process {
         let mut context = CPUStatus::default();
 
         let stack_end = alloc_stack() as *mut u8;
-        let root_page_table = paging_mapper().allocate_pml4().unwrap();
+        let root_page_table = allocate_pml4().unwrap();
 
         #[cfg(target_arch = "x86_64")]
         {
@@ -75,7 +77,7 @@ impl Process {
             context.cr3 = root_page_table as u64;
         }
 
-        let root_page_table = (root_page_table + phy_offset()) as *mut PageTable;
+        let root_page_table = (root_page_table + kernel().phy_offset) as *mut PageTable;
 
         Process {
             pid,
