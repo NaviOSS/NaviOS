@@ -1,4 +1,4 @@
-use crate::utils::Locked;
+use crate::{serial, utils::Locked};
 pub mod ramfs;
 
 use alloc::{
@@ -19,8 +19,12 @@ pub fn vfs() -> MutexGuard<'static, VFS> {
     (*VFS_STRUCT).inner.lock()
 }
 
-pub fn vfs_init() {
-    vfs().mount(b"ram", Box::new(ramfs::RamFS::new())).unwrap();
+pub fn init() {
+    serial!("initing the vfs...\n");
+    let mut vfs = vfs();
+    let ramfs = Box::new(ramfs::RamFS::new());
+    vfs.mount(b"ram", ramfs).unwrap();
+    serial!("init done ...\n");
 }
 
 #[derive(Debug)]

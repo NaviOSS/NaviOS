@@ -2,7 +2,6 @@ use alloc::{string::String, vec::Vec};
 
 use core::{fmt, ptr};
 
-use bootloader_api::info::{FrameBuffer, FrameBufferInfo, PixelFormat};
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 
 use crate::{
@@ -18,6 +17,19 @@ pub enum TerminalMode {
     Init,
     Stdout,
     Stdin,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum PixelFormat {
+    Rgb,
+    Bgr,
+}
+#[derive(Debug)]
+pub struct FrameBufferInfo {
+    /// number of pixels between start of a line and another
+    pub stride: usize,
+    pub bytes_per_pixel: usize,
+    pub pixel_format: PixelFormat,
 }
 
 const RASTER_HEIGHT: RasterHeight = RasterHeight::Size20;
@@ -38,14 +50,12 @@ pub struct Terminal<'a> {
     pub info: FrameBufferInfo,
     pub x_pos: usize,
     pub y_pos: usize,
+    /// wether or not the current panic happend in another panic because of the terminal
+    pub panicked: bool,
 }
 
 impl<'a> Terminal<'a> {
-    pub fn init(frame_buffer: &'static mut FrameBuffer) -> Self {
-        let frame_buffer = frame_buffer;
-        let info = frame_buffer.info();
-        let buffer = frame_buffer.buffer_mut();
-
+    pub fn init(buffer: &'static mut [u8], info: FrameBufferInfo) -> Self {
         for i in 0..buffer.len() {
             buffer[i] = 0;
         }
@@ -66,6 +76,7 @@ impl<'a> Terminal<'a> {
             info,
             x_pos: 0,
             y_pos: 0,
+            panicked: false,
         }
     }
 
@@ -94,14 +105,6 @@ impl<'a> Terminal<'a> {
         }
     }
 
-    fn width(&self) -> usize {
-        self.info.stride
-    }
-
-    // fn height(&self) -> usize {
-    //     self.info.height
-    // }
-
     pub fn draw_viewport(&mut self) {
         self.buffer.copy_from_slice(
             &self.viewport[self.viewport_start..self.buffer.len() + self.viewport_start],
@@ -119,6 +122,7 @@ impl<'a> Terminal<'a> {
 
         self.stdin_buffer = String::new();
         self.stdout_buffer = String::new();
+
         if self.mode == TerminalMode::Init {
             self.mode = TerminalMode::Stdin;
         }
@@ -240,7 +244,7 @@ impl<'a> Terminal<'a> {
     }
 
     fn draw_char(&mut self, glyph: RasterizedChar, color: (u8, u8, u8)) {
-        if (self.x_pos + glyph.width()) > self.width() {
+        if (self.x_pos + glyph.width()) > self.info.stride {
             self.newline();
         }
 

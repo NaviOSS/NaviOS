@@ -2,7 +2,7 @@
 use core::fmt::{Display, LowerHex, UpperHex};
 use heapless::Vec;
 
-use crate::utils::{Locked, Optional};
+use crate::utils::Locked;
 use bitflags::bitflags;
 use int_enum::IntEnum;
 use macros::EncodeKey;
@@ -18,14 +18,14 @@ fn current_keys() -> MutexGuard<'static, Vec<Key, MAX_KEYS>> {
 }
 
 #[no_mangle]
-pub extern "C" fn __navi_keyboard_get_pressed_key_flags(code: KeyCode) -> Optional<KeyFlags> {
+pub fn __navi_keyboard_get_pressed_key_flags(code: KeyCode) -> Option<KeyFlags> {
     for key in &*current_keys() {
         if key.code == code {
             let key = key.clone();
-            return Optional::Some(key.flags);
+            return Option::Some(key.flags);
         }
     }
-    Optional::None
+    Option::None
 }
 
 #[no_mangle]
@@ -209,9 +209,7 @@ pub enum KeyCode {
 impl KeyCode {
     #[inline]
     pub fn is_pressed(&self) -> bool {
-        __navi_keyboard_get_pressed_key_flags(*self)
-            .into_option()
-            .is_some()
+        __navi_keyboard_get_pressed_key_flags(*self).is_some()
     }
 }
 

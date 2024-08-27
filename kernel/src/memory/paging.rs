@@ -16,7 +16,7 @@ use crate::memory::frame_allocator::Frame;
 
 use super::{align_down, frame_allocator::RegionAllocator, VirtAddr};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Page {
     pub start_address: VirtAddr,
 }
@@ -195,7 +195,7 @@ impl Entry {
     ) -> Result<&'static mut PageTable, MapToError> {
         use crate::kernel;
 
-        if self.flags().contains(EntryFlags::PRESENT) {
+        if self.is_mapped() {
             let addr = self.frame().unwrap().start_address;
 
             self.set(flags | self.flags(), addr);
@@ -219,6 +219,25 @@ impl Entry {
                 &mut *(table_ptr)
             })
         }
+    }
+
+    /// if an entry is mapped returns the PageTable or the Frame(as a PageTable) it is mapped to
+    #[inline]
+    pub fn mapped_to(&self) -> Option<&'static mut PageTable> {
+        if self.is_mapped() {
+            let addr = self.frame().unwrap().start_address;
+            let virt_addr = addr + kernel().phy_offset;
+            let entry_ptr = virt_addr as *mut PageTable;
+
+            return Some(unsafe { &mut *entry_ptr });
+        }
+
+        None
+    }
+
+    #[inline]
+    pub fn is_mapped(&self) -> bool {
+        self.flags().contains(EntryFlags::PRESENT)
     }
 }
 
@@ -249,6 +268,28 @@ impl PageTable {
     pub fn map_to_writeable(&mut self, page: Page, frame: Frame) -> Result<(), MapToError> {
         let flags = EntryFlags::PRESENT | EntryFlags::WRITABLE;
         self.map_to(page, frame, flags)
+    }
+
+    /// wether or not a page is mapped
+    pub fn is_mapped(&self, page: Page) -> bool {
+        let (_, level_1_index, level_2_index, level_3_index, level_4_index) =
+            translate(page.start_address);
+
+        let Some(level_3_table) = self[level_4_index].mapped_to() else {
+            return false;
+        };
+
+        let Some(level_2_table) = level_3_table[level_3_index].mapped_to() else {
+            return false;
+        };
+
+        let Some(level_1_table) = level_2_table[level_2_index].mapped_to() else {
+            return false;
+        };
+
+        let entry = &level_1_table[level_1_index];
+
+        entry.is_mapped()
     }
 }
 

@@ -2,9 +2,7 @@ use ovmf_prebuilt;
 // code for running qemu and testing, kernel src avalible at kernel
 
 fn main() {
-    let uefi_path = env!("UEFI_PATH");
-    println!("uefi: {}", uefi_path);
-    let _bios_path = env!("BIOS_PATH");
+    let iso_path = env!("ISO_PATH");
 
     let uefi = true;
 
@@ -12,7 +10,7 @@ fn main() {
     if uefi {
         cmd.arg("-bios").arg(ovmf_prebuilt::ovmf_pure_efi());
         cmd.arg("-drive")
-            .arg(format!("format=raw,file={uefi_path}"))
+            .arg(format!("format=raw,file={iso_path}"))
             .arg("-display")
             .arg("sdl")
             .arg("-serial")

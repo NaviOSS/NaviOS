@@ -125,6 +125,8 @@ impl LinkedListAllocator {
             }
         }
 
+        //  TODO: add an extend_by function to extend the heap by size
+        //  TODO: add a heap_max that prevents heap from extending further
         self.extend_heap().ok()?;
         self.find_free_node(size, align)
     }
@@ -138,8 +140,7 @@ impl LinkedListAllocator {
         node.next = self.head.next.take();
 
         let node_ptr = addr as *mut Node;
-        ptr::write(node_ptr, node);
-
+        ptr::write_volatile(node_ptr, node);
         self.head.next = Some(&mut *node_ptr);
     }
 

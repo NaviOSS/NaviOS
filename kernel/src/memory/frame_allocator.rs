@@ -1,7 +1,8 @@
 // a pmm i believe
 
-use alloc::slice;
-use bootloader_api::info::{MemoryRegionKind, MemoryRegions};
+use core::slice;
+
+use crate::serial;
 
 use super::{align_down, align_up, paging::PAGE_SIZE, PhysAddr};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,21 +22,10 @@ impl Frame {
 
 pub type Bitmap = &'static mut [u8];
 
-fn usable_frames(mmap: &MemoryRegions) -> impl Iterator<Item = Frame> + '_ {
-    let usable_regions = mmap.iter().filter(|x| x.kind == MemoryRegionKind::Usable);
-    let addr_ranges = usable_regions.map(|x| x.start..x.end);
-
-    let addr_ranges = addr_ranges.filter(|x| *x != (0..0));
-
-    let address = addr_ranges.flat_map(|x| x.step_by(PAGE_SIZE));
-
-    let frames = address.map(|x| Frame::containing_address(x as PhysAddr));
-    frames
-}
-
 #[derive(Debug)]
 pub struct RegionAllocator {
-    memory_map: &'static mut MemoryRegions,
+    /// TODO: respect frame_count
+    frame_count: usize,
     /// keeps track of which frame is used or not
     bitmap: Bitmap,
     /// the index of the frame we start searching from in the bitmap
@@ -43,72 +33,138 @@ pub struct RegionAllocator {
 }
 
 impl RegionAllocator {
-    pub fn new(memory_map: &'static mut MemoryRegions, phy_offset: usize) -> Self {
-        let frame_count = usable_frames(memory_map).count();
+    /// limine
+    /// TODO: look at setting unsable frames as used in the bitmap
+    pub fn new() -> Self {
+        let mmap = crate::limine::mmap_request();
+        // figuring out how much frames we have
+        let mut last_usable_entry = None;
+        let mut first_usable_entry = None;
+
+        for entry in mmap.entries() {
+            if entry.entry_type == limine::memory_map::EntryType::USABLE {
+                if first_usable_entry.is_none() {
+                    first_usable_entry = Some(entry);
+                }
+                last_usable_entry = Some(entry);
+            }
+        }
+
+        let last_usable_entry = last_usable_entry.unwrap();
+
+        let frame_count = align_down(
+            (last_usable_entry.base + last_usable_entry.length) as usize,
+            PAGE_SIZE,
+        ) / PAGE_SIZE;
+
+        serial!("{} usable bytes found\n", frame_count * PAGE_SIZE);
 
         // frame_count is the number of bits
         // aligns to 8 to make sure we can get a vaild number of bytes for our frame
-        align_up(frame_count, 8);
-
-        let bytes = frame_count / 8;
+        let bytes = align_up(frame_count, 8) / 8;
 
         // finds a place the bitmap can live in
-        let mut usable_regions = memory_map
-            .iter_mut()
-            .filter(|x| x.kind == MemoryRegionKind::Usable);
+        let mut best_region: Option<&limine::memory_map::Entry> = None;
 
-        let mut most_stable_region = None;
-
-        for region in &mut usable_regions {
-            if (region.end - region.start) as usize == bytes {
-                most_stable_region = Some(region);
-                break;
-            }
-
-            if (region.end - region.start) as usize > bytes {
-                if most_stable_region
-                    .as_ref()
-                    .is_some_and(|x| (x.end - x.start) > region.end - region.start)
-                {
-                    most_stable_region = Some(region);
-                } else if most_stable_region.is_none() {
-                    most_stable_region = Some(region);
+        for entry in mmap.entries() {
+            if entry.entry_type == limine::memory_map::EntryType::USABLE {
+                if entry.length as usize >= bytes {
+                    if best_region.is_none() || best_region.is_some_and(|x| x.length > entry.length)
+                    {
+                        best_region = Some(entry);
+                    }
                 }
             }
         }
 
-        assert!(most_stable_region.is_some());
+        assert!(best_region.is_some());
+        serial!(
+            "expected {} bytes but found a region with {} bytes\n",
+            bytes,
+            best_region.unwrap().length
+        );
 
-        let bitmap_addr: PhysAddr = most_stable_region.as_ref().unwrap().start as PhysAddr;
-        let bitmap_len =
-            most_stable_region.as_ref().unwrap().end - most_stable_region.as_ref().unwrap().start;
+        // allocates and setups bitmap
+        let bitmap_base = best_region.unwrap().base as usize;
+        let bitmap_length = best_region.unwrap().length as usize;
 
-        most_stable_region.as_mut().unwrap().start = 0;
-        most_stable_region.as_mut().unwrap().end = 0;
+        let addr = (bitmap_base + crate::limine::get_phy_offset()) as *mut u8;
 
-        let bitmap_ptr = (bitmap_addr + phy_offset) as *mut u8;
+        let bitmap = unsafe { slice::from_raw_parts_mut(addr, bytes) };
+        bitmap.fill(0xFF);
 
-        Self {
-            memory_map,
-            bitmap: unsafe { slice::from_raw_parts_mut(bitmap_ptr, bitmap_len as usize) },
-            search_from: 0,
+        assert!(bitmap[0] == 0xFF);
+
+        let mut this = Self {
+            frame_count,
+            bitmap,
+            search_from: Self::bitmap_index_from_addr(align_up(
+                first_usable_entry.unwrap().base as usize,
+                PAGE_SIZE,
+            )),
+        };
+
+        serial!("bitmap allocation successful!\n");
+        // sets all unusable frames as used
+        for entry in mmap.entries() {
+            if entry.entry_type == limine::memory_map::EntryType::USABLE {
+                this.set_unused_from(entry.base as PhysAddr, entry.length as usize);
+            }
+
+            if entry.base == last_usable_entry.base {
+                break;
+            }
+        }
+
+        this.set_used_from(bitmap_base, bitmap_length);
+        this
+    }
+
+    #[inline]
+    fn set_used_from(&mut self, from: PhysAddr, size: usize) {
+        let frames_needed = align_up(size, PAGE_SIZE) / PAGE_SIZE;
+
+        for frame in 0..frames_needed {
+            self.set_used(from + frame * PAGE_SIZE);
         }
     }
 
-    fn usable_frames(&self) -> impl Iterator<Item = Frame> + '_ {
-        usable_frames(self.memory_map)
+    #[inline]
+    fn set_unused_from(&mut self, from: PhysAddr, size: usize) {
+        let frames_needed = align_down(size, PAGE_SIZE) / PAGE_SIZE;
+
+        for frame in 0..frames_needed {
+            self.set_unused(from + frame * PAGE_SIZE);
+        }
     }
 
-    fn bitmap_index(index: usize) -> (usize, usize) {
+    /// takes a bitmap index(bitnumber) and turns it into (row, col)
+    #[inline]
+    fn bitmap_loc_from_index(index: usize) -> (usize, usize) {
         (index / 8, index % 8)
     }
 
-    fn index_bitmap(row: usize, col: usize) -> usize {
+    /// takes an addr and turns it into a bitmap (row, col)
+    #[inline]
+    fn bitmap_loc_from_addr(addr: PhysAddr) -> (usize, usize) {
+        Self::bitmap_loc_from_index(align_down(addr, PAGE_SIZE) / PAGE_SIZE)
+    }
+
+    #[inline]
+    fn bitmap_index_from_addr(addr: PhysAddr) -> usize {
+        let (row, col) = Self::bitmap_loc_from_addr(addr);
+        Self::bitmap_index_from_loc(row, col)
+    }
+
+    /// returns the bitmap index of row, col aka bitnumber
+    #[inline]
+    fn bitmap_index_from_loc(row: usize, col: usize) -> usize {
         row * 8 + col
     }
 
-    pub fn search_for_frame(&mut self) -> Option<usize> {
-        let (srow, mut scol) = Self::bitmap_index(self.search_from);
+    #[inline]
+    fn search_for_free_frame(&mut self) -> Option<Frame> {
+        let (srow, mut scol) = Self::bitmap_loc_from_index(self.search_from);
 
         for row in srow..self.bitmap.len() {
             if !(row == srow) {
@@ -117,7 +173,9 @@ impl RegionAllocator {
 
             for col in scol..8 {
                 if (self.bitmap[row] >> col) & 1 == 0 {
-                    return Some(Self::index_bitmap(row, col));
+                    return Some(Frame {
+                        start_address: Self::bitmap_index_from_loc(row, col) * PAGE_SIZE,
+                    });
                 }
             }
         }
@@ -126,37 +184,23 @@ impl RegionAllocator {
     }
 
     pub fn allocate_frame(&mut self) -> Option<Frame> {
-        let index = self.search_for_frame().unwrap();
+        let frame = self.search_for_free_frame().unwrap();
+        self.set_used(frame.start_address);
 
-        let region = self.usable_frames().nth(index);
-        self.set_used(index);
-        self.search_from = index;
-        region
+        Some(frame)
     }
 
-    fn set_unused(&mut self, index: usize) {
-        let (row, col) = Self::bitmap_index(index);
+    fn set_unused(&mut self, addr: PhysAddr) {
+        let (row, col) = Self::bitmap_loc_from_addr(addr);
         self.bitmap[row] = self.bitmap[row] ^ (1 << col)
     }
 
-    fn set_used(&mut self, index: usize) {
-        let (row, col) = Self::bitmap_index(index);
+    fn set_used(&mut self, addr: PhysAddr) {
+        let (row, col) = Self::bitmap_loc_from_addr(addr);
         self.bitmap[row] = self.bitmap[row] | (1 << col)
     }
 
     pub fn deallocate_frame(&mut self, frame: Frame) {
-        let mut index = None;
-
-        for (i, usable_frame) in self.usable_frames().enumerate() {
-            if usable_frame == frame {
-                index = Some(i);
-                break;
-            }
-        }
-
-        assert!(index.is_some());
-
-        self.set_unused(index.unwrap());
-        self.search_from = index.unwrap();
+        self.set_unused(frame.start_address);
     }
 }

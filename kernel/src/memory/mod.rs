@@ -74,7 +74,10 @@ pub const fn align_down(x: usize, alignment: usize) -> usize {
 
 pub const INIT_HEAP_SIZE: usize = 4 * 9 * 1024 * 1024;
 
-// TODO! make the memory module more generic for different architectures; for now we can only support x86_64 because of the bootloader crate so take into account making our own bootloader for aarch64
+// TODO: make the memory module more generic for different architectures; for now we can only support x86_64 because of the bootloader crate so take into account making our own bootloader for aarch64
+// TODO: maybe make the heap live in physical space instead?
+// TODO: add a heap MAX_SIZE
+/// unsafe because `heap_start`..`INIT_HEAP_SIZE` must be unmapped
 unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
     serial!(
         "initing the heap... 0x{:x}..0x{:x}\n",

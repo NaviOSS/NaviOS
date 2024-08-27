@@ -4,6 +4,7 @@ use macros::test_module;
 pub mod testing_module {
     use alloc::vec::Vec;
 
+    use crate::{cross_println, serial, terminal, terminal_inited};
     use crate::{global_allocator, println};
     use core::arch::asm;
 

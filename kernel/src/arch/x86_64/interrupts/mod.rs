@@ -25,7 +25,7 @@ pub struct TrapFrame {
     pub flags: u64,
     pub stack_pointer: u64,
     pub stack_segment: u64,
-    error_code: u64,
+    pub error_code: u64,
 }
 
 pub fn read_msr(msr: u32) -> PhysAddr {

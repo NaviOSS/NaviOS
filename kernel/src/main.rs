@@ -12,6 +12,7 @@ mod test;
 mod arch;
 mod drivers;
 mod globals;
+mod limine;
 mod memory;
 mod terminal;
 mod threading;
@@ -20,12 +21,14 @@ mod utils;
 extern crate alloc;
 use arch::threading::restore_cpu_status;
 use arch::x86_64::serial;
-use bootloader_api::info::MemoryRegions;
 
 use drivers::keyboard::Key;
-use drivers::vfs::vfs_init;
+use drivers::vfs;
 use globals::*;
 
+use limine::get_phy_offset;
+use limine::get_phy_offset_end;
+use limine::MEMORY_SIZE;
 use memory::frame_allocator::RegionAllocator;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
@@ -64,13 +67,18 @@ static mut _PANICED_AT_TERMINAL: bool = false;
 
 /// prints to both the serial and the terminal doesn't print to the terminal if it panicked or if
 /// it is not ready...
-#[allow(unused)]
+#[macro_export]
 macro_rules! cross_println {
     ($($arg:tt)*) => {
         serial!($($arg)*);
         serial!("\n");
-        if terminal_inited() && !unsafe { _PANICED_AT_TERMINAL } {
+
+        if terminal_inited() && !terminal().panicked {
+            terminal().panicked = true;
+
             println!($($arg)*);
+
+            terminal().panicked = false;
         }
     };
 }
@@ -106,36 +114,38 @@ fn print_stack_trace() {
     }
 }
 
-pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
+pub extern "C" fn kinit() {
     // initing globals
-    let phy_offset = &mut bootinfo.physical_memory_offset;
-    let phy_offset = phy_offset.as_mut().unwrap();
-
-    let regions: &'static mut MemoryRegions = &mut bootinfo.memory_regions;
-    let phy_offset = *phy_offset as usize;
+    let phy_offset = get_phy_offset();
+    let kernel_img = limine::kernel_image_info();
 
     serial!(
-        "image: 0x{:x}\nlen: 0x{:x}\nphy_offset: 0x{:x}\n",
-        bootinfo.kernel_image_offset,
-        bootinfo.kernel_len,
-        phy_offset
+        "image at: 0x{:x}\nbut it pretends it is at 0x{:x}\nlen: 0x{:x}\nphy_offset: 0x{:x}..0x{:x}\nmemory size: 0x{:x}\n",
+        kernel_img.0,
+        kernel_img.1,
+        kernel_img.2,
+        phy_offset,
+        limine::get_phy_offset_end(),
+        *MEMORY_SIZE
     );
 
     unsafe {
         KERNEL = Some(Kernel {
             phy_offset,
-            rsdp_addr: bootinfo.rsdp_addr.into(),
-            frame_allocator: RegionAllocator::new(&mut *regions, phy_offset),
+            rsdp_addr: limine::rsdp_addr(),
+            frame_allocator: RegionAllocator::new(),
         });
     }
 
     // initing the arch
     arch::init();
-    unsafe {
-        memory::init((bootinfo.kernel_image_offset + bootinfo.kernel_len + 1) as usize);
-        vfs_init();
 
-        let terminal: Terminal<'static> = Terminal::init(bootinfo.framebuffer.as_mut().unwrap());
+    unsafe {
+        memory::init(get_phy_offset_end());
+        vfs::init();
+
+        let (buffer, info) = limine::get_framebuffer();
+        let terminal: Terminal<'static> = Terminal::init(buffer, info);
         TERMINAL = Some(terminal);
     }
 
@@ -152,7 +162,7 @@ pub extern "C" fn kinit(bootinfo: &'static mut bootloader_api::BootInfo) {
 }
 
 #[no_mangle]
-fn kstart(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
+fn kstart() -> ! {
     let rsp: u64;
     unsafe {
         asm!("cli");
@@ -160,7 +170,7 @@ fn kstart(boot_info: &'static mut bootloader_api::BootInfo) -> ! {
     }
     serial!("rsp: 0x{:x}\n", rsp);
 
-    kinit(boot_info);
+    kinit();
     serial!("failed context switching to kmain! ...\n");
     khalt()
 }
@@ -171,6 +181,7 @@ fn kmain() -> ! {
     #[cfg(feature = "test")]
     test::testing_module::test_main();
 
+    println!("finished running tests...");
     println!(
         "\\[fg: (0, 255, 0) ||Boot success! press ctrl + shift + C to clear screen (and enter input mode)\n||]"
     );
@@ -181,17 +192,6 @@ fn kmain() -> ! {
     khalt()
 }
 
-// /// does some pooling and stuff stops interrupts to do it's work first!
-// fn kwork() {
-//     serial!("work!\n");
-//     loop {
-//         // unsafe { asm!("cli") }
-//         // #[cfg(target_arch = "x86_64")]
-//         // arch::x86_64::interrupts::handlers::handle_ps2_keyboard();
-//         // unsafe { asm!("sti") }
-//     }
-// }
-
 // whenever a key is pressed this function should be called
 // this executes a few other kernel-functions
 pub fn __navi_key_pressed(key: Key) {
@@ -199,18 +199,3 @@ pub fn __navi_key_pressed(key: Key) {
         terminal().on_key_pressed(key)
     }
 }
-
-static CONFIG: bootloader_api::BootloaderConfig = {
-    use bootloader_api::{
-        config::{Mapping, Mappings},
-        BootloaderConfig,
-    };
-
-    let mut config = BootloaderConfig::new_default();
-    let mut mappings = Mappings::new_default();
-    mappings.physical_memory = Some(Mapping::Dynamic);
-    mappings.dynamic_range_start = Some(0xffff_8000_0000_0000);
-    config.mappings = mappings;
-    config
-};
-bootloader_api::entry_point!(kstart, config = { &CONFIG });
