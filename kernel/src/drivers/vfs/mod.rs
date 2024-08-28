@@ -49,6 +49,7 @@ impl FileDescriptor {
 
 #[derive(Debug, Clone)]
 pub enum FSError {
+    // TODO: more operation not supported defaults
     OperationNotSupported,
     NotAFile,
     NotADirectory,
@@ -62,6 +63,7 @@ pub type FSResult<T> = Result<T, FSError>;
 enum InodeType {
     File,
     Directory,
+    Symlink,
 }
 
 /// this Inode is pesudo too far this should only work with RamFS
@@ -70,10 +72,11 @@ enum InodeType {
 /// TODO: system checklist
 /// - Synchronization
 /// - Allocations
+/// TODO: inode id!
 pub struct Inode {
     name: String,
     inode_type: InodeType,
-    /// TODO: use something instead of Box
+    ///  TODO: use something instead of Box
     ops: Box<dyn InodeOps>,
 }
 pub trait InodeOps: Send {
@@ -90,7 +93,12 @@ pub trait InodeOps: Send {
     fn size(&self) -> usize;
     /// attempts to read `count` bytes of node data if it is a file
     /// panics if invaild `offset`
-    fn read(&self, buffer: &mut [u8], offset: usize, count: usize) -> FSResult<()>;
+    fn read(&self, buffer: &mut [u8], offset: usize, count: usize) -> FSResult<()> {
+        _ = buffer;
+        _ = offset;
+        _ = count;
+        Err(FSError::OperationNotSupported)
+    }
     /// attempts to read the contents of self if it is a directory returning a list of inodes
     fn readdir(&mut self) -> FSResult<Vec<&mut Inode>>;
     /// attempts to write `buffer.len` bytes from `buffer` into node data if it is a file starting

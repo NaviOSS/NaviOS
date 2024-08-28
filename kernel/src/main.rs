@@ -1,11 +1,8 @@
 #![no_std]
 #![no_main]
 #![feature(abi_x86_interrupt)]
-#![feature(iter_advance_by)]
 #![feature(const_mut_refs)]
 #![feature(custom_test_frameworks)]
-#![feature(proc_macro_hygiene)]
-#![feature(asm_const)]
 #[cfg(feature = "test")]
 mod test;
 

@@ -3,7 +3,7 @@ badly written open-source generic operating system made for fun written in rust!
 i am attempting to make something like ChromeOS with native wasm support
 
 # building and running
-you simply need a linux system with bash, `make`, `cargo` and `qemu-system-x86_64` to run do
+you need a linux system with bash, `xorriso`, `make`, `cargo` and `qemu-system-x86_64` to run do
 
 ```
 cargo run
@@ -12,6 +12,7 @@ to build do
 ```
 cargo build
 ```
+this will make an iso `navios.iso`
 
 currently using the [limine](https://limine-bootloader.org/) bootloader
 

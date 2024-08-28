@@ -24,8 +24,6 @@ pub type Bitmap = &'static mut [u8];
 
 #[derive(Debug)]
 pub struct RegionAllocator {
-    /// TODO: respect frame_count
-    frame_count: usize,
     /// keeps track of which frame is used or not
     bitmap: Bitmap,
     /// the index of the frame we start searching from in the bitmap
@@ -96,7 +94,6 @@ impl RegionAllocator {
         assert!(bitmap[0] == 0xFF);
 
         let mut this = Self {
-            frame_count,
             bitmap,
             search_from: Self::bitmap_index_from_addr(align_up(
                 first_usable_entry.unwrap().base as usize,
@@ -184,7 +181,7 @@ impl RegionAllocator {
     }
 
     pub fn allocate_frame(&mut self) -> Option<Frame> {
-        let frame = self.search_for_free_frame().unwrap();
+        let frame = self.search_for_free_frame()?;
         self.set_used(frame.start_address);
 
         Some(frame)

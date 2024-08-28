@@ -1,10 +1,12 @@
-use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String, vec::Vec};
+use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String, sync::Arc, vec::Vec};
+use spin::Mutex;
 
 use super::{FSError, FSResult, FileDescriptor, Inode, InodeOps, InodeType, Path, FS};
 
 pub enum RamInode {
     Data(Vec<u8>),
     Children(BTreeMap<String, Inode>),
+    Symlink(Arc<Mutex<dyn InodeOps>>),
 }
 
 impl RamInode {
@@ -59,6 +61,7 @@ impl InodeOps for RamInode {
 
                 total
             }
+            Self::Symlink(_) => todo!(),
         }
     }
 

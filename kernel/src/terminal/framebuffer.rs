@@ -48,7 +48,9 @@ pub struct Terminal<'a> {
     pub current_dir: String,
 
     pub info: FrameBufferInfo,
+    /// x_pos in pixels
     pub x_pos: usize,
+    /// y_pos in pixels
     pub y_pos: usize,
     /// wether or not the current panic happend in another panic because of the terminal
     pub panicked: bool,
@@ -105,10 +107,15 @@ impl<'a> Terminal<'a> {
         }
     }
 
+    #[inline]
+    /// respects `self.x_pos` and `self.y_pos` to start copying from
     pub fn draw_viewport(&mut self) {
-        self.buffer.copy_from_slice(
-            &self.viewport[self.viewport_start..self.buffer.len() + self.viewport_start],
-        );
+        let current_byte = (self.x_pos * self.y_pos) * self.info.bytes_per_pixel;
+        let start = self.viewport_start + current_byte;
+        let len = self.buffer.len();
+
+        self.buffer[current_byte..]
+            .copy_from_slice(&self.viewport[start..len + start - current_byte]);
     }
 
     pub fn clear(&mut self) {
@@ -140,17 +147,28 @@ impl<'a> Terminal<'a> {
     }
 
     fn scroll_up(&mut self) {
+        let (old_y, old_x) = (self.y_pos, self.x_pos);
+        self.y_pos = 0;
+        self.x_pos = 0;
+
         let scroll_amount = self.scroll_amount();
         if self.viewport_start >= scroll_amount {
             self.viewport_start -= scroll_amount;
+
             self.draw_viewport()
         }
+
+        (self.y_pos, self.x_pos) = (old_y, old_x);
     }
 
     /// if make_space it resizes viewport if possible if not removes the first line from buffer
     /// (shifts the buffer up by 1 line)
     fn scroll_down(&mut self, make_space: bool) {
+        let (mut old_y, old_x) = (self.y_pos, self.x_pos);
+
         let scroll_amount = self.scroll_amount();
+        self.y_pos = 0;
+        self.x_pos = 0;
 
         // this should only execute if we were scrolling using page up and page down
         if !make_space
@@ -162,19 +180,20 @@ impl<'a> Terminal<'a> {
             if self.viewport.len() + scroll_amount <= self.buffer.len() * 4 {
                 self.viewport.resize(self.viewport.len() + scroll_amount, 0);
                 self.viewport_start += scroll_amount;
-
-                self.draw_viewport()
+                self.draw_viewport();
             } else {
                 let len = self.viewport.len();
 
                 self.viewport.copy_within(scroll_amount..len, 0);
                 self.viewport[len - scroll_amount..len].fill(0);
 
-                self.y_pos -= RASTER_HEIGHT.val();
+                old_y -= RASTER_HEIGHT.val();
 
                 self.draw_viewport();
             }
         }
+
+        (self.y_pos, self.x_pos) = (old_y, old_x);
     }
 
     fn newline(&mut self) {
