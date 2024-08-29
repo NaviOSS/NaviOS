@@ -56,15 +56,13 @@ pub fn kernel_file() -> &'static File {
     KERNEL_FILE_REQUEST.get_response().unwrap().file()
 }
 
-pub fn kernel_image_info() -> (usize, usize, usize) {
-    let addr = KERNEL_ADDRESS_REQUEST.get_response().unwrap();
-    let size = kernel_file().size() as usize;
+/// returns addr to the kernel image and it's size
+pub fn kernel_image_info() -> (*const u8, usize) {
+    let file = kernel_file();
+    let size = file.size() as usize;
+    let ptr = file.addr();
 
-    (
-        addr.physical_base() as usize,
-        addr.virtual_base() as usize,
-        size,
-    )
+    (ptr, size)
 }
 
 pub fn mmap_request() -> &'static MemoryMapResponse {

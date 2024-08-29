@@ -105,32 +105,51 @@ fn print_stack_trace() {
         cross_println!("stack trace: ");
         while fp != 0 {
             let return_address = *(fp as *const usize).offset(1);
-            cross_println!("  {:#x}", return_address);
+            let name = {
+                if kernel_inited() {
+                    let sym = kernel().elf.sym_from_value_range(return_address);
+
+                    if sym.is_some() {
+                        kernel().elf.string_table_index(sym.unwrap().name_index)
+                    } else {
+                        "??"
+                    }
+                } else {
+                    "??"
+                }
+            };
+
+            cross_println!("  {:#x} <{}>", return_address, name);
             fp = *(fp as *const usize);
         }
     }
 }
 
+#[no_mangle]
 pub extern "C" fn kinit() {
     // initing globals
     let phy_offset = get_phy_offset();
     let kernel_img = limine::kernel_image_info();
 
     serial!(
-        "image at: 0x{:x}\nbut it pretends it is at 0x{:x}\nlen: 0x{:x}\nphy_offset: 0x{:x}..0x{:x}\nmemory size: 0x{:x}\n",
-        kernel_img.0,
+        "image at: 0x{:x}\nlen: 0x{:x}\nphy_offset: 0x{:x}..0x{:x}\nmemory size: 0x{:x}\n",
+        kernel_img.0 as usize,
         kernel_img.1,
-        kernel_img.2,
         phy_offset,
         limine::get_phy_offset_end(),
         *MEMORY_SIZE
     );
+
+    let kernel_img_addr = unsafe { &*kernel_img.0 };
+    let elf = utils::elf::Elf::parse(kernel_img_addr).unwrap();
+    elf.debug();
 
     unsafe {
         KERNEL = Some(Kernel {
             phy_offset,
             rsdp_addr: limine::rsdp_addr(),
             frame_allocator: RegionAllocator::new(),
+            elf,
         });
     }
 
@@ -172,6 +191,7 @@ fn kstart() -> ! {
     khalt()
 }
 
+#[no_mangle]
 fn kmain() -> ! {
     serial!("Hello, world!, running tests...\n");
 

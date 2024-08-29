@@ -4,7 +4,7 @@ use crate::{
     memory::{allocator::LinkedListAllocator, frame_allocator::RegionAllocator},
     terminal::framebuffer::Terminal,
     threading::Scheduler,
-    utils::Locked,
+    utils::{elf::Elf, Locked},
 };
 
 /// boot info
@@ -14,6 +14,7 @@ pub struct Kernel {
 
     pub phy_offset: usize,
     pub rsdp_addr: Option<u64>,
+    pub elf: Elf<'static>,
 }
 
 impl Kernel {
@@ -27,6 +28,9 @@ pub static mut KERNEL: Option<Kernel> = None;
 
 pub fn kernel() -> &'static mut Kernel {
     unsafe { KERNEL.as_mut().unwrap() }
+}
+pub fn kernel_inited() -> bool {
+    unsafe { KERNEL.is_some() }
 }
 
 pub static mut TERMINAL: Option<Terminal<'static>> = None;
