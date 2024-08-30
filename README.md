@@ -51,7 +51,20 @@ note: i dont know much about osdev stuff prefixed with ? is missing info and mor
     - [X] ramfs
     - [ ] fat32
 - [ ] networking
-    - [ ] ?
+    - [ ] OSI Model
+        - [ ] Layer 1:
+            - [ ] Manage Network Driver (NIC)
+        - [ ] Layer 2:
+            - [ ] Manage data from the layer 1:
+                - [ ] NIC (Manage the physical network)
+                - [ ] Ethernet frame 
+                - [ ] ARP (For the ip adress)
+        - [ ] Layer 3:
+            - [ ] IPv4
+            - [ ] ICMP (For commande like ping)
+        - [ ] Layer 4:
+            - [ ] TCP
+            - [ ] UDP
 - [ ] GUI
     - [ ] ?
 - [ ] apps
