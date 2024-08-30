@@ -16,6 +16,7 @@ build/
 .trunk
 a.out
 noVNC
+Cargo.lock
 
 # Added by cargo
 
