@@ -3,8 +3,7 @@ use bitflags::bitflags;
 
 use crate::{
     arch::x86_64::acpi::{self, MADT},
-    memory::identity_map_writeable,
-    VirtAddr,
+    kernel, PhysAddr, VirtAddr,
 };
 
 #[repr(C, packed)]
@@ -61,17 +60,15 @@ pub struct MADTIOApic {
 pub fn get_io_apic_addr(madt: &MADT) -> VirtAddr {
     unsafe {
         let record = madt.get_record_of_type(1).unwrap() as *const MADTIOApic;
-        let addr = (*record).ioapic_address;
-        identity_map_writeable(addr as usize);
-        addr as VirtAddr
+        let addr = (*record).ioapic_address as PhysAddr | kernel().phy_offset;
+        addr
     }
 }
 
 #[inline]
 pub fn get_local_apic_addr() -> VirtAddr {
-    let address = read_msr(0x1B) & 0xFFFFF000;
+    let address = (read_msr(0x1B) & 0xFFFFF000) | kernel().phy_offset;
 
-    identity_map_writeable(address);
     address
 }
 

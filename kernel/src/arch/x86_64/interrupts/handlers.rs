@@ -6,8 +6,11 @@ use super::{InterruptFrame, TrapFrame};
 use crate::arch::x86_64::interrupts::apic::send_eoi;
 use crate::arch::x86_64::{inb, threading};
 use crate::{drivers, println};
+
 const ATTR_TRAP: u8 = 0xF;
 const ATTR_INT: u8 = 0xE;
+const ATTR_RING3: u8 = 2 << 5;
+
 const EMPTY_TABLE: IDTT = [GateDescriptor::default(); 256]; // making sure it is made at compile-time
 
 macro_rules! create_idt {
@@ -40,28 +43,34 @@ lazy_static! {
         (13, general_protection_fault_handler, ATTR_TRAP),
         (14, page_fault_handler, ATTR_TRAP),
         (0x20, threading::context_switch_stub, ATTR_INT),
-        (0x21, keyboard_interrupt_handler, ATTR_INT)
+        (0x21, keyboard_interrupt_handler, ATTR_INT),
+        (0x80, syscall, ATTR_INT | ATTR_RING3)
     );
 }
 
+#[no_mangle]
 extern "x86-interrupt" fn divide_by_zero_handler(frame: InterruptFrame) {
-    panic!("divide by zero exception\nframe: {:#?}", frame);
+    panic!("---- Divide By Zero Exception ----\n{}", frame);
 }
 
+#[no_mangle]
 extern "x86-interrupt" fn breakpoint_handler(frame: InterruptFrame) {
-    println!("hi from interrupt, breakpoint!, {:#?}", frame);
+    println!("hi from interrupt, breakpoint!\n{}", frame);
 }
 
+#[no_mangle]
 extern "x86-interrupt" fn dobule_fault_handler(frame: TrapFrame) {
-    panic!("double fault exception\nframe: {:#?}", frame);
+    panic!("---- Double Fault ----\n{}", frame);
 }
 
+#[no_mangle]
 extern "x86-interrupt" fn general_protection_fault_handler(frame: TrapFrame) {
-    panic!("general protection fault\nframe: {:#?}", frame);
+    panic!("---- General Protection Fault ----\n{}", frame,);
 }
 
+#[no_mangle]
 extern "x86-interrupt" fn page_fault_handler(frame: TrapFrame) {
-    panic!("page fault exception\nframe: {:#?}", frame)
+    panic!("---- Page Fault ----\n{}", frame)
 }
 
 #[inline]
@@ -69,8 +78,13 @@ pub fn handle_ps2_keyboard() {
     let key = inb(0x60);
     drivers::keyboard::encode_ps2_set_1(key);
 }
-
+#[no_mangle]
 pub extern "x86-interrupt" fn keyboard_interrupt_handler() {
     handle_ps2_keyboard();
     send_eoi();
+}
+
+#[no_mangle]
+extern "x86-interrupt" fn syscall() {
+    println!("syscall!\n");
 }

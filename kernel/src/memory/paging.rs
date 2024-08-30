@@ -270,6 +270,19 @@ impl PageTable {
         self.map_to(page, frame, flags)
     }
 
+    /// gets the frame page points to
+    pub fn get_frame(&mut self, page: Page) -> Option<Frame> {
+        let (_, level_1_index, level_2_index, level_3_index, level_4_index) =
+            translate(page.start_address);
+        let level_3_table = self[level_4_index].mapped_to()?;
+        let level_2_table = level_3_table[level_3_index].mapped_to()?;
+        let level_1_table = level_2_table[level_2_index].mapped_to()?;
+
+        let entry = &level_1_table[level_1_index];
+
+        entry.frame()
+    }
+
     /// wether or not a page is mapped
     pub fn is_mapped(&self, page: Page) -> bool {
         let (_, level_1_index, level_2_index, level_3_index, level_4_index) =

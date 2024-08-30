@@ -1,5 +1,5 @@
 mod acpi;
-mod gdt;
+pub mod gdt;
 pub mod interrupts;
 pub mod power;
 pub mod serial;

@@ -2,30 +2,88 @@ pub mod apic;
 pub mod handlers;
 mod idt;
 
-use core::arch::asm;
+use core::{arch::asm, fmt::Display};
 use idt::IDTDesc;
 
-use crate::PhysAddr;
+use crate::{kernel, PhysAddr};
+
+use super::threading::RFLAGS;
 
 #[derive(Debug)]
-#[repr(C, packed)]
+#[repr(C)]
 pub struct InterruptFrame {
     pub insturaction: u64,
     pub code_segment: u64,
-    pub flags: u64,
+    pub flags: RFLAGS,
     pub stack_pointer: u64,
     pub stack_segment: u64,
 }
 
 #[derive(Debug)]
-#[repr(C, packed)]
+#[repr(C)]
 pub struct TrapFrame {
+    pub error_code: u64,
     pub insturaction: u64,
     pub code_segment: u64,
-    pub flags: u64,
+    pub flags: RFLAGS,
     pub stack_pointer: u64,
     pub stack_segment: u64,
-    pub error_code: u64,
+}
+
+impl Display for TrapFrame {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let sym = kernel()
+            .elf
+            .sym_from_value_range(self.insturaction as usize);
+
+        let name = if sym.is_some() {
+            kernel().elf.string_table_index(sym.unwrap().name_index)
+        } else {
+            "??"
+        };
+
+        writeln!(f, "---- Trap Frame ----")?;
+        writeln!(f, "at {:#X} <{}>", self.insturaction, name)?;
+        writeln!(
+            f,
+            "error code: {:#X}, rflags: {:#?}",
+            self.error_code, self.flags
+        )?;
+        writeln!(f, "stack pointer: {:#X}", self.stack_pointer)?;
+        writeln!(
+            f,
+            "ss: {:#X}, cs: {:#X}",
+            self.stack_segment, self.code_segment
+        )?;
+
+        Ok(())
+    }
+}
+
+impl Display for InterruptFrame {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let sym = kernel()
+            .elf
+            .sym_from_value_range(self.insturaction as usize);
+
+        let name = if sym.is_some() {
+            kernel().elf.string_table_index(sym.unwrap().name_index)
+        } else {
+            "??"
+        };
+
+        writeln!(f, "---- Interrupt Frame ----")?;
+        writeln!(f, "at {:#X} <{}>", self.insturaction, name)?;
+        writeln!(f, "rflags: {:#?}", self.flags)?;
+        writeln!(f, "stack pointer: {:#X}", self.stack_pointer)?;
+        writeln!(
+            f,
+            "ss: {:#X}, cs: {:#X}",
+            self.stack_segment, self.code_segment
+        )?;
+
+        Ok(())
+    }
 }
 
 pub fn read_msr(msr: u32) -> PhysAddr {

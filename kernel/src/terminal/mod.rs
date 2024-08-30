@@ -340,6 +340,16 @@ fn write(args: Vec<&str>) {
     }
 }
 
+/// runs `crate::userspace_test as a userspace process`
+fn userspace(args: Vec<&str>) {
+    if args.len() != 1 {
+        println!("{}: no args", args[0]);
+        return;
+    }
+
+    todo!();
+}
+
 // bad shell
 pub fn process_command(command: String) {
     let mut unterminated_str_slice = false;
@@ -378,6 +388,7 @@ pub fn process_command(command: String) {
 
         "cat" => cat,
         "write" => write,
+        "userspace" => userspace,
         "" => return,
         _ => {
             println!("unknown command {}", command[0]);

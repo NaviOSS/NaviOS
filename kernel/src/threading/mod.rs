@@ -1,13 +1,22 @@
 use core::{alloc::Layout, arch::asm};
 
 use alloc::{boxed::Box, vec::Vec};
+use bitflags::bitflags;
 
 use crate::{
-    arch::threading::CPUStatus,
+    arch::{self, threading::CPUStatus},
     global_allocator, kernel,
     memory::paging::{allocate_pml4, PageTable},
     serial, VirtAddr,
 };
+
+bitflags! {
+    #[repr(C)]
+    #[derive(Debug, Clone, Copy)]
+    pub struct ProcessFlags: u8 {
+        const USERSPACE = 1 << 0;
+    }
+}
 
 pub const STACK_SIZE: usize = 4096 * 4;
 pub const STACK_LAYOUT: Layout = Layout::new::<[u8; STACK_SIZE]>();
@@ -34,7 +43,6 @@ pub fn alloc_stack() -> VirtAddr {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessStatus {
     Waiting,
-
     Running,
     WaitingForBurying,
 }
@@ -48,11 +56,12 @@ pub struct Process {
 
     pub root_page_table: *mut PageTable,
     pub stack_end: *mut u8,
-    pub next: Option<Box<Process>>,
+    pub next: Option<Box<Self>>,
 }
 
 impl Process {
-    pub fn create(function: usize, pid: u64, name: &str) -> Self {
+    #[inline]
+    pub fn create(function: usize, pid: u64, name: &str, flags: ProcessFlags) -> Self {
         let name_bytes = name.as_bytes();
 
         let mut name = [0u8; 64];
@@ -68,12 +77,26 @@ impl Process {
 
         #[cfg(target_arch = "x86_64")]
         {
+            use arch::x86_64::threading::RFLAGS;
+
             context.rsp = stack_end as u64;
             context.rip = function as u64;
-            context.rflags = 0x202;
 
-            context.ss = 0x10;
-            context.cs = 0x8;
+            // Kernel process
+            if flags.is_empty() {
+                context.rflags = RFLAGS::from_bits_retain(0x202);
+
+                context.ss = arch::x86_64::gdt::KERNEL_DATA_SEG as u64;
+                context.cs = arch::x86_64::gdt::KERNEL_CODE_SEG as u64;
+            } else if flags.contains(ProcessFlags::USERSPACE) {
+                context.rflags = RFLAGS::IOPL_LOW
+                    | RFLAGS::IOPL_HIGH
+                    | RFLAGS::INTERRUPT_FLAG
+                    | RFLAGS::from_bits_retain(0x2);
+
+                context.ss = arch::x86_64::gdt::USER_DATA_SEG as u64;
+                context.cs = arch::x86_64::gdt::USER_CODE_SEG as u64;
+            }
             context.cr3 = root_page_table as u64;
         }
 
@@ -118,13 +141,13 @@ pub struct Scheduler {
     pub head: Box<Process>,
     /// raw pointers for peformance, we are ring0 we need the lowest stuff
     pub current_process: *mut Process,
-    next_pid: u64,
+    pub next_pid: u64,
 }
 
 impl Scheduler {
     #[inline]
     pub fn init(function: usize, name: &str) -> Self {
-        let mut process = Box::new(Process::create(function, 0, name));
+        let mut process = Box::new(Process::create(function, 0, name, ProcessFlags::empty()));
         Self {
             current_process: &mut *process,
             head: process,
@@ -168,7 +191,7 @@ impl Scheduler {
     }
 
     /// appends a process to the end of the scheduler head
-    fn add_process(&mut self, process: Process) {
+    pub fn add_process(&mut self, process: Process) {
         let mut current = &mut *self.head;
         while let Some(ref mut process) = current.next {
             current = &mut **process;
@@ -237,8 +260,8 @@ impl Scheduler {
 
     /// wrapper around `Process::create` that also adds the result to self using
     /// `Self::add_process`
-    pub fn create_process(&mut self, function: usize, name: &str) {
-        self.add_process(Process::create(function, self.next_pid, name));
+    pub fn create_process(&mut self, function: usize, name: &str, flags: ProcessFlags) {
+        self.add_process(Process::create(function, self.next_pid, name, flags));
         self.next_pid += 1;
     }
 }

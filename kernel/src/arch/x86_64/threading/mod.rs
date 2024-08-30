@@ -1,12 +1,45 @@
 use core::arch::global_asm;
 
+use bitflags::bitflags;
+
 use crate::{scheduler, scheduler_inited};
+
+bitflags! {
+    #[derive(Default, Debug, Clone, Copy)]
+    #[repr(C)]
+    pub struct RFLAGS: u64 {
+        const ID = 1 << 21;
+        const VIRTUAL_INTERRUPT_PENDING = 1 << 20;
+        const VIRTUAL_INTERRUPT = 1 << 19;
+        const ALIGNMENT_CHECK = 1 << 18;
+        const VIRTUAL_8086_MODE = 1 << 17;
+
+        const RESUME_FLAG = 1 << 16;
+        const NESTED_TASK = 1 << 14;
+
+        const IOPL_HIGH = 1 << 13;
+        const IOPL_LOW = 1 << 12;
+
+        const OVERFLOW_FLAG = 1 << 11;
+        const DIRECTION_FLAG = 1 << 10;
+
+        const INTERRUPT_FLAG = 1 << 9;
+        const TRAP_FLAG = 1 << 8;
+
+        const SIGN_FLAG = 1 << 7;
+        const ZERO_FLAG = 1 << 6;
+        const AUXILIARY_CARRY_FLAG = 1 << 4;
+
+        const PARITY_FLAG = 1 << 2;
+        const CARRY_FLAG = 1;
+    }
+}
 
 #[derive(Debug, Clone, Copy, Default)]
 #[repr(C)]
 pub struct CPUStatus {
     pub rsp: u64,
-    pub rflags: u64,
+    pub rflags: RFLAGS,
     pub ss: u64,
     pub cs: u64,
 

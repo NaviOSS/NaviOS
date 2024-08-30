@@ -111,9 +111,13 @@ impl<'a> Terminal<'a> {
     /// respects `self.x_pos` and `self.y_pos` to start copying from
     pub fn draw_viewport(&mut self) {
         let current_byte = (self.x_pos * self.y_pos) * self.info.bytes_per_pixel;
-        let start = self.viewport_start + current_byte;
         let len = self.buffer.len();
 
+        if current_byte > len {
+            return self.scroll_down(true);
+        }
+
+        let start = self.viewport_start + current_byte;
         self.buffer[current_byte..]
             .copy_from_slice(&self.viewport[start..len + start - current_byte]);
     }
@@ -146,6 +150,7 @@ impl<'a> Terminal<'a> {
         self.info.stride * self.info.bytes_per_pixel * RASTER_HEIGHT.val()
     }
 
+    #[inline]
     fn scroll_up(&mut self) {
         let (old_y, old_x) = (self.y_pos, self.x_pos);
         self.y_pos = 0;
@@ -161,6 +166,8 @@ impl<'a> Terminal<'a> {
         (self.y_pos, self.x_pos) = (old_y, old_x);
     }
 
+    // may the inline gods optimize this mess :pray: :pray: :pray:
+    #[inline]
     /// if make_space it resizes viewport if possible if not removes the first line from buffer
     /// (shifts the buffer up by 1 line)
     fn scroll_down(&mut self, make_space: bool) {

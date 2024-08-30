@@ -53,6 +53,10 @@ impl GDTEntry {
 const ACCESS_WRITE_READ: u8 = 1 << 1;
 const ACCESS_EXECUTABLE: u8 = 1 << 3;
 const NON_SYSTEM: u8 = 1 << 4;
+
+const ACCESS_DPL0: u8 = 1 << 5;
+const ACCESS_DPL1: u8 = 1 << 6;
+
 const ACCESS_VAILD: u8 = 1 << 7;
 
 const ACCESS_TYPE_TSS: u8 = 0x9;
@@ -101,8 +105,8 @@ lazy_static! {
         tss
     };
 }
-pub type GDTType = [GDTEntry; 5];
-
+pub type GDTType = [GDTEntry; 7];
+//  TODO: improve this
 lazy_static! {
     pub static ref GDT: GDTType = [
         GDTEntry::default().into(),
@@ -127,9 +131,30 @@ lazy_static! {
         ), // TSS segment
         GDTEntry::new_upper_64seg(
             &*TSS as *const TaskStateSegment as u64,
-        )
+        ),
+
+        GDTEntry::new(
+            0,
+            0xFFFFF,
+            ACCESS_VAILD | NON_SYSTEM | ACCESS_DPL0 | ACCESS_DPL1 | ACCESS_WRITE_READ | ACCESS_EXECUTABLE,
+            FLAG_PAGELIMIT | FLAG_LONG
+        ), // user code segment
+        GDTEntry::new(
+            0,
+            0xFFFFF,
+            ACCESS_VAILD | NON_SYSTEM | ACCESS_DPL0 | ACCESS_DPL1 | ACCESS_WRITE_READ,
+            FLAG_PAGELIMIT | FLAG_LONG
+        ) // user data segment
     ];
 }
+
+pub const KERNEL_CODE_SEG: u8 = (1 * 8) | 0;
+pub const KERNEL_DATA_SEG: u8 = (2 * 8) | 0;
+pub const TSS_SEG: u8 = 3 * 8 | 0;
+
+pub const USER_CODE_SEG: u8 = (5 * 8) | 3;
+pub const USER_DATA_SEG: u8 = (6 * 8) | 3;
+
 #[repr(C, packed)]
 pub struct GDTDescriptor {
     pub limit: u16,
@@ -168,6 +193,6 @@ pub fn init_gdt() {
             options(nostack),
         );
 
-        asm!("ltr {0:x}", in(reg) ((3*8) as u16))
+        asm!("ltr {0:x}", in(reg) TSS_SEG as u16)
     }
 }

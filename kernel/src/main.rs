@@ -30,6 +30,7 @@ use memory::frame_allocator::RegionAllocator;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
 use terminal::framebuffer::Terminal;
+use threading::ProcessFlags;
 use threading::Scheduler;
 
 #[macro_export]
@@ -51,6 +52,7 @@ macro_rules! serial {
 }
 
 use core::arch::asm;
+#[no_mangle]
 #[inline]
 pub fn khalt() -> ! {
     loop {
@@ -142,7 +144,6 @@ pub extern "C" fn kinit() {
 
     let kernel_img_addr = unsafe { &*kernel_img.0 };
     let elf = utils::elf::Elf::parse(kernel_img_addr).unwrap();
-    elf.debug();
 
     unsafe {
         KERNEL = Some(Kernel {
@@ -170,7 +171,7 @@ pub extern "C" fn kinit() {
     unsafe {
         let mut scheduler = Scheduler::init(kmain as usize, "kernel");
 
-        scheduler.create_process(terminal::shell as usize, "shell");
+        scheduler.create_process(terminal::shell as usize, "shell", ProcessFlags::empty());
         SCHEDULER = Some(scheduler);
 
         restore_cpu_status(&(*SCHEDULER.as_ref().unwrap().current_process).context)
@@ -205,7 +206,6 @@ fn kmain() -> ! {
 
     serial!("finished initing...\n");
     serial!("idle!\n");
-
     khalt()
 }
 
