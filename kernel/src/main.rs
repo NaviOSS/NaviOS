@@ -33,6 +33,8 @@ use terminal::framebuffer::Terminal;
 use threading::ProcessFlags;
 use threading::Scheduler;
 
+const TEST_ELF: &[u8] = include_bytes!("../../user/test");
+
 #[macro_export]
 macro_rules! print {
    ($($arg:tt)*) => ($crate::terminal::_print(format_args!($($arg)*)));
@@ -144,6 +146,8 @@ pub extern "C" fn kinit() {
 
     let kernel_img_addr = unsafe { &*kernel_img.0 };
     let elf = utils::elf::Elf::parse(kernel_img_addr).unwrap();
+    let test = utils::elf::Elf::parse(unsafe { &*TEST_ELF.as_ptr() }).unwrap();
+    test.debug();
 
     unsafe {
         KERNEL = Some(Kernel {
