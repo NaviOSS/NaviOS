@@ -1,30 +1,38 @@
 use core::ffi::{c_char, CStr};
 
 use alloc::slice;
+use macros::display_consts;
 
 use crate::{serial, VirtAddr};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ElfType(u16);
+#[display_consts]
 impl ElfType {
     pub const RELOC: ElfType = Self(1);
     pub const EXE: ElfType = Self(2);
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ElfInstrSet(u16);
+
+#[display_consts]
 impl ElfInstrSet {
     pub const AMD64: Self = Self(0x3E);
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ElfIEndianness(u8);
+
+#[display_consts]
 impl ElfIEndianness {
     pub const LITTLE: Self = Self(1);
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ElfClass(u8);
+
+#[display_consts]
 impl ElfClass {
     pub const ELF32: Self = Self(1);
     pub const ELF64: Self = Self(2);
