@@ -1,11 +1,11 @@
-// it is simple, it just takes a module and takes all of its functions!
-
 use core::panic;
 
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
 use syn::{parse_macro_input, parse_quote, DeriveInput, ImplItem, Item, ItemImpl, ItemMod};
 
+/// takes a mod and puts a function called `test_main` in it which executes all of it is functions
+/// used by kernel for tests (test feature)
 #[proc_macro_attribute]
 pub fn test_module(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut module = parse_macro_input!(item as ItemMod);
@@ -41,6 +41,9 @@ pub fn test_module(_attr: TokenStream, item: TokenStream) -> TokenStream {
     TokenStream::from(quote! {#module})
 }
 
+/// used by the kernel [keyboard driver](file://kernel/src/drivers/keyboard.rs)
+/// impl EncodeKey for key set enum
+/// each `Self` variant will encode as a `KeyCode` variant with the same name
 #[proc_macro_derive(EncodeKey)]
 pub fn derive_encode_key(item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as DeriveInput);

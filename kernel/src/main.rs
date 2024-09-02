@@ -64,7 +64,6 @@ pub fn khalt() -> ! {
 
 #[allow(unused_imports)]
 use core::panic::PanicInfo;
-static mut _PANICED_AT_TERMINAL: bool = false;
 
 /// prints to both the serial and the terminal doesn't print to the terminal if it panicked or if
 /// it is not ready...
