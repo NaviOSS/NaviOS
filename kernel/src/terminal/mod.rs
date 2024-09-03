@@ -14,7 +14,7 @@ use crate::{
     arch,
     drivers::vfs::{vfs, FS},
     globals::terminal,
-    print, println, scheduler, serial,
+    kernel, print, println, scheduler, serial,
     threading::{Process, ProcessFlags},
     utils::elf,
     TEST_ELF,
@@ -81,7 +81,8 @@ commands:
     cd `target_dir`: changes the current dir to `target_dir`
 
     cat `src_files`: echoes the contents of a file
-    write `target_file` `src_text`: writes `src_text` to `target_file`"
+    write `target_file` `src_text`: writes `src_text` to `target_file`
+    userspace: launches test userspace elf"
     );
 }
 
@@ -346,7 +347,7 @@ fn write(args: Vec<&str>) {
 /// runs `crate::userspace_test as a userspace process`
 fn userspace(args: Vec<&str>) {
     if args.len() != 1 {
-        println!("{}: no args", args[0]);
+        println!("{}: excepts no args", args[0]);
         return;
     }
 
@@ -366,6 +367,50 @@ fn userspace(args: Vec<&str>) {
 
     process.context.rip = elf.header.entry_point as u64;
     scheduler().add_process(process);
+}
+
+fn meminfo(args: Vec<&str>) {
+    if args.len() != 1 {
+        println!("{}: excepts no args", args[0]);
+        return;
+    }
+
+    let bitmap = &*kernel().frame_allocator().bitmap;
+    let mut memory_max = 0;
+    let mut memory_used = 0;
+    let mut memory_ava = 0;
+
+    for byte in bitmap {
+        for i in 0..8 {
+            memory_max += crate::memory::paging::PAGE_SIZE;
+            let frame_used = (byte >> i) & 1 == 1;
+            if frame_used {
+                memory_used += crate::memory::paging::PAGE_SIZE;
+            } else {
+                memory_ava += crate::memory::paging::PAGE_SIZE;
+            }
+        }
+    }
+
+    println!("memory info:");
+    println!(
+        "memory_max: {}    memory_used: {}\nmemory_ava: {}",
+        memory_max, memory_used, memory_ava
+    );
+
+    println!(
+        "{}KiBs out of {}KiBs used",
+        memory_used / 1024,
+        memory_max / 1024
+    );
+
+    println!(
+        "{}MiBs out of {}MiBs used",
+        memory_used / 1024 / 1024,
+        memory_max / 1024 / 1024
+    );
+
+    println!("note that this is not 100% accurate, memory_max and memory_used is more then the actual number in 90% of cases, unusable memory also counts as used")
 }
 
 // bad shell
@@ -407,6 +452,7 @@ pub fn process_command(command: String) {
         "cat" => cat,
         "write" => write,
         "userspace" => userspace,
+        "meminfo" => meminfo,
         "" => return,
         _ => {
             println!("unknown command {}", command[0]);

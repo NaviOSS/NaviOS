@@ -25,7 +25,7 @@ pub type Bitmap = &'static mut [u8];
 #[derive(Debug)]
 pub struct RegionAllocator {
     /// keeps track of which frame is used or not
-    bitmap: Bitmap,
+    pub bitmap: Bitmap,
     /// the index of the frame we start searching from in the bitmap
     search_from: usize,
 }
