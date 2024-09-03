@@ -101,7 +101,7 @@ syscall_table:
 syscall_table_end:
 
 SYSCALL_TABLE_INFO:
-    .quad (syscall_table_end - syscall_table) / 8
+    .word (syscall_table_end - syscall_table) / 8
 
 .set KERNEL_UNSUPPORTED, 7
 .section .text

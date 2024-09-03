@@ -352,21 +352,14 @@ fn userspace(args: Vec<&str>) {
         return;
     }
 
-    let mut process = Process::create(
-        0,
-        scheduler().next_pid,
-        "user_test",
-        ProcessFlags::USERSPACE,
-    );
-
     let elf_bytes = TEST_ELF.to_vec();
     let elf = elf::Elf::new(&elf_bytes[0]).unwrap();
 
+    let process = Process::create(elf.header.entry_point, "user_test", ProcessFlags::USERSPACE);
     unsafe {
         elf.load_exec(&mut *process.root_page_table).unwrap();
     }
 
-    process.context.rip = elf.header.entry_point as u64;
     scheduler().add_process(process);
 }
 

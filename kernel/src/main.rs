@@ -16,7 +16,6 @@ mod threading;
 mod utils;
 
 extern crate alloc;
-use arch::threading::restore_cpu_status;
 use arch::x86_64::serial;
 
 use drivers::keyboard::Key;
@@ -165,17 +164,9 @@ pub extern "C" fn kinit() {
         let (buffer, info) = limine::get_framebuffer();
         let terminal: Terminal<'static> = Terminal::init(buffer, info);
         TERMINAL = Some(terminal);
-    }
 
-    serial!("kernel init phase 1 done\n");
-
-    unsafe {
-        let mut scheduler = Scheduler::init(kmain as usize, "kernel");
-
-        scheduler.create_process(terminal::shell as usize, "shell", ProcessFlags::empty());
-        SCHEDULER = Some(scheduler);
-
-        restore_cpu_status(&(*SCHEDULER.as_ref().unwrap().current_process).context)
+        serial!("kernel init phase 1 done\n");
+        Scheduler::init(kmain as usize, "kernel");
     }
 }
 
@@ -195,6 +186,8 @@ fn kstart() -> ! {
 
 #[no_mangle]
 fn kmain() -> ! {
+    scheduler().create_process(terminal::shell as usize, "shell", ProcessFlags::empty());
+
     serial!("Hello, world!, running tests...\n");
 
     #[cfg(feature = "test")]

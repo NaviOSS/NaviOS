@@ -4,10 +4,13 @@ use alloc::{boxed::Box, vec::Vec};
 use bitflags::bitflags;
 
 use crate::{
-    arch::{self, threading::CPUStatus},
+    arch::{
+        self,
+        threading::{restore_cpu_status, CPUStatus},
+    },
     global_allocator, kernel,
     memory::paging::{allocate_pml4, PageTable},
-    serial, VirtAddr,
+    scheduler, serial, VirtAddr, SCHEDULER,
 };
 
 bitflags! {
@@ -22,6 +25,7 @@ pub const STACK_SIZE: usize = 4096 * 4;
 pub const STACK_LAYOUT: Layout = Layout::new::<[u8; STACK_SIZE]>();
 
 /// helper function to work with `name` in Process
+#[inline]
 fn trim_trailing_zeros(slice: &[u8]) -> &[u8] {
     if let Some(last_non_zero) = slice.iter().rposition(|&x| x != 0) {
         &slice[..=last_non_zero]
@@ -61,7 +65,7 @@ pub struct Process {
 
 impl Process {
     #[inline]
-    pub fn create(function: usize, pid: u64, name: &str, flags: ProcessFlags) -> Self {
+    pub fn new(function: usize, pid: u64, name: &str, flags: ProcessFlags) -> Self {
         let name_bytes = name.as_bytes();
 
         let mut name = [0u8; 64];
@@ -114,6 +118,13 @@ impl Process {
         }
     }
 
+    pub fn create(function: usize, name: &str, flags: ProcessFlags) -> Self {
+        let pid = scheduler().next_pid;
+        let results = Self::new(function, pid, name, flags);
+        scheduler().next_pid += 1;
+        results
+    }
+
     /// frees self and then returns next
     /// frees all resources that has something to do with this process even the process stack and
     /// page table
@@ -146,13 +157,23 @@ pub struct Scheduler {
 
 impl Scheduler {
     #[inline]
-    pub fn init(function: usize, name: &str) -> Self {
-        let mut process = Box::new(Process::create(function, 0, name, ProcessFlags::empty()));
-        Self {
+    /// inits the scheduler
+    /// jumps to `function` after initing!
+    pub unsafe fn init(function: usize, name: &str) {
+        serial!("initing the scheduler...\n");
+        asm!("cli");
+
+        let mut process = Box::new(Process::new(function, 0, name, ProcessFlags::empty()));
+
+        let this = Self {
             current_process: &mut *process,
             head: process,
             next_pid: 1,
-        }
+        };
+
+        SCHEDULER = Some(this);
+
+        restore_cpu_status(&(*scheduler().current_process).context)
     }
 
     /// context switches into next process, takes current context outputs new context
@@ -261,7 +282,6 @@ impl Scheduler {
     /// wrapper around `Process::create` that also adds the result to self using
     /// `Self::add_process`
     pub fn create_process(&mut self, function: usize, name: &str, flags: ProcessFlags) {
-        self.add_process(Process::create(function, self.next_pid, name, flags));
-        self.next_pid += 1;
+        self.add_process(Process::create(function, name, flags));
     }
 }

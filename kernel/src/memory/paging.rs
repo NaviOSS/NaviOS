@@ -89,7 +89,7 @@ impl Entry {
     pub unsafe fn free(&mut self, level: u8) {
         let frame = self.frame().unwrap();
 
-        if level == 1 {
+        if level == 0 {
             kernel().frame_allocator().deallocate_frame(frame);
             return;
         }
