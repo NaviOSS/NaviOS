@@ -190,5 +190,7 @@ extern "C" fn sysprint(registers: SyscallRegisters) {
 unsafe extern "C" fn sysexit() {
     (*scheduler().current_process).status = ProcessStatus::WaitingForBurying;
 
-    unsafe { asm!("hlt") };
+    // we cannot return if we do will will return into bad address we should wait until the
+    // scheduler switches processes
+    unsafe { asm!("sti; hlt") }
 }

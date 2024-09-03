@@ -89,8 +89,9 @@ impl Entry {
     pub unsafe fn free(&mut self, level: u8) {
         let frame = self.frame().unwrap();
 
-        if level == 0 {
+        if level == 1 {
             kernel().frame_allocator().deallocate_frame(frame);
+            return;
         }
         let table = &mut *((frame.start_address + kernel().phy_offset) as *mut PageTable);
         table.free(level)
