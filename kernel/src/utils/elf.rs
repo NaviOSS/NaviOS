@@ -1,9 +1,14 @@
 use core::ffi::{c_char, CStr};
 
 use alloc::slice;
+use bitflags::bitflags;
 use macros::display_consts;
 
-use crate::{serial, VirtAddr};
+use crate::{
+    cross_println, kernel,
+    memory::paging::{EntryFlags, Page, PageTable},
+    VirtAddr,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ElfType(u16);
@@ -58,14 +63,14 @@ pub struct ElfHeader {
     pub version_2: u32,
 
     pub entry_point: VirtAddr,
-    pub program_header_offset: usize,
+    pub program_headers_table_offset: usize,
     pub section_header_table_offset: usize,
 
     pub flags: u32,
 
     pub size: u16,
-    pub program_header_entry_size: u16,
-    pub program_header_entries: u16,
+    pub program_headers_table_entry_size: u16,
+    pub program_headers_table_entries_number: u16,
     pub section_table_entry_size: u16,
     pub section_table_entries: u16,
 
@@ -79,6 +84,8 @@ pub enum ElfError {
     UnsupportedKind,
     UnsupportedInsturctionSet,
     NotAnElf,
+    NotAnExecutable,
+    MapToError,
 }
 
 impl ElfHeader {
@@ -136,10 +143,41 @@ pub struct SectionHeader {
     pub entry_size: usize,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct ProgramType(u32);
+#[display_consts]
+impl ProgramType {
+    pub const NULL: Self = Self(0);
+    pub const LOAD: Self = Self(1);
+}
+
+bitflags! {
+    #[derive(Debug, Clone, Copy)]
+    pub struct ProgramFlags: u32 {
+        const EXEC = 1;
+        const WRITE = 2;
+        const READ = 4;
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+pub struct ProgramHeader {
+    pub ptype: ProgramType,
+    pub flags: ProgramFlags,
+    pub offset: usize,
+    pub vaddr: usize,
+    pub paddr: usize,
+    pub filez: usize,
+    pub memz: usize,
+    pub align: usize,
+}
+
 #[derive(Debug)]
 pub struct Elf<'a> {
     pub header: &'a ElfHeader,
     pub sections: &'a [SectionHeader],
+    pub program_headers: &'a [ProgramHeader],
 }
 impl<'a> Elf<'a> {
     #[inline]
@@ -218,7 +256,7 @@ impl<'a> Elf<'a> {
     }
 
     /// creates an elf from a u8 ptr that lives as long as `bytes`
-    pub fn parse(bytes: &u8) -> Result<Self, ElfError> {
+    pub fn new(bytes: &u8) -> Result<Self, ElfError> {
         let bytes = bytes as *const u8;
         let header_ptr = bytes as *const ElfHeader;
 
@@ -232,33 +270,117 @@ impl<'a> Elf<'a> {
 
         header.supported()?;
 
-        let header_table_ptr = unsafe { bytes.offset(header.section_header_table_offset as isize) }
-            as *const SectionHeader;
-        let header_table = unsafe {
-            slice::from_raw_parts(header_table_ptr, header.section_table_entries as usize)
+        assert_eq!(
+            size_of::<SectionHeader>(),
+            header.section_table_entry_size as usize
+        );
+
+        assert_eq!(
+            size_of::<ProgramHeader>(),
+            header.program_headers_table_entry_size as usize
+        );
+
+        let section_header_table_ptr =
+            unsafe { bytes.add(header.section_header_table_offset) } as *const SectionHeader;
+
+        // TODO: instead make an nth_section function and a section_len function or whateve
+        // because section_header_ptr may be unaligned same for programe headers
+        assert!(section_header_table_ptr.is_aligned());
+
+        let section_header_table = unsafe {
+            slice::from_raw_parts(
+                section_header_table_ptr,
+                header.section_table_entries as usize,
+            )
+        };
+
+        let program_headers_table = if header.program_headers_table_offset != 0 {
+            let program_headers_table_ptr =
+                unsafe { bytes.add(header.program_headers_table_offset) } as *const ProgramHeader;
+            assert!(program_headers_table_ptr.is_aligned());
+            unsafe {
+                slice::from_raw_parts(
+                    program_headers_table_ptr,
+                    header.program_headers_table_entries_number as usize,
+                )
+            }
+        } else {
+            &[]
         };
 
         Ok(Self {
             header,
-            sections: header_table,
+            sections: section_header_table,
+            program_headers: program_headers_table,
         })
     }
 
+    /// loads an executable elf, map, and copies it to `page_table`
+    pub fn load_exec(&self, page_table: &mut PageTable) -> Result<(), ElfError> {
+        if self.header.kind != ElfType::EXE {
+            return Err(ElfError::NotAnExecutable);
+        }
+
+        for header in self.program_headers {
+            assert_eq!(header.ptype, ProgramType::LOAD);
+            let mut entry_flags = EntryFlags::empty();
+
+            if header.flags.contains(ProgramFlags::READ) {
+                entry_flags |= EntryFlags::empty();
+            }
+
+            if header.flags.contains(ProgramFlags::WRITE) {
+                entry_flags |= EntryFlags::WRITABLE;
+            }
+
+            if header.flags.contains(ProgramFlags::EXEC) {
+                entry_flags |= EntryFlags::empty();
+            }
+
+            // assumes ring3
+            entry_flags |= EntryFlags::PRESENT | EntryFlags::USER_ACCESSIBLE;
+
+            let page = Page::containing_address(header.vaddr);
+            let frame = kernel()
+                .frame_allocator()
+                .allocate_frame()
+                .ok_or(ElfError::MapToError)?;
+
+            page_table
+                .map_to(page, frame, entry_flags)
+                .ok()
+                .ok_or(ElfError::MapToError)?;
+
+            unsafe {
+                let mem_start = (frame.start_address | kernel().phy_offset) as *mut u8;
+
+                let file_start = (self.header as *const ElfHeader as *const u8).add(header.offset);
+
+                let mem = slice::from_raw_parts_mut(mem_start, header.memz);
+                mem.fill(0);
+
+                let file = slice::from_raw_parts(file_start, header.filez);
+                mem[0..file.len()].copy_from_slice(file);
+            }
+        }
+        Ok(())
+    }
+
     pub fn debug(&self) {
-        serial!("{:#?}\n", self);
-        serial!("section names section {:#?}\n", self.section_names_table());
+        cross_println!("{:#?}", self);
+        cross_println!("section names section {:#?}", self.section_names_table());
 
         for sym in self.symtable().unwrap() {
-            serial!(
-                "sym {}: `{}`\n",
+            cross_println!(
+                "sym {}: `{}`",
                 sym.name_index,
                 self.string_table_index(sym.name_index)
-            )
+            );
         }
 
         for section in self.sections {
-            serial!(
-                "section {}: '{}'\n",
+            cross_println!(
+                "section {}: '{}'",
                 section.name_index,
                 self.section_names_table_index(section.name_index)
             );

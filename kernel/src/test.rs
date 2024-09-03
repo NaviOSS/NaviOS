@@ -4,7 +4,7 @@ use macros::test_module;
 pub mod testing_module {
     use alloc::vec::Vec;
 
-    use crate::{cross_println, serial, terminal, terminal_inited};
+    use crate::cross_println;
     use crate::{global_allocator, println};
     use core::arch::asm;
 
@@ -64,5 +64,10 @@ pub mod testing_module {
             .unwrap_or_else(|_| panic!());
 
         println!("double extended the heap successfully!");
+    }
+
+    // syscall tests
+    fn syscall() {
+        unsafe { asm!("mov rax, 1; int 0x80") }
     }
 }

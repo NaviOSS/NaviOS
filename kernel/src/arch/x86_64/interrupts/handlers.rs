@@ -1,3 +1,5 @@
+use core::arch::{asm, global_asm};
+
 use lazy_static::lazy_static;
 
 use super::idt::{GateDescriptor, IDTT};
@@ -5,11 +7,12 @@ use super::{InterruptFrame, TrapFrame};
 
 use crate::arch::x86_64::interrupts::apic::send_eoi;
 use crate::arch::x86_64::{inb, threading};
-use crate::{drivers, println};
+use crate::threading::ProcessStatus;
+use crate::{drivers, println, scheduler};
 
 const ATTR_TRAP: u8 = 0xF;
 const ATTR_INT: u8 = 0xE;
-const ATTR_RING3: u8 = 2 << 5;
+const ATTR_RING3: u8 = 3 << 5;
 
 const EMPTY_TABLE: IDTT = [GateDescriptor::default(); 256]; // making sure it is made at compile-time
 
@@ -39,18 +42,23 @@ lazy_static! {
     pub static ref IDT: IDTT = create_idt!(
         (0, divide_by_zero_handler, ATTR_INT),
         (3, breakpoint_handler, ATTR_INT),
+        (6, invaild_opcode, ATTR_INT),
         (8, dobule_fault_handler, ATTR_TRAP, 0),
         (13, general_protection_fault_handler, ATTR_TRAP),
         (14, page_fault_handler, ATTR_TRAP),
         (0x20, threading::context_switch_stub, ATTR_INT),
         (0x21, keyboard_interrupt_handler, ATTR_INT),
-        (0x80, syscall, ATTR_INT | ATTR_RING3)
+        (0x80, syscall_base, ATTR_INT | ATTR_RING3)
     );
 }
 
 #[no_mangle]
 extern "x86-interrupt" fn divide_by_zero_handler(frame: InterruptFrame) {
     panic!("---- Divide By Zero Exception ----\n{}", frame);
+}
+
+extern "x86-interrupt" fn invaild_opcode(frame: InterruptFrame) {
+    panic!("---- Invaild OPCODE ----\n{}", frame);
 }
 
 #[no_mangle]
@@ -84,7 +92,103 @@ pub extern "x86-interrupt" fn keyboard_interrupt_handler() {
     send_eoi();
 }
 
+global_asm!(
+    "
+.section .rodata
+syscall_table:
+    .quad sysexit
+    .quad sysprint
+syscall_table_end:
+
+SYSCALL_TABLE_INFO:
+    .quad (syscall_table_end - syscall_table) / 8
+
+.set KERNEL_UNSUPPORTED, 7
+.section .text
+.global syscall_base
+
+syscall_base:
+    cmp rax, [SYSCALL_TABLE_INFO]
+    jge unsupported
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    call [syscall_table + rax * 8]
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    iretq
+unsupported:
+    mov rax, -KERNEL_UNSUPPORTED
+    iretq
+"
+);
+
+extern "x86-interrupt" {
+    fn syscall_base();
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy)]
+/// registers pushed by syscall_base
+struct SyscallRegisters {
+    _r15: u64,
+    _r14: u64,
+    _r13: u64,
+    _r12: u64,
+    _r11: u64,
+    _r10: u64,
+    _r9: u64,
+    _r8: u64,
+    _rbp: u64,
+    pub rdi: u64,
+    pub rsi: u64,
+    pub rdx: u64,
+    pub rcx: u64,
+    pub rbx: u64,
+}
+
+macro_rules! sysret {
+    ($val: expr) => {
+        unsafe {
+            asm!("mov rax, {:r}", in(reg) $val, options(nostack));
+            return;
+        }
+    };
+}
+
 #[no_mangle]
-extern "x86-interrupt" fn syscall() {
-    println!("syscall!\n");
+extern "C" fn sysprint(registers: SyscallRegisters) {
+    println!("sysprint!\n {:#?}", registers);
+    sysret!(0)
+}
+
+/// for now
+#[no_mangle]
+unsafe extern "C" fn sysexit() {
+    (*scheduler().current_process).status = ProcessStatus::WaitingForBurying;
+
+    unsafe { asm!("hlt") };
 }

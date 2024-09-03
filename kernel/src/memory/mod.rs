@@ -22,7 +22,7 @@ pub fn identity_map_present(addr: PhysAddr) {
             .map_to(
                 Page::containing_address(addr),
                 Frame::containing_address(addr),
-                EntryFlags::PRESENT,
+                EntryFlags::PRESENT | EntryFlags::USER_ACCESSIBLE,
             )
             .unwrap();
     }
@@ -93,7 +93,7 @@ unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
     };
     serial!("Iter created!\n");
 
-    let flags = EntryFlags::PRESENT | EntryFlags::WRITABLE;
+    let flags = EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE;
     for page in page_range {
         let frame = kernel()
             .frame_allocator()

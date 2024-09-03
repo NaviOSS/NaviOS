@@ -70,15 +70,15 @@ use core::panic::PanicInfo;
 #[macro_export]
 macro_rules! cross_println {
     ($($arg:tt)*) => {
-        serial!($($arg)*);
-        serial!("\n");
+        crate::serial!($($arg)*);
+        crate::serial!("\n");
 
-        if terminal_inited() && !terminal().panicked {
-            terminal().panicked = true;
+        if crate::terminal_inited() && !crate::terminal().panicked {
+            crate::terminal().panicked = true;
 
-            println!($($arg)*);
+            crate::println!($($arg)*);
 
-            terminal().panicked = false;
+            crate::terminal().panicked = false;
         }
     };
 }
@@ -144,9 +144,7 @@ pub extern "C" fn kinit() {
     );
 
     let kernel_img_addr = unsafe { &*kernel_img.0 };
-    let elf = utils::elf::Elf::parse(kernel_img_addr).unwrap();
-    let test = utils::elf::Elf::parse(unsafe { &*TEST_ELF.as_ptr() }).unwrap();
-    test.debug();
+    let elf = utils::elf::Elf::new(kernel_img_addr).unwrap();
 
     unsafe {
         KERNEL = Some(Kernel {

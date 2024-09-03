@@ -44,6 +44,7 @@ pub fn test_module(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// used by the kernel [keyboard driver](file://kernel/src/drivers/keyboard.rs)
 /// impl EncodeKey for key set enum
 /// each `Self` variant will encode as a `KeyCode` variant with the same name
+// TODO: replace IntEnum maybe add a `try_from` function in EncodeKey trait?
 #[proc_macro_derive(EncodeKey)]
 pub fn derive_encode_key(item: TokenStream) -> TokenStream {
     let item = parse_macro_input!(item as DeriveInput);

@@ -95,13 +95,23 @@ lazy_static! {
     pub static ref TSS: TaskStateSegment = {
         let mut tss = TaskStateSegment::new();
         tss.interrupt_stack_table[0] = {
-            const STACK_SIZE: usize = 4096 * 5;
+            const STACK_SIZE: usize = 4096 * 4;
             static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
             let stack_start = unsafe { &STACK.as_ptr() };
             let stack_end = unsafe { stack_start.add(STACK_SIZE) };
             stack_end as u64
         };
+
+        tss.privilege_stack_table[0] = {
+            const STACK_SIZE: usize = 4096 * 4;
+            static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+            let stack_start = unsafe { &STACK.as_ptr() };
+            let stack_end = unsafe { stack_start.add(STACK_SIZE) };
+            stack_end as u64
+        };
+
         tss
     };
 }
@@ -150,7 +160,7 @@ lazy_static! {
 
 pub const KERNEL_CODE_SEG: u8 = (1 * 8) | 0;
 pub const KERNEL_DATA_SEG: u8 = (2 * 8) | 0;
-pub const TSS_SEG: u8 = 3 * 8 | 0;
+pub const TSS_SEG: u8 = 3 * 8 | 3;
 
 pub const USER_CODE_SEG: u8 = (5 * 8) | 3;
 pub const USER_DATA_SEG: u8 = (6 * 8) | 3;
