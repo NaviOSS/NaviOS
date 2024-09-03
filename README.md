@@ -28,11 +28,12 @@ note: i dont know much about osdev stuff prefixed with ? is missing info and mor
     - [X] scrolling
     - [ ] locking the terminal (threading, context switching)
     - [X] terminal shell process
-- [ ] ACPI parsing
+- [X] ACPI parsing
     - [X] RSDT parsing
-    - [ ] XSDT parsing
+    - [X] XSDT parsing
     - [X] MADT parsing
     - [X] FADT parsing
+    - [ ] DSDT parsing (not planned)
 - [ ] ACPI powermangment
 - [ ] keyboard
     - [X] ps/2 keyboard interrupt handling

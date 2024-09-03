@@ -85,7 +85,7 @@ impl Entry {
 
     /// deallocates an entry depending on it's level if it is 1 it should just deallocate the frame
     /// otherwise treat the frame as a page table and deallocate it
-    /// &mut self becomes invaild after
+    /// &mut self becomes invaild after use
     pub unsafe fn free(&mut self, level: u8) {
         let frame = self.frame().unwrap();
 
@@ -135,7 +135,7 @@ impl PageTable {
         }
     }
     /// deallocates a page table including it's entries, doesn't deallocate the higher half!
-    /// unsafe because self becomes invaild after
+    /// unsafe because self becomes invaild after use
     pub unsafe fn free(&mut self, level: u8) {
         for entry in &mut self.entries[0..HIGHER_HALF_ENTRY] {
             if entry.0 != 0 {

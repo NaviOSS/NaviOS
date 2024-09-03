@@ -6,40 +6,12 @@ pub mod paging;
 pub type VirtAddr = usize;
 pub type PhysAddr = usize;
 
-use frame_allocator::Frame;
 use paging::{current_root_table, EntryFlags, MapToError, Page};
 
 use crate::{
     globals::{global_allocator, kernel},
     serial,
 };
-
-/// map the Page containing addr to the frame containing addr as a read-only present page
-#[inline]
-pub fn identity_map_present(addr: PhysAddr) {
-    unsafe {
-        current_root_table()
-            .map_to(
-                Page::containing_address(addr),
-                Frame::containing_address(addr),
-                EntryFlags::PRESENT | EntryFlags::USER_ACCESSIBLE,
-            )
-            .unwrap();
-    }
-}
-
-#[inline]
-pub fn identity_map_writeable(addr: PhysAddr) {
-    unsafe {
-        current_root_table()
-            .map_to(
-                Page::containing_address(addr),
-                Frame::containing_address(addr),
-                EntryFlags::PRESENT | EntryFlags::WRITABLE,
-            )
-            .unwrap();
-    }
-}
 
 fn p4_index(addr: VirtAddr) -> usize {
     (addr >> 39) & 0x1FF

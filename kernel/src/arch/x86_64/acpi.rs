@@ -1,4 +1,6 @@
-use crate::{arch::x86_64::inw, kernel, memory::identity_map_present, serial};
+use core::mem::offset_of;
+
+use crate::{arch::x86_64::inw, kernel, serial};
 
 use super::outb;
 
@@ -53,12 +55,12 @@ pub struct RSDT {
     table: [u32; 0], // uint32_t table[];?
 }
 
-// #[repr(C)]
-// #[derive(Debug, Clone, Copy)]
-// pub struct XSDT {
-//     pub header: ACPIHeader,
-//     table: [u64; 0],
-// }
+#[repr(C, packed)]
+#[derive(Debug, Clone, Copy)]
+pub struct XSDT {
+    pub header: ACPIHeader,
+    table: [u64; 0],
+}
 
 #[repr(C, packed)]
 #[derive(Debug)]
@@ -173,7 +175,8 @@ pub trait SDT {
         self.header().len
     }
 
-    unsafe fn nth(&self, n: usize) -> (usize, u32);
+    /// returns the address of element number n and it's size
+    unsafe fn nth(&self, n: usize) -> (usize, usize);
 }
 
 // RSDT and RSDT
@@ -203,18 +206,34 @@ impl SDT for RSDT {
         &self.header
     }
 
-    unsafe fn nth(&self, n: usize) -> (usize, u32) {
-        let table_start = (self as *const Self).byte_add(size_of::<Self>());
-        let offset = n * 4;
+    unsafe fn nth(&self, n: usize) -> (usize, usize) {
+        let addr = *self.table.as_ptr().add(n) as usize;
+        let addr = addr | kernel().phy_offset;
 
-        let total_offset = (table_start as usize - (self as *const Self) as usize) + offset;
-        let addr = *(table_start.byte_add(offset) as *const u32) as usize;
-        identity_map_present(addr);
-
-        (addr, total_offset as u32)
+        (addr, 0)
     }
 }
 
+impl SDT for XSDT {
+    fn header(&self) -> &ACPIHeader {
+        &self.header
+    }
+
+    unsafe fn nth(&self, n: usize) -> (usize, usize) {
+        let this = self as *const Self;
+
+        let offset = offset_of!(XSDT, table);
+        let table_ptr = this.byte_add(offset) as *const u64;
+
+        let addr = table_ptr.add(n);
+        let addr = core::ptr::read_unaligned(addr) as usize;
+        let addr = addr | kernel().phy_offset;
+
+        (addr, 0)
+    }
+}
+
+impl PTSD for XSDT {}
 impl PTSD for RSDT {}
 
 impl SDT for FADT {
@@ -222,7 +241,7 @@ impl SDT for FADT {
         &self.header
     }
 
-    unsafe fn nth(&self, _: usize) -> (usize, u32) {
+    unsafe fn nth(&self, _: usize) -> (usize, usize) {
         panic!("FADT SDT doesn't support nth!")
     }
 }
@@ -238,24 +257,24 @@ impl SDT for MADT {
         &self.header
     }
 
-    unsafe fn nth(&self, n: usize) -> (usize, u32) {
+    unsafe fn nth(&self, n: usize) -> (usize, usize) {
         let addr = self as *const Self;
 
         if n == 0 {
             let base = (addr).byte_add(size_of::<MADT>());
-            return (base as usize, base as u32 - addr as u32);
+            return (base as usize, base as usize - addr as usize);
         }
 
         let base = self.nth(0).0;
-        let mut record = base as u32 + (*(base as *const MADTRecord)).length as u32;
+        let mut record = base + (*(base as *const MADTRecord)).length as usize;
 
         for _ in 1..n - 1 {
             let next_record = record as *const MADTRecord;
             let len = (*next_record).length;
-            record += len as u32;
+            record += len as usize;
         }
 
-        (record as usize, record as u32 - addr as u32)
+        (record, record - addr as usize)
     }
 }
 
@@ -265,7 +284,7 @@ impl MADT {
         let mut current_offset = 0;
         let mut i = 0;
 
-        while current_offset <= len {
+        while current_offset <= len as usize {
             let (ptr, offset) = self.nth(i);
             let ptr = ptr as *const MADTRecord;
 
@@ -286,8 +305,8 @@ impl MADT {
 }
 
 fn get_rsdp() -> RSDPDesc {
-    identity_map_present(kernel().rsdp_addr.unwrap() as usize);
-    let ptr = kernel().rsdp_addr.unwrap() as *mut RSDPDesc;
+    let addr = kernel().rsdp_addr.unwrap() as usize | kernel().phy_offset;
+    let ptr = addr as *mut RSDPDesc;
 
     let desc = unsafe { *ptr };
     desc
@@ -296,14 +315,17 @@ fn get_rsdp() -> RSDPDesc {
 pub fn get_sdt() -> &'static dyn PTSD {
     let rsdp = get_rsdp();
 
-    // if rsdp.xsdt_addr != 0 {
-    //     map_present(rsdp.xsdt_addr);
-    //     return SDT::XSDT(rsdp.xsdt_addr as *const XSDT);
-    // }
+    if rsdp.xsdt_addr != 0 {
+        let xsdt_addr = rsdp.xsdt_addr as usize | kernel().phy_offset;
+        let xsdt_ptr = xsdt_addr as *const XSDT;
 
-    identity_map_present(rsdp.rsdt_addr as usize);
+        return unsafe { &*xsdt_ptr };
+    }
 
-    unsafe { &*(rsdp.rsdt_addr as *const RSDT) }
+    let rsdt_addr = rsdp.rsdt_addr as usize | kernel().phy_offset;
+    let rsdt_ptr = rsdt_addr as *const RSDT;
+
+    unsafe { &*rsdt_ptr }
 }
 
 /// enable the acpi if not already enabled
