@@ -82,7 +82,8 @@ commands:
 
     cat `src_files`: echoes the contents of a file
     write `target_file` `src_text`: writes `src_text` to `target_file`
-    userspace: launches test userspace elf"
+    userspace: launches test userspace elf
+    meminfo: gives some memory info"
     );
 }
 
