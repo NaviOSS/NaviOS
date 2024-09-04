@@ -22,8 +22,3 @@ cc = "1.1.1"
 
 [features]
 test = []
-
-[profile.release]
-debug = true
-[profile.dev]
-debug = true

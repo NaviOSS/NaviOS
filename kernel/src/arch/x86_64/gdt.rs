@@ -91,26 +91,24 @@ impl TaskStateSegment {
     }
 }
 
+macro_rules! alloc_stack {
+    () => {{
+        static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+
+        let stack_start = unsafe { &STACK.as_ptr() };
+        let stack_end = unsafe { stack_start.add(STACK_SIZE) };
+        stack_end as u64
+    }};
+}
 lazy_static! {
     pub static ref TSS: TaskStateSegment = {
+        use crate::threading::STACK_SIZE;
+
         let mut tss = TaskStateSegment::new();
-        tss.interrupt_stack_table[0] = {
-            const STACK_SIZE: usize = 4096 * 4;
-            static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
 
-            let stack_start = unsafe { &STACK.as_ptr() };
-            let stack_end = unsafe { stack_start.add(STACK_SIZE) };
-            stack_end as u64
-        };
-
-        tss.privilege_stack_table[0] = {
-            const STACK_SIZE: usize = 4096 * 4;
-            static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-
-            let stack_start = unsafe { &STACK.as_ptr() };
-            let stack_end = unsafe { stack_start.add(STACK_SIZE) };
-            stack_end as u64
-        };
+        tss.interrupt_stack_table[0] = alloc_stack!();
+        tss.interrupt_stack_table[1] = alloc_stack!();
+        tss.privilege_stack_table[0] = alloc_stack!();
 
         tss
     };

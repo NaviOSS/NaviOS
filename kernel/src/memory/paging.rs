@@ -41,7 +41,7 @@ impl Page {
 impl Iterator for IterPage {
     type Item = Page;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.start.start_address <= self.end.start_address {
+        if self.start.start_address < self.end.start_address {
             let page = self.start;
 
             let max_page_addr = usize::MAX - (PAGE_SIZE - 1);
@@ -319,7 +319,7 @@ pub fn allocate_pml4() -> Result<PhysAddr, MapToError> {
         .allocate_frame()
         .ok_or(MapToError::FrameAllocationFailed)?;
 
-    let virt_start_addr = frame.start_address + kernel().phy_offset;
+    let virt_start_addr = frame.start_address | kernel().phy_offset;
     let table = unsafe { &mut *(virt_start_addr as *mut PageTable) };
 
     table.zeroize();

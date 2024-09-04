@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(abi_x86_interrupt)]
+#![feature(naked_functions)]
 #![feature(const_mut_refs)]
 #![feature(custom_test_frameworks)]
 #[cfg(feature = "test")]
@@ -186,6 +187,7 @@ fn kstart() -> ! {
 
 #[no_mangle]
 fn kmain() -> ! {
+    serial!("scheduler init done...\n");
     scheduler().create_process(terminal::shell as usize, "shell", ProcessFlags::empty());
 
     serial!("Hello, world!, running tests...\n");

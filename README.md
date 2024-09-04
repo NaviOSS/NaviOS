@@ -17,8 +17,12 @@ this will make an iso `navios.iso`
 currently using the [limine](https://limine-bootloader.org/) bootloader
 
 # roadmap
-note: i dont know much about osdev stuff prefixed with ? is missing info and more stuff may be added in the feature
-
+note: i dont know much about osdev (this is my first OS), stuff prefixed with ? is missing info and more stuff may be added in the feature
+next:
+    - [ ] process resources
+    - [ ] inode_id?
+    - [ ] actual syscalls and some userspace programs
+    - [ ] finally showcasing the OS!
 - [X] x86_64 basics
     - [X] GDT
     - [X] interrupts
@@ -33,7 +37,7 @@ note: i dont know much about osdev stuff prefixed with ? is missing info and mor
     - [X] XSDT parsing
     - [X] MADT parsing
     - [X] FADT parsing
-    - [ ] DSDT parsing (not planned)
+    - [ ] DSDT parsing (not planned, acpi sucks)
 - [ ] ACPI powermangment
 - [ ] keyboard
     - [X] ps/2 keyboard interrupt handling
@@ -71,8 +75,9 @@ note: i dont know much about osdev stuff prefixed with ? is missing info and mor
 - [ ] apps
     - [X] context switching, and simple processes
     - [X] more advanced context switching, (pid, name, each process has it's own page table)
+    - [ ] process resources
     - [ ] the ability for each process to have multiple threads
-    - [ ] userspace
-    - [ ] ELF support
+    - [X] userspace
+    - [X] ELF support
     - [ ] wasm VM
     - [ ] more wasm

@@ -1,4 +1,4 @@
-use core::{alloc::Layout, arch::asm};
+use core::arch::asm;
 
 use alloc::{boxed::Box, vec::Vec};
 use bitflags::bitflags;
@@ -8,9 +8,12 @@ use crate::{
         self,
         threading::{restore_cpu_status, CPUStatus},
     },
-    global_allocator, kernel,
-    memory::paging::{allocate_pml4, PageTable},
-    scheduler, serial, VirtAddr, SCHEDULER,
+    kernel,
+    memory::{
+        frame_allocator::Frame,
+        paging::{allocate_pml4, EntryFlags, MapToError, Page, PageTable, PAGE_SIZE},
+    },
+    scheduler, serial, SCHEDULER,
 };
 
 bitflags! {
@@ -21,8 +24,9 @@ bitflags! {
     }
 }
 
-pub const STACK_SIZE: usize = 4096 * 4;
-pub const STACK_LAYOUT: Layout = Layout::new::<[u8; STACK_SIZE]>();
+pub const STACK_SIZE: usize = PAGE_SIZE * 4;
+pub const STACK_START: usize = 0x00007A0000000000;
+pub const STACK_END: usize = STACK_START + STACK_SIZE;
 
 /// helper function to work with `name` in Process
 #[inline]
@@ -34,14 +38,40 @@ fn trim_trailing_zeros(slice: &[u8]) -> &[u8] {
     }
 }
 
-/// returns a pointer to the end of the stack
-pub fn alloc_stack() -> VirtAddr {
-    unsafe {
-        global_allocator()
-            .lock()
-            .alloc_mut(STACK_LAYOUT)
-            .add(STACK_SIZE) as usize
+/// allocates and maps a stack to page_table
+pub fn alloc_stack(page_table: &mut PageTable) -> Result<(), MapToError> {
+    // allocating frames
+    let mut frames: [Frame; STACK_SIZE / PAGE_SIZE] =
+        [Frame::containing_address(0); STACK_SIZE / PAGE_SIZE];
+
+    for i in 0..frames.len() {
+        frames[i] = kernel()
+            .frame_allocator()
+            .allocate_frame()
+            .ok_or(MapToError::FrameAllocationFailed)?;
     }
+
+    for frame in frames {
+        let virt_addr = frame.start_address | kernel().phy_offset;
+        let byte_array = virt_addr as *mut u8;
+        let byte_array = unsafe { core::slice::from_raw_parts_mut(byte_array, PAGE_SIZE) };
+        byte_array.fill(0);
+    }
+
+    let start_page = Page::containing_address(STACK_START);
+    let end_page = Page::containing_address(STACK_END); // === STACK_END
+
+    let iter = Page::iter_pages(start_page, end_page);
+
+    for (i, page) in iter.enumerate() {
+        page_table.map_to(
+            page,
+            frames[i],
+            EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE | EntryFlags::PRESENT,
+        )?;
+    }
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,7 +89,6 @@ pub struct Process {
     pub context: CPUStatus,
 
     pub root_page_table: *mut PageTable,
-    pub stack_end: *mut u8,
     pub next: Option<Box<Self>>,
 }
 
@@ -76,14 +105,18 @@ impl Process {
         let status = ProcessStatus::Waiting;
         let mut context = CPUStatus::default();
 
-        let stack_end = alloc_stack() as *mut u8;
-        let root_page_table = allocate_pml4().unwrap();
+        let root_page_table_addr = allocate_pml4().unwrap();
+        let root_page_table = (root_page_table_addr | kernel().phy_offset) as *mut PageTable;
+
+        unsafe {
+            alloc_stack(&mut *root_page_table).unwrap();
+        }
 
         #[cfg(target_arch = "x86_64")]
         {
             use arch::x86_64::threading::RFLAGS;
 
-            context.rsp = stack_end as u64;
+            context.rsp = STACK_END as u64;
             context.rip = function as u64;
 
             // Kernel process
@@ -101,10 +134,8 @@ impl Process {
                 context.ss = arch::x86_64::gdt::USER_DATA_SEG as u64;
                 context.cs = arch::x86_64::gdt::USER_CODE_SEG as u64;
             }
-            context.cr3 = root_page_table as u64;
+            context.cr3 = root_page_table_addr as u64;
         }
-
-        let root_page_table = (root_page_table + kernel().phy_offset) as *mut PageTable;
 
         Process {
             pid,
@@ -112,7 +143,6 @@ impl Process {
             status,
             context,
 
-            stack_end,
             root_page_table,
             next: None,
         }
@@ -131,14 +161,6 @@ impl Process {
     /// TODO: test this properly
     pub fn free(&mut self) -> Option<Box<Process>> {
         serial!("deallocating a process! ...\n");
-
-        unsafe {
-            global_allocator()
-                .lock()
-                .dealloc_mut(self.stack_end.sub(STACK_SIZE), STACK_LAYOUT);
-        }
-
-        serial!("deallocated the stack!\n");
 
         let root_page_table = unsafe { &mut (*self.root_page_table) };
         unsafe { root_page_table.free(4) };
@@ -173,7 +195,29 @@ impl Scheduler {
 
         SCHEDULER = Some(this);
 
-        restore_cpu_status(&(*scheduler().current_process).context)
+        let context = (*scheduler().current_process).context;
+        //
+        // serial!("restoring...!\n");
+        // unsafe { asm!("mov cr3, rax; mov rsp, rcx", in("rax") context.cr3, in("rcx") context.rsp, options()) }
+        //
+        // let context = (*scheduler().current_process).context;
+        //
+        // unsafe {
+        //     asm!(
+        //         "
+        //         mov rbp, 0
+        //         mov cr3, {}
+        //         push {}
+        //         push {}
+        //         push {}
+        //         push {}
+        //         push {}
+        //         iretq
+        //         ", in(reg) context.cr3, in(reg) context.ss, in(reg) context.rsp, in(reg) context.rflags.bits(), in(reg) context.cs, in(reg) context.rip
+        //     )
+        // }
+        //
+        restore_cpu_status(&context)
     }
 
     /// context switches into next process, takes current context outputs new context

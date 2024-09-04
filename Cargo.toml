@@ -13,3 +13,8 @@ kernel = { target = "x86_64-unknown-none", path = "kernel", artifact = "bin", fe
 
 [workspace]
 members = ["kernel", "macros"]
+
+[profile.release]
+debug = true
+[profile.dev]
+debug = true

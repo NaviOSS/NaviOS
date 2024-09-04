@@ -83,7 +83,8 @@ commands:
     cat `src_files`: echoes the contents of a file
     write `target_file` `src_text`: writes `src_text` to `target_file`
     userspace: launches test userspace elf
-    meminfo: gives some memory info"
+    meminfo: gives some memory info
+    breakpoint: executes int3"
     );
 }
 
@@ -407,6 +408,14 @@ fn meminfo(args: Vec<&str>) {
     println!("note that this is not 100% accurate, memory_max and memory_used is more then the actual number in 90% of cases, unusable memory also counts as used")
 }
 
+fn breakpoint(args: Vec<&str>) {
+    if args.len() != 1 {
+        println!("{}: excepts no args", args[0]);
+        return;
+    }
+
+    unsafe { core::arch::asm!("int3") }
+}
 // bad shell
 pub fn process_command(command: String) {
     let mut unterminated_str_slice = false;
@@ -447,6 +456,7 @@ pub fn process_command(command: String) {
         "write" => write,
         "userspace" => userspace,
         "meminfo" => meminfo,
+        "breakpoint" => breakpoint,
         "" => return,
         _ => {
             println!("unknown command {}", command[0]);

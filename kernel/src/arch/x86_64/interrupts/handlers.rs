@@ -44,9 +44,10 @@ lazy_static! {
         (3, breakpoint_handler, ATTR_INT),
         (6, invaild_opcode, ATTR_INT),
         (8, dobule_fault_handler, ATTR_TRAP, 0),
+        (0xC, stack_segment_fault_handler, ATTR_TRAP, 0),
         (13, general_protection_fault_handler, ATTR_TRAP),
         (14, page_fault_handler, ATTR_TRAP),
-        (0x20, threading::context_switch_stub, ATTR_INT),
+        (0x20, threading::context_switch_stub, ATTR_INT, 1),
         (0x21, keyboard_interrupt_handler, ATTR_INT),
         (0x80, syscall_base, ATTR_INT | ATTR_RING3)
     );
@@ -69,6 +70,11 @@ extern "x86-interrupt" fn breakpoint_handler(frame: InterruptFrame) {
 #[no_mangle]
 extern "x86-interrupt" fn dobule_fault_handler(frame: TrapFrame) {
     panic!("---- Double Fault ----\n{}", frame);
+}
+
+#[no_mangle]
+extern "x86-interrupt" fn stack_segment_fault_handler(frame: TrapFrame) {
+    panic!("---- Stack-Segment Fault ----\n{}", frame);
 }
 
 #[no_mangle]
