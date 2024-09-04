@@ -42,7 +42,7 @@ pub fn send_eoi() {
         let address = get_local_apic_addr();
         let eoi_reg = get_local_apic_reg(address, 0xB0);
         let eoi_reg = eoi_reg as *mut u32;
-        *eoi_reg = 0;
+        core::ptr::write_volatile(eoi_reg, 0)
     }
 }
 
@@ -162,7 +162,7 @@ fn enable_apic_timer(local_apic_addr: VirtAddr) {
     unsafe {
         core::ptr::write_volatile(addr, timer.encode_u32());
         core::ptr::write_volatile(divide, 0xB);
-        core::ptr::write_volatile(init, 0xFFFFFF);
+        core::ptr::write_volatile(init, 0x100000);
     }
 }
 

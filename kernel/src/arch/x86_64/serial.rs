@@ -1,3 +1,6 @@
+use lazy_static::lazy_static;
+
+use crate::utils::Locked;
 use core::fmt::{self, Write};
 
 use super::{inb, outb};
@@ -38,6 +41,9 @@ pub fn write_serial_string(s: &str) {
 }
 
 pub struct Serial;
+lazy_static! {
+    pub static ref SERIAL: Locked<Serial> = Locked::new(Serial);
+}
 impl Write for Serial {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         write_serial_string(s);
@@ -46,5 +52,5 @@ impl Write for Serial {
 }
 
 pub fn _serial(args: fmt::Arguments) {
-    Serial {}.write_fmt(args).unwrap();
+    SERIAL.inner.lock().write_fmt(args).unwrap();
 }

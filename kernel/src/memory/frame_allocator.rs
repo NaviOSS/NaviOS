@@ -161,14 +161,10 @@ impl RegionAllocator {
 
     #[inline]
     fn search_for_free_frame(&mut self) -> Option<Frame> {
-        let (srow, mut scol) = Self::bitmap_loc_from_index(self.search_from);
+        let (srow, _) = Self::bitmap_loc_from_index(self.search_from);
 
         for row in srow..self.bitmap.len() {
-            if !(row == srow) {
-                scol = 0;
-            }
-
-            for col in scol..8 {
+            for col in 0..8 {
                 if (self.bitmap[row] >> col) & 1 == 0 {
                     return Some(Frame {
                         start_address: Self::bitmap_index_from_loc(row, col) * PAGE_SIZE,

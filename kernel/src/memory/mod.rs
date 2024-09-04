@@ -44,7 +44,7 @@ pub const fn align_down(x: usize, alignment: usize) -> usize {
     x & !(alignment - 1)
 }
 
-pub const INIT_HEAP_SIZE: usize = 4 * 9 * 1024 * 1024;
+pub const INIT_HEAP_SIZE: usize = 4 * 7 * 1024 * 1024;
 
 // TODO: make the memory module more generic for different architectures; for now we can only support x86_64 because of the bootloader crate so take into account making our own bootloader for aarch64
 // TODO: maybe make the heap live in physical space instead?
@@ -56,6 +56,7 @@ unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
         heap_start,
         heap_start + INIT_HEAP_SIZE
     );
+
     let page_range = {
         let heap_start = heap_start;
         let heap_end = heap_start + INIT_HEAP_SIZE;
@@ -63,6 +64,7 @@ unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
         let heap_end_page = Page::containing_address(heap_end);
         Page::iter_pages(heap_start_page, heap_end_page)
     };
+
     serial!("Iter created!\n");
 
     let flags = EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE;
@@ -74,7 +76,6 @@ unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
 
         unsafe {
             current_root_table().map_to(page, frame, flags)?;
-            paging::flush()
         };
     }
 

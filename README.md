@@ -3,7 +3,7 @@ badly written open-source generic operating system made for fun written in rust!
 i am attempting to make something like ChromeOS with native wasm support
 
 # building and running
-you need a linux system with bash, `xorriso`, `make`, `cargo` and `qemu-system-x86_64` to run do
+you need a linux system with bash, `xorriso`, `make`, `cargo` and `qemu-system-x86_64` (you need kvm) to run do
 
 ```
 cargo run
@@ -19,6 +19,10 @@ currently using the [limine](https://limine-bootloader.org/) bootloader
 # roadmap
 note: i dont know much about osdev (this is my first OS), stuff prefixed with ? is missing info and more stuff may be added in the feature
 next:
+- [ ] sync
+    - [X] locking the serial
+    - [X] locking the terminal
+    - [ ] improve peformance
 - [ ] process resources
 - [ ] inode_id?
 - [ ] actual syscalls and some userspace programs

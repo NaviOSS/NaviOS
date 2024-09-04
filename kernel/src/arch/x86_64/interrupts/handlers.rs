@@ -8,7 +8,7 @@ use super::{InterruptFrame, TrapFrame};
 use crate::arch::x86_64::interrupts::apic::send_eoi;
 use crate::arch::x86_64::{inb, threading};
 use crate::threading::ProcessStatus;
-use crate::{drivers, println, scheduler};
+use crate::{drivers, println, scheduler, serial};
 
 const ATTR_TRAP: u8 = 0xF;
 const ATTR_INT: u8 = 0xE;
@@ -187,6 +187,7 @@ macro_rules! sysret {
 
 #[no_mangle]
 extern "C" fn sysprint(registers: SyscallRegisters) {
+    unsafe { asm!("sti") }
     println!("sysprint!\n {:#?}", registers);
     sysret!(0)
 }

@@ -44,12 +44,10 @@ impl Iterator for IterPage {
         if self.start.start_address < self.end.start_address {
             let page = self.start;
 
-            let max_page_addr = usize::MAX - (PAGE_SIZE - 1);
-            if self.start.start_address < max_page_addr {
-                self.start.start_address += PAGE_SIZE;
-            } else {
-                self.end.start_address -= PAGE_SIZE;
-            }
+            let max_page_addr = usize::MAX - (PAGE_SIZE);
+            assert!(self.start.start_address < max_page_addr);
+
+            self.start.start_address += PAGE_SIZE;
             Some(page)
         } else {
             None
@@ -305,11 +303,6 @@ impl PageTable {
 
         entry.is_mapped()
     }
-}
-
-pub unsafe fn flush() {
-    #[cfg(target_arch = "x86_64")]
-    asm!("invlpg [{}]", in(reg) 0 as *const u8);
 }
 
 /// allocates a pml4 and returns its physical address

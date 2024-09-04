@@ -24,6 +24,7 @@ use crate::{
 #[no_mangle]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
+
     terminal().write_fmt(args).unwrap();
 }
 
@@ -96,9 +97,9 @@ fn clear(args: Vec<&str>) {
 
     print!("you sure? y\\N: ");
     let confirm = readln();
-
+    let viewport = &mut framebuffer::VIEWPORT.lock();
     if confirm.to_uppercase() == "Y" {
-        terminal().clear()
+        terminal().clear(viewport)
     }
 }
 
