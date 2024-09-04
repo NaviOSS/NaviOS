@@ -196,27 +196,6 @@ impl Scheduler {
         SCHEDULER = Some(this);
 
         let context = (*scheduler().current_process).context;
-        //
-        // serial!("restoring...!\n");
-        // unsafe { asm!("mov cr3, rax; mov rsp, rcx", in("rax") context.cr3, in("rcx") context.rsp, options()) }
-        //
-        // let context = (*scheduler().current_process).context;
-        //
-        // unsafe {
-        //     asm!(
-        //         "
-        //         mov rbp, 0
-        //         mov cr3, {}
-        //         push {}
-        //         push {}
-        //         push {}
-        //         push {}
-        //         push {}
-        //         iretq
-        //         ", in(reg) context.cr3, in(reg) context.ss, in(reg) context.rsp, in(reg) context.rflags.bits(), in(reg) context.cs, in(reg) context.rip
-        //     )
-        // }
-        //
         restore_cpu_status(&context)
     }
 
