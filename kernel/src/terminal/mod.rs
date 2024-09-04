@@ -1,10 +1,12 @@
 pub mod framebuffer;
 pub mod navitts;
 
-use core::{fmt, str};
+use core::{
+    fmt::{self, Write},
+    str,
+};
 
 use alloc::{
-    borrow::ToOwned,
     string::{String, ToString},
     vec::Vec,
 };
@@ -23,9 +25,10 @@ use crate::{
 #[doc(hidden)]
 #[no_mangle]
 pub fn _print(args: fmt::Arguments) {
-    use core::fmt::Write;
+    let mut combined = String::new();
+    combined.write_fmt(args).unwrap();
 
-    terminal().write_fmt(args).unwrap();
+    terminal().write(&combined);
 }
 
 pub fn readln() -> String {
@@ -486,9 +489,7 @@ pub fn shell() {
     print!("\\[fg: (255, 255, 255) ||\nwelcome to NaviOS!\ntype help or ? for a list of avalible commands\n||]");
 
     loop {
-        let prompt = (r"\[fg: (0, 255, 0) ||".to_owned() + &terminal().current_dir) + r"||]";
-
-        print!("{} # ", prompt);
+        print!(r"\[fg: (0, 255, 0) ||{}||] # ", terminal().current_dir);
         process_command(readln());
     }
 }

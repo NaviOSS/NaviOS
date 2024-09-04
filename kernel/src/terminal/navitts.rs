@@ -87,8 +87,9 @@ impl<'a> NaviTTES<'a> {
 
         while let Some(char) = chars.next() {
             match char {
-                '\\' => match chars.next() {
+                '\\' => match chars.peek() {
                     Some('[') => {
+                        chars.next();
                         let mut ttes = match result.clone() {
                             NaviTTES::NaviESS(ttes) => ttes,
                             NaviTTES::Slice(_) => Vec::from([result.clone()]),
@@ -101,12 +102,30 @@ impl<'a> NaviTTES<'a> {
                         };
 
                         ttes.push(val);
+                        ttes.push(NaviTTES::OwnedSlice(String::new()));
+
                         result = NaviTTES::NaviESS(ttes);
+                        continue;
                     }
-                    _ => continue,
+                    _ => (),
                 },
-                _ => continue,
+                _ => (),
             }
+
+            let mut last = if let NaviTTES::NaviESS(ref mut results) = result {
+                results.last_mut()
+            } else {
+                None
+            };
+
+            if let Some(ref mut result) = last {
+                match result {
+                    NaviTTES::OwnedSlice(ref mut s) => s.push(char),
+                    _ => unreachable!(),
+                }
+            }
+
+            drop(last)
         }
 
         // remove the first item if we got more then one ess because it is useless
@@ -149,6 +168,7 @@ impl<'a> NaviTTES<'a> {
 
             results.push(token)
         }
+
         results
     }
 

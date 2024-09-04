@@ -74,8 +74,22 @@ macro_rules! cross_println {
         if crate::terminal_inited() && !crate::terminal().panicked {
             crate::terminal().panicked = true;
 
-            crate::println!($($arg)*);
+            crate::println!(r"\[fg: (155, 0, 0) ||{}||]", format_args!($($arg)*));
+            crate::terminal().panicked = false;
+        }
+    };
+}
 
+#[allow(unused)]
+macro_rules! cross_printerr {
+    ($($arg:tt)*) => {
+        crate::serial!($($arg)*);
+        crate::serial!("\n");
+
+        if crate::terminal_inited() && !crate::terminal().panicked {
+            crate::terminal().panicked = true;
+
+            crate::println!(r"\[fg: (0, 0, 255) ||{}||]", format_args!($($arg)*));
             crate::terminal().panicked = false;
         }
     };
@@ -86,7 +100,7 @@ macro_rules! cross_println {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     unsafe { asm!("cli") }
-    cross_println!(
+    cross_printerr!(
         "kernel panic:\n{}, at {}",
         info.message(),
         info.location().unwrap()
@@ -110,8 +124,8 @@ fn print_stack_trace() {
                 if kernel_inited() {
                     let sym = kernel().elf.sym_from_value_range(return_address);
 
-                    if sym.is_some() {
-                        kernel().elf.string_table_index(sym.unwrap().name_index)
+                    if let Some(sym) = sym {
+                        kernel().elf.string_table_index(sym.name_index)
                     } else {
                         "??"
                     }
@@ -195,7 +209,7 @@ fn kmain() -> ! {
 
     println!("finished running tests...");
     println!(
-        "\\[fg: (0, 255, 0) ||Boot success! press ctrl + shift + C to clear screen (and enter input mode)\n||]"
+        "\\[fg: (0, 255, 0) ||Boot success! press ctrl + shift + C to clear screen (and enter input mode)||]"
     );
 
     serial!("finished initing...\n");

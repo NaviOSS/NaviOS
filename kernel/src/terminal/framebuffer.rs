@@ -1,8 +1,9 @@
+/// TODO: fix the framebuffer acting like BGR even tho it is RGB
 use alloc::{string::String, vec::Vec};
 use lazy_static::lazy_static;
 use spin::{Mutex, MutexGuard};
 
-use core::{fmt, ptr};
+use core::ptr;
 
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 
@@ -367,7 +368,7 @@ impl<'a> Terminal<'a> {
     ) {
         match escape_seq {
             NaviTTES::Slice(s) => self.write_slice(s, default_attributes, viewport),
-            NaviTTES::OwnedSlice(s) => self.write_slice(s.as_str(), default_attributes, viewport),
+            NaviTTES::OwnedSlice(s) => self.write_slice(&s, default_attributes, viewport),
 
             NaviTTES::NaviESS(escape_seqs) => {
                 for escape_seq in escape_seqs {
@@ -389,13 +390,5 @@ impl<'a> Terminal<'a> {
         default_attributes.fg = WRITE_COLOR;
 
         self.write_es(parsed, default_attributes, viewport)
-    }
-}
-
-impl fmt::Write for Terminal<'static> {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.write(s);
-
-        Ok(())
     }
 }
