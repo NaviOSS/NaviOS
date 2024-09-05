@@ -8,12 +8,12 @@ use crate::{
         self,
         threading::{restore_cpu_status, CPUStatus},
     },
-    kernel,
+    debug, kernel,
     memory::{
         frame_allocator::Frame,
         paging::{allocate_pml4, EntryFlags, MapToError, Page, PageTable, PAGE_SIZE},
     },
-    scheduler, serial, SCHEDULER,
+    scheduler, SCHEDULER,
 };
 
 bitflags! {
@@ -150,21 +150,29 @@ impl Process {
 
     pub fn create(function: usize, name: &str, flags: ProcessFlags) -> Self {
         let pid = scheduler().next_pid;
+        debug!(
+            Scheduler,
+            "creating a process with pid {} ({}) ...", pid, name
+        );
+
         let results = Self::new(function, pid, name, flags);
         scheduler().next_pid += 1;
+
+        debug!(Scheduler, "success ...");
         results
     }
 
     /// frees self and then returns next
-    /// frees all resources that has something to do with this process even the process stack and
-    /// page table
-    /// TODO: test this properly
+    /// frees all resources that has something to do with this process and all it's memory
     pub fn free(&mut self) -> Option<Box<Process>> {
-        serial!("deallocating a process! ...\n");
+        debug!(
+            Scheduler,
+            "deallocating a process with pid {} ...", self.pid
+        );
 
         let root_page_table = unsafe { &mut (*self.root_page_table) };
         unsafe { root_page_table.free(4) };
-        serial!("deallocated the root page table!\n");
+        debug!(Scheduler, "deallocated the process's page table ...");
 
         self.next.take()
     }
@@ -182,7 +190,7 @@ impl Scheduler {
     /// inits the scheduler
     /// jumps to `function` after initing!
     pub unsafe fn init(function: usize, name: &str) {
-        serial!("initing the scheduler...\n");
+        debug!(Scheduler, "initing ...");
         asm!("cli");
 
         let mut process = Box::new(Process::new(function, 0, name, ProcessFlags::empty()));

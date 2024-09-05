@@ -33,12 +33,12 @@ pub fn kernel_inited() -> bool {
     unsafe { KERNEL.is_some() }
 }
 
-pub static mut TERMINAL: Option<Terminal<'static>> = None;
+pub static mut TERMINAL: Option<Terminal> = None;
 pub fn terminal_inited() -> bool {
     unsafe { TERMINAL.is_some() }
 }
 
-pub fn terminal() -> &'static mut Terminal<'static> {
+pub fn terminal() -> &'static mut Terminal {
     unsafe { TERMINAL.as_mut().unwrap() }
 }
 

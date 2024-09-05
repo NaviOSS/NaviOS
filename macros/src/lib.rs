@@ -26,9 +26,9 @@ pub fn test_module(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let len = func_names.len();
     let test_main: Item = parse_quote! {
         pub fn test_main() {
-            cross_println!("running {} tests...", #len);
+            cross_println!("[TEST] running {} tests...", #len);
             #(
-                cross_println!("running {} test...", stringify!(#func_names));
+                cross_println!("[TEST] running {} test...", stringify!(#func_names));
                 #func_names();
                 cross_println!("[ok]");
             )*

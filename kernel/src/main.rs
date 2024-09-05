@@ -95,6 +95,17 @@ macro_rules! cross_printerr {
     };
 }
 
+/// runtime debug info that is only avalible though test feature
+/// takes a $mod and an Arguments, mod must be a type
+#[macro_export]
+macro_rules! debug {
+    ($mod: path, $($arg:tt)*) => {
+        // makes sure $mod is a vaild type
+        let _ = core::marker::PhantomData::<$mod>;
+        crate::serial!("[DEBUG] {}: {}\n", stringify!($mod), format_args!($($arg)*));
+    };
+}
+
 #[allow(dead_code)]
 #[cfg(not(test))]
 #[panic_handler]
@@ -174,11 +185,10 @@ pub extern "C" fn kinit() {
         memory::init(get_phy_offset_end());
         vfs::init();
 
-        let (buffer, info) = limine::get_framebuffer();
-        let terminal: Terminal<'static> = Terminal::init(buffer, info);
-        TERMINAL = Some(terminal);
+        Terminal::init();
 
-        serial!("kernel init phase 1 done\n");
+        debug!(Kernel, "init phase 1 done");
+
         Scheduler::init(kmain as usize, "kernel");
     }
 }
@@ -199,7 +209,7 @@ fn kstart() -> ! {
 
 #[no_mangle]
 fn kmain() -> ! {
-    serial!("scheduler init done...\n");
+    debug!(Scheduler, "done ...");
     scheduler().create_process(terminal::shell as usize, "shell", ProcessFlags::empty());
 
     serial!("Hello, world!, running tests...\n");

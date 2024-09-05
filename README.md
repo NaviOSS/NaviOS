@@ -32,9 +32,10 @@ next:
     - [X] interrupts
     - [X] APIC
     - [X] framebuffer terminal
-- [X] framebuffer terminal
+- [ ] framebuffer terminal
     - [X] scrolling
-    - [ ] locking the terminal (threading, context switching)
+    - [X] locking the terminal (threading, context switching)
+    - [ ] maybe try to RWLock the terminal instead of just locking the viewport?
     - [X] terminal shell process
 - [X] ACPI parsing
     - [X] RSDT parsing

@@ -33,7 +33,10 @@ impl Page {
         }
     }
 
+    /// creates an iterator'able struct
+    /// requires that start.start_address is smaller then end.start_address
     pub const fn iter_pages(start: Page, end: Page) -> IterPage {
+        assert!(start.start_address < end.start_address);
         IterPage { start, end }
     }
 }
@@ -43,9 +46,6 @@ impl Iterator for IterPage {
     fn next(&mut self) -> Option<Self::Item> {
         if self.start.start_address < self.end.start_address {
             let page = self.start;
-
-            let max_page_addr = usize::MAX - (PAGE_SIZE);
-            assert!(self.start.start_address < max_page_addr);
 
             self.start.start_address += PAGE_SIZE;
             Some(page)

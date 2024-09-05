@@ -8,8 +8,10 @@ use core::ptr;
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 
 use crate::{
+    debug,
     drivers::keyboard::{Key, KeyCode, KeyFlags},
     memory::align_down,
+    TERMINAL,
 };
 
 use super::navitts::{Attributes, NaviTTES};
@@ -39,9 +41,9 @@ pub struct FrameBufferInfo {
 const RASTER_HEIGHT: RasterHeight = RasterHeight::Size20;
 const WRITE_COLOR: (u8, u8, u8) = (255, 255, 255);
 #[derive(Debug)]
-pub struct Terminal<'a> {
+pub struct Terminal {
     /// this is a lock indpendant of VIEWPORT lock, it is used only with Write::write_fmt
-    buffer: &'a mut [u8],
+    buffer: &'static mut [u8],
 
     viewport_start: usize,
 
@@ -64,15 +66,17 @@ lazy_static! {
     pub static ref VIEWPORT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 }
 
-impl<'a> Terminal<'a> {
-    pub fn init(buffer: &'static mut [u8], info: FrameBufferInfo) -> Self {
+impl Terminal {
+    pub fn init() {
+        debug!(Terminal, "initing (framebuffer) ...");
+        let (buffer, info) = crate::limine::get_framebuffer();
+
         for i in 0..buffer.len() {
             buffer[i] = 0;
         }
 
         VIEWPORT.lock().resize(buffer.len(), 0);
-
-        Self {
+        let this = Self {
             buffer,
             viewport_start: 0,
 
@@ -85,7 +89,10 @@ impl<'a> Terminal<'a> {
             x_pos: 0,
             y_pos: 0,
             panicked: false,
-        }
+        };
+
+        unsafe { TERMINAL = Some(this) };
+        debug!(Terminal, "done ...");
     }
 
     pub fn on_key_pressed(&mut self, key: Key) {

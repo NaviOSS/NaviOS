@@ -2,7 +2,7 @@
 
 use core::slice;
 
-use crate::serial;
+use crate::debug;
 
 use super::{align_down, align_up, paging::PAGE_SIZE, PhysAddr};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,7 +55,11 @@ impl RegionAllocator {
             PAGE_SIZE,
         ) / PAGE_SIZE;
 
-        serial!("{} usable bytes found\n", frame_count * PAGE_SIZE);
+        debug!(
+            RegionAllocator,
+            "{} usable bytes found",
+            frame_count * PAGE_SIZE
+        );
 
         // frame_count is the number of bits
         // aligns to 8 to make sure we can get a vaild number of bytes for our frame
@@ -75,23 +79,26 @@ impl RegionAllocator {
             }
         }
 
-        assert!(best_region.is_some());
-        serial!(
-            "expected {} bytes but found a region with {} bytes\n",
-            bytes,
-            best_region.unwrap().length
+        debug_assert!(best_region.is_some());
+
+        let best_region = best_region.unwrap();
+        let bitmap_base = best_region.base as usize;
+        let bitmap_length = best_region.length as usize;
+
+        debug!(
+            RegionAllocator,
+            "expected {} bytes, found a region with {} bytes", bytes, bitmap_length
         );
 
         // allocates and setups bitmap
-        let bitmap_base = best_region.unwrap().base as usize;
-        let bitmap_length = best_region.unwrap().length as usize;
-
         let addr = (bitmap_base + crate::limine::get_phy_offset()) as *mut u8;
 
         let bitmap = unsafe { slice::from_raw_parts_mut(addr, bytes) };
+
+        // setup
         bitmap.fill(0xFF);
 
-        assert!(bitmap[0] == 0xFF);
+        debug_assert!(bitmap[0] == 0xFF);
 
         let mut this = Self {
             bitmap,
@@ -101,7 +108,7 @@ impl RegionAllocator {
             )),
         };
 
-        serial!("bitmap allocation successful!\n");
+        debug!(RegionAllocator, "bitmap allocation successful!");
         // sets all unusable frames as used
         for entry in mmap.entries() {
             if entry.entry_type == limine::memory_map::EntryType::USABLE {
