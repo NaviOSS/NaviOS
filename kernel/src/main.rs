@@ -86,7 +86,7 @@ macro_rules! cross_printerr {
         crate::serial!($($arg)*);
         crate::serial!("\n");
 
-        if crate::terminal_inited() && !crate::terminal().panicked {
+        if crate::terminal_inited() && !crate::terminal().panicked  {
             crate::terminal().panicked = true;
 
             crate::println!(r"\[fg: (0, 0, 255) ||{}||]", format_args!($($arg)*));
@@ -111,6 +111,12 @@ macro_rules! debug {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     unsafe { asm!("cli") }
+    unsafe {
+        terminal::framebuffer::VIEWPORT.force_unlock();
+    }
+
+    debug_assert!(!terminal::framebuffer::VIEWPORT.is_locked());
+
     cross_printerr!(
         "kernel panic:\n{}, at {}",
         info.message(),

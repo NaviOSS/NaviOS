@@ -1,4 +1,4 @@
-use crate::kernel;
+use crate::{debug, kernel, scheduler};
 use core::{
     alloc::{GlobalAlloc, Layout},
     ptr,
@@ -11,8 +11,6 @@ use crate::{
     },
     utils::Locked,
 };
-
-use super::paging::current_root_table;
 
 #[derive(Debug)]
 pub struct Node {
@@ -34,6 +32,7 @@ impl Node {
     }
 
     /// checks if a node can hold `size` bytes aligned to `align_amount`
+    /// returns the node start address aligned to `align_amount`
     pub fn can_hold(&self, size: usize, align_amount: usize) -> Result<usize, ()> {
         let start = align_up(self.start_addr(), align_amount);
         let end = start.checked_add(size).ok_or(())?;
@@ -80,6 +79,10 @@ impl LinkedListAllocator {
         let heap_end = heap_start + size;
         self.heap_end = heap_end;
 
+        debug!(
+            LinkedListAllocator,
+            "initing {:#x}..{:#x}: {:#x} ...", heap_start, heap_end, size
+        );
         self.add_free_node(heap_start, size);
     }
 
@@ -127,13 +130,24 @@ impl LinkedListAllocator {
 
         //  TODO: add an extend_by function to extend the heap by size
         //  TODO: add a heap_max that prevents heap from extending further
-        self.extend_heap().ok()?;
-        self.find_free_node(size, align)
+        // self.extend_heap_by(size).ok()?;
+        // self.find_free_node(size, align)
+        // THE ALLOCATOR IS FUCKED: add a slab allocator, figure out how should stuff like a Vec
+        // be allocated
+        None
     }
 
     pub unsafe fn add_free_node(&mut self, addr: usize, size: usize) {
         assert_eq!(align_up(addr, align_of::<Node>()), addr);
         assert!(size >= size_of::<Node>());
+
+        // assert!(
+        //     addr + size <= self.heap_end,
+        //     "assert: addr + size < self.heap_end failed, addr: {:#x}, heap_end: {:#x} with size: {:#x}",
+        //     addr,
+        //     self.heap_end,
+        //     size
+        // );
 
         let mut node = Node::new(size);
 
@@ -141,10 +155,28 @@ impl LinkedListAllocator {
 
         let node_ptr = addr as *mut Node;
         ptr::write_volatile(node_ptr, node);
+
         self.head.next = Some(&mut *node_ptr);
     }
 
     pub const PAGES_PER_EXTEND: usize = 128;
+    pub fn extend_heap_by(&mut self, size: usize) -> Result<(), ()> {
+        let times =
+            align_up(size, PAGE_SIZE * Self::PAGES_PER_EXTEND) / PAGE_SIZE / Self::PAGES_PER_EXTEND;
+
+        for _ in 0..times {
+            self.extend_heap()?;
+        }
+
+        debug!(
+            LinkedListAllocator,
+            "extended the heap {} time(s) by {:#x}",
+            times,
+            times * PAGE_SIZE * Self::PAGES_PER_EXTEND
+        );
+        Ok(())
+    }
+
     /// extends the heap by `PAGES_PER_EXTEND` pages
     pub fn extend_heap(&mut self) -> Result<(), ()> {
         let start_page = Page::containing_address(self.heap_end + PAGE_SIZE);
@@ -158,15 +190,26 @@ impl LinkedListAllocator {
             unsafe {
                 let allocated_frame = kernel().frame_allocator().allocate_frame().ok_or(())?;
 
-                current_root_table()
-                    .map_to(
-                        page,
-                        allocated_frame,
-                        EntryFlags::PRESENT | EntryFlags::WRITABLE,
-                    )
-                    .or(Err(()))?;
+                // extend the heap in all processes
+                let mut current = &scheduler().head;
+                while let Some(ref process) = current.next {
+                    let page_table = &mut *process.root_page_table;
+
+                    page_table
+                        .map_to(
+                            page,
+                            allocated_frame,
+                            EntryFlags::PRESENT | EntryFlags::WRITABLE,
+                        )
+                        .or(Err(()))?;
+
+                    current = process;
+                }
             }
         }
+
+        self.heap_end = end_page.start_address + PAGE_SIZE;
+
         unsafe {
             self.add_free_node(start_page.start_address, PAGE_SIZE * Self::PAGES_PER_EXTEND);
         }
@@ -188,10 +231,10 @@ impl LinkedListAllocator {
             self.head.next = Some(to_combine);
         }
 
-        self.heap_end = end_page.start_address + PAGE_SIZE;
         Ok(())
     }
 
+    /// adjusts layout
     fn size_align(layout: Layout) -> (usize, usize) {
         let layout = layout
             .align_to(align_of::<Node>())
