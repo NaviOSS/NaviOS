@@ -18,6 +18,7 @@ currently using the [limine](https://limine-bootloader.org/) bootloader
 
 # roadmap
 note: i dont know much about osdev (this is my first OS), stuff prefixed with ? is missing info and more stuff may be added in the feature
+
 next:
 - [ ] sync
     - [X] locking the serial
@@ -27,6 +28,8 @@ next:
 - [ ] inode_id?
 - [ ] actual syscalls and some userspace programs
 - [ ] finally showcasing the OS!
+
+
 - [X] x86_64 basics
     - [X] GDT
     - [X] interrupts
