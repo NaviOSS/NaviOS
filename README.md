@@ -27,6 +27,7 @@ note: i dont know much about osdev (this is my first OS), stuff prefixed with ? 
 - [ ] inode_id?
 - [ ] actual syscalls and some userspace programs
 - [ ] finally showcasing the OS!
+- [ ] work on the kernel memory: maybe a heap powered by something like mmap? and maybe each kernel process should have it's own heap we should reduce allocations and also start relying on a slab allocator
 
 ## roadmap
 - [X] x86_64 basics

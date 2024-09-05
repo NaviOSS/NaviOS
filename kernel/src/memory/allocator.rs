@@ -141,13 +141,13 @@ impl LinkedListAllocator {
         assert_eq!(align_up(addr, align_of::<Node>()), addr);
         assert!(size >= size_of::<Node>());
 
-        // assert!(
-        //     addr + size <= self.heap_end,
-        //     "assert: addr + size < self.heap_end failed, addr: {:#x}, heap_end: {:#x} with size: {:#x}",
-        //     addr,
-        //     self.heap_end,
-        //     size
-        // );
+        assert!(
+            addr + size <= self.heap_end,
+            "assert: addr + size < self.heap_end failed, addr: {:#x}, heap_end: {:#x} with size: {:#x}",
+            addr,
+            self.heap_end,
+            size
+        );
 
         let mut node = Node::new(size);
 
