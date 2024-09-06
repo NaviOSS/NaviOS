@@ -1,32 +1,22 @@
-use core::arch::asm;
-
-use alloc::{boxed::Box, vec::Vec};
-use bitflags::bitflags;
-
-use crate::{
-    arch::{
-        self,
-        threading::{restore_cpu_status, CPUStatus},
-    },
-    debug, kernel,
-    memory::{
-        frame_allocator::Frame,
-        paging::{allocate_pml4, EntryFlags, MapToError, Page, PageTable, PAGE_SIZE},
-    },
-    scheduler, SCHEDULER,
-};
-
-bitflags! {
-    #[repr(C)]
-    #[derive(Debug, Clone, Copy)]
-    pub struct ProcessFlags: u8 {
-        const USERSPACE = 1 << 0;
-    }
-}
-
+pub mod processes;
 pub const STACK_SIZE: usize = PAGE_SIZE * 4;
 pub const STACK_START: usize = 0x00007A0000000000;
 pub const STACK_END: usize = STACK_START + STACK_SIZE;
+
+use core::arch::asm;
+use processes::{Process, ProcessFlags, ProcessStatus};
+
+use alloc::{boxed::Box, vec::Vec};
+
+use crate::{
+    arch::threading::{restore_cpu_status, CPUStatus},
+    debug, kernel,
+    memory::{
+        frame_allocator::Frame,
+        paging::{EntryFlags, MapToError, Page, PageTable, PAGE_SIZE},
+    },
+    scheduler, SCHEDULER,
+};
 
 /// helper function to work with `name` in Process
 #[inline]
@@ -74,118 +64,19 @@ pub fn alloc_stack(page_table: &mut PageTable) -> Result<(), MapToError> {
     Ok(())
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProcessStatus {
-    Waiting,
-    Running,
-    WaitingForBurying,
-}
-
-#[derive(Debug, Clone)]
-pub struct Process {
-    pub pid: u64,
-    pub name: [u8; 64],
-    pub status: ProcessStatus,
-    pub context: CPUStatus,
-
-    pub root_page_table: *mut PageTable,
-    pub next: Option<Box<Self>>,
-}
-
-impl Process {
-    #[inline]
-    pub fn new(function: usize, pid: u64, name: &str, flags: ProcessFlags) -> Self {
-        let name_bytes = name.as_bytes();
-
-        let mut name = [0u8; 64];
-
-        let len = name_bytes.len().min(64);
-        name[..len].copy_from_slice(&name_bytes[..len]);
-
-        let status = ProcessStatus::Waiting;
-        let mut context = CPUStatus::default();
-
-        let root_page_table_addr = allocate_pml4().unwrap();
-        let root_page_table = (root_page_table_addr | kernel().phy_offset) as *mut PageTable;
-
-        unsafe {
-            alloc_stack(&mut *root_page_table).unwrap();
-        }
-
-        #[cfg(target_arch = "x86_64")]
-        {
-            use arch::x86_64::threading::RFLAGS;
-
-            context.rsp = STACK_END as u64;
-            context.rip = function as u64;
-
-            // Kernel process
-            if flags.is_empty() {
-                context.rflags = RFLAGS::from_bits_retain(0x202);
-
-                context.ss = arch::x86_64::gdt::KERNEL_DATA_SEG as u64;
-                context.cs = arch::x86_64::gdt::KERNEL_CODE_SEG as u64;
-            } else if flags.contains(ProcessFlags::USERSPACE) {
-                context.rflags = RFLAGS::IOPL_LOW
-                    | RFLAGS::IOPL_HIGH
-                    | RFLAGS::INTERRUPT_FLAG
-                    | RFLAGS::from_bits_retain(0x2);
-
-                context.ss = arch::x86_64::gdt::USER_DATA_SEG as u64;
-                context.cs = arch::x86_64::gdt::USER_CODE_SEG as u64;
-            }
-            context.cr3 = root_page_table_addr as u64;
-        }
-
-        Process {
-            pid,
-            name,
-            status,
-            context,
-
-            root_page_table,
-            next: None,
-        }
-    }
-
-    pub fn create(function: usize, name: &str, flags: ProcessFlags) -> Self {
-        let pid = scheduler().next_pid;
-        debug!(
-            Scheduler,
-            "creating a process with pid {} ({}) ...", pid, name
-        );
-
-        let results = Self::new(function, pid, name, flags);
-        scheduler().next_pid += 1;
-
-        debug!(Scheduler, "success ...");
-        results
-    }
-
-    /// frees self and then returns next
-    /// frees all resources that has something to do with this process and all it's memory
-    pub fn free(&mut self) -> Option<Box<Process>> {
-        debug!(
-            Scheduler,
-            "deallocating a process with pid {} ...", self.pid
-        );
-
-        let root_page_table = unsafe { &mut (*self.root_page_table) };
-        unsafe { root_page_table.free(4) };
-        debug!(Scheduler, "deallocated the process's page table ...");
-
-        self.next.take()
-    }
-}
-#[derive(Debug)]
 pub struct Scheduler {
     pub head: Box<Process>,
     /// raw pointers for peformance, we are ring0 we need the lowest stuff
-    pub current_process: *mut Process,
+    current_process: *mut Process,
     pub next_pid: u64,
 }
 
 impl Scheduler {
+    #[inline]
+    pub fn current_process(&self) -> &mut Process {
+        unsafe { &mut *self.current_process }
+    }
+
     #[inline]
     /// inits the scheduler
     /// jumps to `function` after initing!
@@ -203,7 +94,7 @@ impl Scheduler {
 
         SCHEDULER = Some(this);
 
-        let context = (*scheduler().current_process).context;
+        let context = scheduler().current_process().context;
         restore_cpu_status(&context)
     }
 
@@ -211,29 +102,29 @@ impl Scheduler {
     pub unsafe fn switch(&mut self, context: CPUStatus) -> CPUStatus {
         unsafe { asm!("cli") }
 
-        (*self.current_process).context = context;
+        self.current_process().context = context;
 
-        if (*self.current_process).status != ProcessStatus::WaitingForBurying {
-            (*self.current_process).status = ProcessStatus::Waiting;
+        if self.current_process().status != ProcessStatus::WaitingForBurying {
+            self.current_process().status = ProcessStatus::Waiting;
         }
 
         loop {
-            if (*self.current_process)
+            if self
+                .current_process()
                 .next
                 .as_ref()
                 .is_some_and(|x| x.status == ProcessStatus::WaitingForBurying)
             {
-                (*self.current_process).next =
-                    (*self.current_process).next.as_mut().unwrap().free();
+                self.current_process().next = self.current_process().next.as_mut().unwrap().free();
             }
 
-            if (*self.current_process).next.is_some() {
+            if self.current_process().next.is_some() {
                 self.current_process = &mut **(*self.current_process).next.as_mut().unwrap();
             } else {
                 self.current_process = &mut *self.head;
             }
 
-            if (*self.current_process).status == ProcessStatus::Waiting {
+            if self.current_process().status == ProcessStatus::Waiting {
                 (*self.current_process).status = ProcessStatus::Running;
                 break;
             }
@@ -314,5 +205,11 @@ impl Scheduler {
     /// `Self::add_process`
     pub fn create_process(&mut self, function: usize, name: &str, flags: ProcessFlags) {
         self.add_process(Process::create(function, name, flags));
+    }
+
+    /// returns the current process's resources
+    #[inline]
+    pub fn resources(&mut self) -> &mut Vec<processes::Resource> {
+        &mut self.current_process().resources
     }
 }

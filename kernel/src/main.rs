@@ -28,7 +28,7 @@ use memory::frame_allocator::RegionAllocator;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
 use terminal::framebuffer::Terminal;
-use threading::ProcessFlags;
+use threading::processes::ProcessFlags;
 use threading::Scheduler;
 
 const TEST_ELF: &[u8] = include_bytes!("../../user/test");

@@ -5,7 +5,7 @@ pub mod testing_module {
     use alloc::vec::Vec;
 
     use crate::cross_println;
-    use crate::{global_allocator, println};
+    use crate::println;
     use core::arch::asm;
 
     fn print() {

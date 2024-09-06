@@ -18,4 +18,3 @@ members = ["kernel", "macros"]
 debug = true
 [profile.dev]
 debug = true
-lto = true

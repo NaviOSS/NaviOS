@@ -1,3 +1,9 @@
+/// exposed functions of VFS it manually uses
+/// a resource index instead of a file descriptor aka ri
+pub mod expose;
+
+use core::usize;
+
 use crate::{debug, utils::Locked};
 pub mod ramfs;
 
@@ -28,12 +34,14 @@ pub fn init() {
 }
 
 #[derive(Debug)]
-#[repr(C)]
 pub struct FileDescriptor {
     pub mountpoint: *mut dyn FS,
     pub node: *mut Inode,
-
+    /// acts as a dir entry index for directories
+    /// acts as a byte index for files
     pub read_pos: usize,
+    /// acts as a byte index for files
+    /// doesn't do anything for directories
     pub write_pos: usize,
 }
 
@@ -43,24 +51,28 @@ impl FileDescriptor {
     }
 
     pub fn name(&self) -> String {
-        unsafe { &*self.node }.name.clone()
+        unsafe { (*self.node).name.clone() }
     }
 }
 
 #[derive(Debug, Clone)]
+#[repr(u8)]
 pub enum FSError {
-    // TODO: more operation not supported defaults
     OperationNotSupported,
     NotAFile,
     NotADirectory,
     NoSuchAFileOrDirectory,
     InvaildDrive,
     InvaildPath,
+    /// ethier a fd which points to a resource which isnt a FileDescriptor or it points to nothing
+    InvaildFileDescriptor,
+    InvaildBuffer,
 }
 
 pub type FSResult<T> = Result<T, FSError>;
-#[derive(Clone, PartialEq)]
-enum InodeType {
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
+pub enum InodeType {
     File,
     Directory,
     Symlink,
@@ -73,12 +85,14 @@ enum InodeType {
 /// - Synchronization
 /// - Allocations
 /// TODO: inode id!
+
 pub struct Inode {
     name: String,
     inode_type: InodeType,
     ///  TODO: use something instead of Box
     ops: Box<dyn InodeOps>,
 }
+
 pub trait InodeOps: Send {
     fn new_root() -> Inode
     where
@@ -100,15 +114,25 @@ pub trait InodeOps: Send {
         Err(FSError::OperationNotSupported)
     }
     /// attempts to read the contents of self if it is a directory returning a list of inodes
-    fn readdir(&mut self) -> FSResult<Vec<&mut Inode>>;
+    fn readdir(&mut self) -> FSResult<Vec<&mut Inode>> {
+        Err(FSError::OperationNotSupported)
+    }
     /// attempts to write `buffer.len` bytes from `buffer` into node data if it is a file starting
     /// from offset
     /// extends the nodes data and node size if `buffer.len` + `offset` is greater then node size
-    fn write(&mut self, buffer: &[u8], offset: usize) -> FSResult<()>;
+    fn write(&mut self, buffer: &[u8], offset: usize) -> FSResult<()> {
+        _ = buffer;
+        _ = offset;
+        Err(FSError::OperationNotSupported)
+    }
 
     /// attempts to insert a node to self
     /// returns an FSError::NotADirectory if not a directory
-    fn insert(&mut self, name: String, node: Inode) -> FSResult<()>;
+    fn insert(&mut self, name: String, node: Inode) -> FSResult<()> {
+        _ = name;
+        _ = node;
+        Err(FSError::OperationNotSupported)
+    }
 }
 
 impl Inode {
@@ -143,7 +167,10 @@ pub trait FS: Send {
     fn name(&self) -> &'static str;
 
     /// attempts to close a file cleanig all it's resources
-    fn close(&mut self, file: FileDescriptor) -> FSResult<()>;
+    fn close(&mut self, file_descriptor: &mut FileDescriptor) -> FSResult<()> {
+        _ = file_descriptor;
+        return Err(FSError::OperationNotSupported);
+    }
 
     fn root_inode_mut(&mut self) -> &mut Inode;
 
@@ -191,15 +218,31 @@ pub trait FS: Send {
     /// opens a path returning a file descriptor or an Err(()) if path doesn't exist
     fn open(&mut self, path: Path) -> FSResult<FileDescriptor>;
     /// attempts to read `buffer.len` bytes from file_descriptor returns the actual count of the bytes read
-    fn read(&mut self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize>;
-    /// attempts to read a directory returning it's content's FileDescriptors
-    fn readdir(&mut self, file_descriptor: &mut FileDescriptor) -> FSResult<Vec<FileDescriptor>>;
+    /// shouldn't read directories!
+    fn read(&mut self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
+        _ = file_descriptor;
+        _ = buffer;
+        Err(FSError::OperationNotSupported)
+    }
     /// attempts to write `buffer.len` bytes to `file_descriptor`
-    fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<()>;
+    /// shouldn't write to directories!
+    fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<()> {
+        _ = file_descriptor;
+        _ = buffer;
+        Err(FSError::OperationNotSupported)
+    }
     /// creates an empty file named `name` in `path`
-    fn create(&mut self, path: Path, name: String) -> FSResult<()>;
+    fn create(&mut self, path: Path, name: String) -> FSResult<()> {
+        _ = path;
+        _ = name;
+        Err(FSError::OperationNotSupported)
+    }
     /// creates an empty dir named `name` in `path`
-    fn createdir(&mut self, path: Path, name: String) -> FSResult<()>;
+    fn createdir(&mut self, path: Path, name: String) -> FSResult<()> {
+        _ = path;
+        _ = name;
+        Err(FSError::OperationNotSupported)
+    }
 }
 
 pub struct VFS {
@@ -319,10 +362,6 @@ impl FS for VFS {
         unsafe { (*file_descriptor.mountpoint).read(file_descriptor, buffer) }
     }
 
-    fn readdir(&mut self, file_descriptor: &mut FileDescriptor) -> FSResult<Vec<FileDescriptor>> {
-        unsafe { (*file_descriptor.mountpoint).readdir(file_descriptor) }
-    }
-
     fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<()> {
         unsafe { (*file_descriptor.mountpoint).write(file_descriptor, buffer) }
     }
@@ -343,7 +382,7 @@ impl FS for VFS {
         mountpoint.createdir(path, name)
     }
 
-    fn close(&mut self, file: FileDescriptor) -> FSResult<()> {
-        unsafe { (*file.mountpoint).close(file) }
+    fn close(&mut self, file_descriptor: &mut FileDescriptor) -> FSResult<()> {
+        unsafe { (*file_descriptor.mountpoint).close(file_descriptor) }
     }
 }

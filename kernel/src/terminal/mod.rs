@@ -14,10 +14,14 @@ use framebuffer::TerminalMode;
 
 use crate::{
     arch,
-    drivers::vfs::{vfs, FS},
+    drivers::vfs::{
+        self,
+        expose::{create, createdir, direntrycount, open, read, readdir, FileDescriptorStat},
+        vfs,
+    },
     globals::terminal,
     kernel, print, println, scheduler, serial,
-    threading::{Process, ProcessFlags},
+    threading::processes::{Process, ProcessFlags},
     utils::elf,
     TEST_ELF,
 };
@@ -217,12 +221,9 @@ fn mkdir(args: Vec<&str>) {
     let dir_name = spilt.pop().unwrap();
     let path = spilt.join("/");
 
-    let result = vfs().createdir(&path, dir_name.to_string());
-    if result.is_err() {
-        println!(
-            "failed touching `{dir_name}` in {path}, error: {:?}",
-            result.unwrap_err()
-        );
+    let result = createdir(&path, dir_name.to_string());
+    if let Err(err) = result {
+        println!("failed touching `{dir_name}` in {path}, error: {:?}", err);
     }
 }
 
@@ -239,12 +240,9 @@ fn touch(args: Vec<&str>) {
     let file_name = spilt.pop().unwrap();
     let path = spilt.join("/");
 
-    let result = vfs().create(&path, file_name.to_string());
-    if result.is_err() {
-        println!(
-            "failed touching `{file_name}` in {path}, error: {:?}",
-            result.unwrap_err()
-        );
+    let result = create(&path, file_name.to_string());
+    if let Err(err) = result {
+        println!("failed touching `{file_name}` in {path}, error: {:?}", err);
     }
 }
 
@@ -254,10 +252,23 @@ fn ls(args: Vec<&str>) {
         return;
     }
 
-    let mut dir = vfs().open(&terminal().current_dir).unwrap();
-    let files = vfs().readdir(&mut dir).unwrap();
-    for file in files {
-        println!("{}", file.name());
+    let dir = open(&terminal().current_dir).unwrap();
+    let dir_entry_count = direntrycount(dir).unwrap();
+
+    let mut buffer = Vec::with_capacity(dir_entry_count);
+    buffer.resize(dir_entry_count, unsafe { FileDescriptorStat::default() });
+    _ = readdir(dir, &mut buffer);
+
+    for file in buffer {
+        let name_len = file.name_length();
+
+        let mut buffer = Vec::with_capacity(name_len);
+        buffer.resize(name_len, 0);
+        file.get_name(&mut buffer).unwrap();
+
+        let name_string = String::from_utf8(buffer).unwrap();
+
+        println!("{}", name_string);
     }
 }
 
@@ -286,37 +297,33 @@ fn cd(args: Vec<&str>) {
 
 fn cat(args: Vec<&str>) {
     if args.len() != 2 {
-        println!("{}: expected only the target file", args[0]);
+        println!("{}: expected only the target file path", args[0]);
         return;
     }
 
     let path = get_path(args[1]);
-    let res = vfs().open(&path);
+    let res = open(&path);
 
-    if res.is_err() {
-        println!(
-            "{}: failed to open file error: {:?}",
-            args[0],
-            res.unwrap_err()
-        );
-    } else {
-        let mut opened = res.unwrap();
-        let mut buffer: Vec<u8> = Vec::new();
-        buffer.resize(opened.size(), 0);
-
-        let read = vfs().read(&mut opened, &mut buffer);
-        if read.is_err() {
-            println!(
-                "{}: failed to read file error: {:?}",
-                args[0],
-                read.unwrap_err()
-            );
-            return;
-        }
-
-        let output = unsafe { String::from_utf8_unchecked(buffer) };
-        println!("{}", output);
+    if let Err(err) = res {
+        println!("{}: failed to open file, error: {:?}", args[0], err);
+        return;
     }
+
+    let opened = res.unwrap();
+    let mut stat = unsafe { FileDescriptorStat::default() };
+    _ = FileDescriptorStat::get(opened, &mut stat);
+
+    let mut buffer: Vec<u8> = Vec::new();
+    buffer.resize(stat.size, 0);
+
+    let read = read(opened, &mut buffer);
+
+    if let Err(err) = read {
+        println!("{}: failed to read file, error: {:?}", args[0], err);
+    }
+
+    let output = unsafe { String::from_utf8_unchecked(buffer) };
+    println!("{}", output);
 }
 
 fn write(args: Vec<&str>) {
@@ -326,27 +333,19 @@ fn write(args: Vec<&str>) {
     }
 
     let path = get_path(args[1]);
-    let res = vfs().open(&path);
+    let res = open(&path);
 
-    if res.is_err() {
-        println!(
-            "{}: failed to open file error: {:?}",
-            args[0],
-            res.unwrap_err()
-        );
-    } else {
-        let mut opened = res.unwrap();
-        let buffer = args[2].as_bytes();
+    if let Err(err) = res {
+        println!("{}: failed to open file, error: {:?}", args[0], err);
+        return;
+    }
 
-        let read = vfs().write(&mut opened, &buffer);
-        if read.is_err() {
-            println!(
-                "{}: failed to read file error: {:?}",
-                args[0],
-                read.unwrap_err()
-            );
-            return;
-        }
+    let opened = res.unwrap();
+    let buffer = args[2].as_bytes();
+
+    let wrote = vfs::expose::write(opened, &buffer);
+    if let Err(err) = wrote {
+        println!("{}: failed to write to file, error: {:?}", args[0], err);
     }
 }
 

@@ -1,3 +1,5 @@
+use core::usize;
+
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String, sync::Arc, vec::Vec};
 use spin::Mutex;
 
@@ -67,7 +69,7 @@ impl InodeOps for RamInode {
 
     fn read(&self, buffer: &mut [u8], offset: usize, count: usize) -> FSResult<()> {
         match self {
-            Self::Data(data) => Ok(buffer[..count].copy_from_slice(&data[offset..count])),
+            Self::Data(data) => Ok(buffer[..count].copy_from_slice(&data[offset..offset + count])),
             _ => Err(FSError::NotAFile),
         }
     }
@@ -154,24 +156,6 @@ impl FS for RamFS {
         Ok(count)
     }
 
-    fn readdir(&mut self, file_descriptor: &mut FileDescriptor) -> FSResult<Vec<FileDescriptor>> {
-        let node = unsafe { &mut *file_descriptor.node };
-        let read = node.ops.readdir()?;
-
-        let mut files = Vec::new();
-        for node in read {
-            let node = node as *mut Inode;
-            files.push(FileDescriptor {
-                mountpoint: self,
-                write_pos: 0,
-                read_pos: 0,
-                node,
-            })
-        }
-
-        Ok(files)
-    }
-
     fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<()> {
         unsafe {
             (*file_descriptor.node)
@@ -205,11 +189,6 @@ impl FS for RamFS {
         }
 
         resloved.ops.insert(node.name.clone(), node)?;
-        Ok(())
-    }
-
-    fn close(&mut self, file: FileDescriptor) -> FSResult<()> {
-        drop(file);
         Ok(())
     }
 

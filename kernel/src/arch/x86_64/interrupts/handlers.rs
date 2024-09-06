@@ -7,7 +7,7 @@ use super::{InterruptFrame, TrapFrame};
 
 use crate::arch::x86_64::interrupts::apic::send_eoi;
 use crate::arch::x86_64::{inb, threading};
-use crate::threading::ProcessStatus;
+use crate::threading::processes::ProcessStatus;
 use crate::{drivers, println, scheduler};
 
 const ATTR_TRAP: u8 = 0xF;
@@ -194,8 +194,8 @@ extern "C" fn sysprint(registers: SyscallRegisters) {
 
 /// for now
 #[no_mangle]
-unsafe extern "C" fn sysexit() {
-    (*scheduler().current_process).status = ProcessStatus::WaitingForBurying;
+extern "C" fn sysexit() {
+    scheduler().current_process().status = ProcessStatus::WaitingForBurying;
 
     // we cannot return if we do will will return into bad address we should wait until the
     // scheduler switches processes
