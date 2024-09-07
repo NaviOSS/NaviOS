@@ -4,7 +4,7 @@ pub const STACK_START: usize = 0x00007A0000000000;
 pub const STACK_END: usize = STACK_START + STACK_SIZE;
 
 use core::arch::asm;
-use processes::{Process, ProcessFlags, ProcessStatus};
+use processes::{Process, ProcessFlags, ProcessStatus, Resource};
 
 use alloc::{boxed::Box, vec::Vec};
 
@@ -211,5 +211,42 @@ impl Scheduler {
     #[inline]
     pub fn resources(&mut self) -> &mut Vec<processes::Resource> {
         &mut self.current_process().resources
+    }
+
+    #[inline]
+    pub fn set_next_resource(&mut self, next_ri: usize) {
+        if next_ri < self.current_process().next_ri {
+            self.current_process().next_ri = next_ri;
+        }
+    }
+
+    #[inline]
+    /// adds a resource to current process and returns it's ri
+    // FIXME: this may become a little of a problem in multiple threads, the ri may be incorrect
+    // if you add a resource while another is being added?
+    // maybe we need a resource manager
+    // system checklist
+    // - Sync
+    pub fn add_resource(&mut self, resource: processes::Resource) -> usize {
+        let resources = &mut self.current_process().resources[self.current_process().next_ri..];
+
+        for (ri, res) in resources.iter_mut().enumerate() {
+            if res.variant() == Resource::Null.variant() {
+                self.current_process().next_ri += 1;
+                *res = resource;
+                return ri;
+            }
+        }
+
+        self.current_process().resources.push(resource);
+        let ri = self.current_process().resources.len() - 1;
+        self.current_process().next_ri = ri;
+        return ri;
+    }
+
+    #[inline]
+    pub fn remove_resource(&mut self, ri: usize) {
+        self.current_process().resources[ri] = Resource::Null;
+        self.set_next_resource(ri);
     }
 }

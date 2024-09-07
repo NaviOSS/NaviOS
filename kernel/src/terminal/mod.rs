@@ -17,8 +17,8 @@ use crate::{
     drivers::vfs::{
         self,
         expose::{
-            create, createdir, diriter_close, diriter_next, diriter_open, open, read, DirEntry,
-            DirIterS, FileDescriptorStat,
+            close, create, createdir, diriter_close, diriter_next, diriter_open, open, read,
+            DirEntry, FileDescriptorStat,
         },
         vfs,
     },
@@ -257,12 +257,11 @@ fn ls(args: Vec<&str>) {
 
     let dir = open(&terminal().current_dir).unwrap();
 
-    let mut diriter = unsafe { DirIterS::zeroed() };
-    _ = diriter_open(dir, &mut diriter);
+    let diriter = diriter_open(dir).unwrap();
 
     loop {
         let mut entry = unsafe { DirEntry::zeroed() };
-        _ = diriter_next(&mut diriter, &mut entry);
+        _ = diriter_next(diriter, &mut entry);
 
         if entry == unsafe { DirEntry::zeroed() } {
             break;
@@ -273,7 +272,8 @@ fn ls(args: Vec<&str>) {
         println!("{}", name_string);
     }
 
-    diriter_close(&mut diriter);
+    diriter_close(diriter);
+    close(dir).unwrap();
 }
 
 fn cd(args: Vec<&str>) {
@@ -328,6 +328,8 @@ fn cat(args: Vec<&str>) {
 
     let output = unsafe { String::from_utf8_unchecked(buffer) };
     println!("{}", output);
+
+    close(opened).unwrap();
 }
 
 fn write(args: Vec<&str>) {
@@ -351,6 +353,8 @@ fn write(args: Vec<&str>) {
     if let Err(err) = wrote {
         println!("{}: failed to write to file, error: {:?}", args[0], err);
     }
+
+    close(opened).unwrap();
 }
 
 /// runs `crate::userspace_test as a userspace process`

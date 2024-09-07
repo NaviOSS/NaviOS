@@ -66,7 +66,7 @@ pub enum FSError {
     InvaildDrive,
     InvaildPath,
     /// ethier a fd which points to a resource which isnt a FileDescriptor or it points to nothing
-    InvaildFileDescriptor,
+    InvaildFileDescriptorOrRes,
     InvaildBuffer,
 }
 
@@ -170,7 +170,7 @@ pub trait FS: Send {
     /// attempts to close a file cleanig all it's resources
     fn close(&mut self, file_descriptor: &mut FileDescriptor) -> FSResult<()> {
         _ = file_descriptor;
-        return Err(FSError::OperationNotSupported);
+        Ok(())
     }
 
     fn root_inode_mut(&mut self) -> &mut Inode;

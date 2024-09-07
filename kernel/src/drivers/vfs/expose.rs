@@ -1,6 +1,6 @@
-use core::{mem::MaybeUninit, usize};
+use core::usize;
 
-use alloc::{boxed::Box, string::ToString};
+use alloc::string::ToString;
 
 use crate::{scheduler, threading::processes::Resource};
 
@@ -11,7 +11,7 @@ macro_rules! get_fd {
         let Some(crate::threading::processes::Resource::File(ref mut file_descriptor)) =
             crate::scheduler().resources().get_mut($ri)
         else {
-            return Err(FSError::InvaildFileDescriptor);
+            return Err(FSError::InvaildFileDescriptorOrRes);
         };
 
         file_descriptor
@@ -70,14 +70,16 @@ impl FileDescriptorStat {
 #[no_mangle]
 pub fn open(path: Path) -> FSResult<usize> {
     let fd = vfs().open(path)?;
-    scheduler().resources().push(Resource::File(fd));
-    Ok(scheduler().resources().len() - 1)
+    Ok(scheduler().add_resource(Resource::File(fd)))
 }
 
 #[no_mangle]
 pub fn close(ri: usize) -> FSResult<()> {
-    _ = ri;
-    todo!()
+    let fd = get_fd!(ri);
+    vfs().close(fd)?;
+
+    scheduler().remove_resource(ri);
+    Ok(())
 }
 
 #[no_mangle]
@@ -139,41 +141,34 @@ impl DirEntry {
     }
 }
 
-#[repr(C)]
-pub struct DirIterS {
-    diriter: MaybeUninit<*mut dyn DirIter>,
-}
-impl DirIterS {
-    pub const unsafe fn zeroed() -> Self {
-        #[allow(invalid_value)]
-        core::mem::zeroed()
-    }
-}
 pub trait DirIter: Iterator<Item = DirEntry> {}
 
 #[no_mangle]
-pub fn diriter_open(ri: usize, diriter_s: &mut DirIterS) -> FSResult<()> {
-    let fd = get_fd!(ri);
+/// opens a diriter as a resource
+/// return the ri of the diriter
+pub fn diriter_open(fd_ri: usize) -> FSResult<usize> {
+    let fd = get_fd!(fd_ri);
     let diriter = vfs().diriter_open(fd)?;
 
-    *diriter_s = DirIterS {
-        diriter: MaybeUninit::new(Box::into_raw(diriter)),
+    scheduler().resources().push(Resource::DirIter(diriter));
+    Ok(scheduler().resources().len() - 1)
+}
+
+pub fn diriter_next(dir_ri: usize, direntry: &mut DirEntry) -> FSResult<()> {
+    let Some(Resource::DirIter(diriter)) = scheduler().resources().get_mut(dir_ri) else {
+        return Err(FSError::InvaildFileDescriptorOrRes);
     };
+
+    let next = diriter.next();
+    if let Some(entry) = next {
+        *direntry = entry
+    } else {
+        unsafe { *direntry = DirEntry::zeroed() }
+    }
     Ok(())
 }
 
-pub fn diriter_next(diriter_s: &mut DirIterS, direntry: &mut DirEntry) {
-    let next = unsafe { (*diriter_s.diriter.assume_init()).next() };
-    if let Some(entry) = next {
-        *direntry = entry;
-        return;
-    }
-
-    unsafe { *direntry = DirEntry::zeroed() };
-}
-
 #[no_mangle]
-pub fn diriter_close(diriter_s: &mut DirIterS) {
-    let boxed = unsafe { Box::from_raw(diriter_s.diriter.assume_init()) };
-    drop(boxed);
+pub fn diriter_close(dir_ri: usize) {
+    scheduler().remove_resource(dir_ri)
 }

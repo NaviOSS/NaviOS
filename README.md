@@ -19,15 +19,16 @@ currently using the [limine](https://limine-bootloader.org/) bootloader
 # roadmap
 note: i dont know much about osdev (this is my first OS), stuff prefixed with ? is missing info and more stuff may be added in the feature
 ## next:
-- [X] sync
+- [ ] sync
     - [X] locking the serial
     - [X] locking the terminal
     - [X] improve peformance
-- [ ] process resources
+    - [ ] improve the peformance of the frame_allocator it takes 5 seconds to map 7*4 mbs without kvm?
+- [X] process resources
 - [ ] inode_id?
 - [ ] actual syscalls and some userspace programs
 - [ ] finally showcasing the OS!
-- [ ] work on the kernel memory: maybe a heap powered by something like mmap? and maybe each kernel process should have it's own heap we should reduce allocations and also start relying on a slab allocator
+- [ ] replace the current linked list allocator with a good buddy allocator
 
 ## roadmap
 - [X] x86_64 basics

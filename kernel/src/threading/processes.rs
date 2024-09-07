@@ -1,5 +1,6 @@
 use super::STACK_END;
 
+use crate::drivers::vfs::expose::DirIter;
 use crate::drivers::vfs::FileDescriptor;
 use crate::{arch, debug, kernel, scheduler};
 
@@ -10,9 +11,20 @@ use bitflags::bitflags;
 
 use crate::{arch::threading::CPUStatus, memory::paging::PageTable};
 
-#[derive(Debug)]
 pub enum Resource {
+    Null,
     File(FileDescriptor),
+    DirIter(Box<dyn DirIter>),
+}
+
+impl Resource {
+    pub const fn variant(&self) -> u8 {
+        match self {
+            Resource::Null => 0,
+            Resource::File(_) => 1,
+            Resource::DirIter(_) => 2,
+        }
+    }
 }
 
 bitflags! {
@@ -30,7 +42,6 @@ pub enum ProcessStatus {
     WaitingForBurying,
 }
 
-#[derive(Debug)]
 pub struct Process {
     pub pid: u64,
     pub name: [u8; 64],
@@ -39,6 +50,7 @@ pub struct Process {
 
     pub root_page_table: *mut PageTable,
     pub resources: Vec<Resource>,
+    pub next_ri: usize,
     pub next: Option<Box<Self>>,
 }
 
@@ -95,6 +107,7 @@ impl Process {
 
             root_page_table,
             resources: Vec::new(),
+            next_ri: 0,
             next: None,
         }
     }
