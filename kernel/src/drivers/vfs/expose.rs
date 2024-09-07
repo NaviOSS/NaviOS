@@ -1,6 +1,6 @@
-use core::usize;
+use core::{mem::MaybeUninit, usize};
 
-use alloc::{string::String, vec::Vec};
+use alloc::{boxed::Box, string::ToString};
 
 use crate::{scheduler, threading::processes::Resource};
 
@@ -26,8 +26,6 @@ pub struct FileDescriptorStat {
     pub inode: *mut Inode,
     pub kind: InodeType,
     pub size: usize,
-    pub read_pos: usize,
-    pub write_pos: usize,
 }
 
 impl FileDescriptorStat {
@@ -63,25 +61,9 @@ impl FileDescriptorStat {
             inode: file_descriptor.node,
             kind,
             size: file_descriptor.size(),
-            read_pos: file_descriptor.read_pos,
-            write_pos: file_descriptor.write_pos,
         };
 
         Ok(())
-    }
-
-    pub fn get_from_inode(inode: *mut Inode) -> FSResult<Self> {
-        unsafe {
-            let kind = (*inode).inode_type;
-            let size = (*inode).size();
-            Ok(Self {
-                inode,
-                kind,
-                size,
-                read_pos: 0,
-                write_pos: 0,
-            })
-        }
     }
 }
 
@@ -111,42 +93,87 @@ pub fn write(ri: usize, buffer: &[u8]) -> FSResult<()> {
 }
 
 #[no_mangle]
-pub fn create(path: Path, name: String) -> FSResult<()> {
-    vfs().create(path, name)
+pub fn create(path: Path, name: &str) -> FSResult<()> {
+    vfs().create(path, name.to_string())
 }
 
 #[no_mangle]
-pub fn createdir(path: Path, name: String) -> FSResult<()> {
-    vfs().createdir(path, name)
+pub fn createdir(path: Path, name: &str) -> FSResult<()> {
+    vfs().createdir(path, name.to_string())
 }
 
+pub const MAX_NAME_LEN: usize = 128;
+
+#[derive(Debug, PartialEq, Eq)]
+#[repr(C)]
+pub struct DirEntry {
+    pub kind: InodeType,
+    pub size: usize,
+    pub name_length: usize,
+    pub name: [u8; 128],
+}
+
+impl DirEntry {
+    pub fn get_from_inode(inode: *const Inode) -> FSResult<Self> {
+        unsafe {
+            let kind = (*inode).inode_type;
+            let size = (*inode).size();
+            let name_slice = (*inode).name.as_bytes();
+
+            let name_length = name_slice.len();
+            let mut name = [0u8; MAX_NAME_LEN];
+
+            name[..name_length].copy_from_slice(name_slice);
+
+            Ok(Self {
+                kind,
+                size,
+                name_length,
+                name,
+            })
+        }
+    }
+
+    pub const unsafe fn zeroed() -> Self {
+        core::mem::zeroed()
+    }
+}
+
+#[repr(C)]
+pub struct DirIterS {
+    diriter: MaybeUninit<*mut dyn DirIter>,
+}
+impl DirIterS {
+    pub const unsafe fn zeroed() -> Self {
+        #[allow(invalid_value)]
+        core::mem::zeroed()
+    }
+}
+pub trait DirIter: Iterator<Item = DirEntry> {}
+
 #[no_mangle]
-/// reads a directory appending all of it's FileDescriptorStats to buffer
-pub fn readdir(ri: usize, buffer: &mut [FileDescriptorStat]) -> FSResult<()> {
-    let mut stats = unsafe { FileDescriptorStat::default() };
-    FileDescriptorStat::get(ri, &mut stats)?;
+pub fn diriter_open(ri: usize, diriter_s: &mut DirIterS) -> FSResult<()> {
+    let fd = get_fd!(ri);
+    let diriter = vfs().diriter_open(fd)?;
 
-    if stats.kind != InodeType::Directory {
-        return Err(FSError::NotADirectory);
-    }
-
-    let entries = unsafe { (*(stats.inode)).ops.readdir()? };
-    if entries.len() != buffer.len() {
-        return Err(FSError::InvaildBuffer);
-    }
-
-    let mut entries_stats = Vec::with_capacity(entries.len());
-
-    for entry in entries {
-        entries_stats.push(FileDescriptorStat::get_from_inode(entry)?);
-    }
-
-    buffer.copy_from_slice(&entries_stats);
+    *diriter_s = DirIterS {
+        diriter: MaybeUninit::new(Box::into_raw(diriter)),
+    };
     Ok(())
 }
 
+pub fn diriter_next(diriter_s: &mut DirIterS, direntry: &mut DirEntry) {
+    let next = unsafe { (*diriter_s.diriter.assume_init()).next() };
+    if let Some(entry) = next {
+        *direntry = entry;
+        return;
+    }
+
+    unsafe { *direntry = DirEntry::zeroed() };
+}
+
 #[no_mangle]
-pub fn direntrycount(ri: usize) -> FSResult<usize> {
-    let fd = get_fd!(ri);
-    unsafe { Ok((*fd.node).ops.readdir()?.len()) }
+pub fn diriter_close(diriter_s: &mut DirIterS) {
+    let boxed = unsafe { Box::from_raw(diriter_s.diriter.assume_init()) };
+    drop(boxed);
 }

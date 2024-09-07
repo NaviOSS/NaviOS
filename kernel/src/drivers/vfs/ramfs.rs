@@ -3,7 +3,10 @@ use core::usize;
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String, sync::Arc, vec::Vec};
 use spin::Mutex;
 
-use super::{FSError, FSResult, FileDescriptor, Inode, InodeOps, InodeType, Path, FS};
+use super::{
+    expose::{DirEntry, DirIter},
+    FSError, FSResult, FileDescriptor, Inode, InodeOps, InodeType, Path, FS,
+};
 
 pub enum RamInode {
     Data(Vec<u8>),
@@ -106,6 +109,23 @@ impl InodeOps for RamInode {
     }
 }
 
+pub struct RamDirIter<'a> {
+    entries: Vec<&'a mut Inode>,
+    index: usize,
+}
+
+impl<'a> Iterator for RamDirIter<'a> {
+    type Item = DirEntry;
+    fn next(&mut self) -> Option<Self::Item> {
+        let index = self.index;
+        let entry = self.entries.get(index)?;
+        self.index += 1;
+        Some(DirEntry::get_from_inode(*entry).ok()?)
+    }
+}
+
+impl<'a> DirIter for RamDirIter<'a> {}
+
 pub struct RamFS {
     root_inode: Inode,
 }
@@ -190,6 +210,12 @@ impl FS for RamFS {
 
         resloved.ops.insert(node.name.clone(), node)?;
         Ok(())
+    }
+
+    fn diriter_open(&mut self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
+        let entries = unsafe { (*fd.node).ops.readdir()? };
+
+        Ok(Box::new(RamDirIter { entries, index: 0 }))
     }
 
     fn root_inode_mut(&mut self) -> &mut Inode {

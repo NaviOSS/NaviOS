@@ -13,6 +13,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+use expose::DirIter;
 use lazy_static::lazy_static;
 use spin::MutexGuard;
 pub type Path<'a> = &'a str;
@@ -70,7 +71,7 @@ pub enum FSError {
 }
 
 pub type FSResult<T> = Result<T, FSError>;
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum InodeType {
     File,
@@ -243,6 +244,9 @@ pub trait FS: Send {
         _ = name;
         Err(FSError::OperationNotSupported)
     }
+
+    /// opens an iterator of directroy entires, fd must be a directory
+    fn diriter_open(&mut self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>>;
 }
 
 pub struct VFS {
@@ -384,5 +388,9 @@ impl FS for VFS {
 
     fn close(&mut self, file_descriptor: &mut FileDescriptor) -> FSResult<()> {
         unsafe { (*file_descriptor.mountpoint).close(file_descriptor) }
+    }
+
+    fn diriter_open(&mut self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
+        unsafe { (*fd.mountpoint).diriter_open(fd) }
     }
 }

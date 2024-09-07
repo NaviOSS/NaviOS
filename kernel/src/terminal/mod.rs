@@ -16,7 +16,10 @@ use crate::{
     arch,
     drivers::vfs::{
         self,
-        expose::{create, createdir, direntrycount, open, read, readdir, FileDescriptorStat},
+        expose::{
+            create, createdir, diriter_close, diriter_next, diriter_open, open, read, DirEntry,
+            DirIterS, FileDescriptorStat,
+        },
         vfs,
     },
     globals::terminal,
@@ -221,7 +224,7 @@ fn mkdir(args: Vec<&str>) {
     let dir_name = spilt.pop().unwrap();
     let path = spilt.join("/");
 
-    let result = createdir(&path, dir_name.to_string());
+    let result = createdir(&path, dir_name);
     if let Err(err) = result {
         println!("failed touching `{dir_name}` in {path}, error: {:?}", err);
     }
@@ -240,7 +243,7 @@ fn touch(args: Vec<&str>) {
     let file_name = spilt.pop().unwrap();
     let path = spilt.join("/");
 
-    let result = create(&path, file_name.to_string());
+    let result = create(&path, file_name);
     if let Err(err) = result {
         println!("failed touching `{file_name}` in {path}, error: {:?}", err);
     }
@@ -253,23 +256,24 @@ fn ls(args: Vec<&str>) {
     }
 
     let dir = open(&terminal().current_dir).unwrap();
-    let dir_entry_count = direntrycount(dir).unwrap();
 
-    let mut buffer = Vec::with_capacity(dir_entry_count);
-    buffer.resize(dir_entry_count, unsafe { FileDescriptorStat::default() });
-    _ = readdir(dir, &mut buffer);
+    let mut diriter = unsafe { DirIterS::zeroed() };
+    _ = diriter_open(dir, &mut diriter);
 
-    for file in buffer {
-        let name_len = file.name_length();
+    loop {
+        let mut entry = unsafe { DirEntry::zeroed() };
+        _ = diriter_next(&mut diriter, &mut entry);
 
-        let mut buffer = Vec::with_capacity(name_len);
-        buffer.resize(name_len, 0);
-        file.get_name(&mut buffer).unwrap();
+        if entry == unsafe { DirEntry::zeroed() } {
+            break;
+        }
 
-        let name_string = String::from_utf8(buffer).unwrap();
+        let name_string = String::from_utf8(entry.name[..entry.name_length].to_vec()).unwrap();
 
         println!("{}", name_string);
     }
+
+    diriter_close(&mut diriter);
 }
 
 fn cd(args: Vec<&str>) {
