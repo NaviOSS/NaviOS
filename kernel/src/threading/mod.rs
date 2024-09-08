@@ -10,7 +10,7 @@ use alloc::{boxed::Box, vec::Vec};
 
 use crate::{
     arch::threading::{restore_cpu_status, CPUStatus},
-    debug, kernel,
+    debug, kernel, khalt,
     memory::{
         frame_allocator::Frame,
         paging::{EntryFlags, MapToError, Page, PageTable, PAGE_SIZE},
@@ -207,12 +207,6 @@ impl Scheduler {
         self.add_process(Process::create(function, name, flags));
     }
 
-    /// returns the current process's resources
-    #[inline]
-    pub fn resources(&mut self) -> &mut Vec<processes::Resource> {
-        &mut self.current_process().resources
-    }
-
     #[inline]
     pub fn set_next_resource(&mut self, next_ri: usize) {
         if next_ri < self.current_process().next_ri {
@@ -230,23 +224,52 @@ impl Scheduler {
     pub fn add_resource(&mut self, resource: processes::Resource) -> usize {
         let resources = &mut self.current_process().resources[self.current_process().next_ri..];
 
-        for (ri, res) in resources.iter_mut().enumerate() {
+        for (mut ri, res) in resources.iter_mut().enumerate() {
             if res.variant() == Resource::Null.variant() {
-                self.current_process().next_ri += 1;
+                ri += self.current_process().next_ri;
+
+                self.current_process().next_ri = ri;
                 *res = resource;
+
                 return ri;
             }
         }
 
         self.current_process().resources.push(resource);
+
         let ri = self.current_process().resources.len() - 1;
         self.current_process().next_ri = ri;
+
         return ri;
     }
 
     #[inline]
-    pub fn remove_resource(&mut self, ri: usize) {
+    pub fn remove_resource(&mut self, ri: usize) -> Result<(), ()> {
+        if ri >= self.current_process().resources.len() {
+            return Err(());
+        }
+
         self.current_process().resources[ri] = Resource::Null;
         self.set_next_resource(ri);
+        Ok(())
+    }
+}
+
+#[no_mangle]
+pub fn thread_exit() {
+    scheduler().current_process().status = ProcessStatus::WaitingForBurying;
+    // enables interrupts if they were disabled to give control back to the scheduler
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        asm!("sti")
+    }
+    khalt()
+}
+
+#[no_mangle]
+pub fn thread_yeild() {
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        asm!("int 0x20")
     }
 }

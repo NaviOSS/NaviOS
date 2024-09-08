@@ -1,4 +1,4 @@
-use core::usize;
+use core::{fmt::Debug, usize};
 
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String, sync::Arc, vec::Vec};
 use spin::Mutex;
@@ -111,7 +111,12 @@ impl InodeOps for RamInode {
 
 pub struct RamDirIter<'a> {
     entries: Vec<&'a mut Inode>,
-    index: usize,
+    pub index: usize,
+}
+impl Debug for RamDirIter<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "RamDirIter {{ index: {} }}", self.index)
+    }
 }
 
 impl<'a> Iterator for RamDirIter<'a> {

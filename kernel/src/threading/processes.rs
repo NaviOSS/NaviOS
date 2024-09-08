@@ -11,10 +11,15 @@ use bitflags::bitflags;
 
 use crate::{arch::threading::CPUStatus, memory::paging::PageTable};
 
+#[derive(Debug)]
 pub enum Resource {
     Null,
     File(FileDescriptor),
     DirIter(Box<dyn DirIter>),
+    /// FIXME:
+    /// dirty soultion it is basically a File that points to a kernel-device the thing is i dont
+    /// have devices yet
+    Reserved,
 }
 
 impl Resource {
@@ -23,6 +28,7 @@ impl Resource {
             Resource::Null => 0,
             Resource::File(_) => 1,
             Resource::DirIter(_) => 2,
+            Resource::Reserved => 3,
         }
     }
 }
@@ -99,6 +105,12 @@ impl Process {
             context.cr3 = root_page_table_addr as u64;
         }
 
+        let mut resources = Vec::with_capacity(2);
+        // stdin fd
+        resources.push(Resource::Reserved);
+        // stdout fd
+        resources.push(Resource::Reserved);
+
         Process {
             pid,
             name,
@@ -106,7 +118,7 @@ impl Process {
             context,
 
             root_page_table,
-            resources: Vec::new(),
+            resources,
             next_ri: 0,
             next: None,
         }

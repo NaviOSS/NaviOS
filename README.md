@@ -13,6 +13,10 @@ to build do
 cargo build
 ```
 this will make an iso `navios.iso`
+to run without kvm do
+```
+cargo run -- no-kvm
+```
 
 currently using the [limine](https://limine-bootloader.org/) bootloader
 

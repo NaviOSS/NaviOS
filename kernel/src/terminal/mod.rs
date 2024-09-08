@@ -24,7 +24,10 @@ use crate::{
     },
     globals::terminal,
     kernel, print, println, scheduler, serial,
-    threading::processes::{Process, ProcessFlags},
+    threading::{
+        processes::{Process, ProcessFlags},
+        thread_yeild,
+    },
     utils::elf,
     TEST_ELF,
 };
@@ -36,6 +39,21 @@ pub fn _print(args: fmt::Arguments) {
     combined.write_fmt(args).unwrap();
 
     terminal().write(&combined);
+}
+
+pub fn getbyte() -> u8 {
+    let old_mode = terminal().mode;
+    terminal().mode = TerminalMode::Stdin;
+
+    let last_len = terminal().stdin_buffer.len();
+    loop {
+        if terminal().stdin_buffer.len() > last_len {
+            terminal().mode = old_mode;
+            return terminal().stdin_buffer.chars().nth(last_len).unwrap() as u8;
+        }
+
+        thread_yeild()
+    }
 }
 
 pub fn readln() -> String {
@@ -52,6 +70,7 @@ pub fn readln() -> String {
             terminal().mode = old_mode;
             return buffer;
         }
+        thread_yeild()
     }
 }
 
@@ -256,7 +275,6 @@ fn ls(args: Vec<&str>) {
     }
 
     let dir = open(&terminal().current_dir).unwrap();
-
     let diriter = diriter_open(dir).unwrap();
 
     loop {
@@ -272,7 +290,7 @@ fn ls(args: Vec<&str>) {
         println!("{}", name_string);
     }
 
-    diriter_close(diriter);
+    _ = diriter_close(diriter);
     close(dir).unwrap();
 }
 

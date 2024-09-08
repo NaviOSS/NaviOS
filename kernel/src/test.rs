@@ -8,9 +8,7 @@ pub mod testing_module {
     use crate::println;
     use core::arch::asm;
 
-    fn print() {
-        assert_eq!(1, 1);
-    }
+    fn print() {}
 
     #[cfg(target_arch = "x86_64")]
     fn long_mode() {
@@ -31,7 +29,6 @@ pub mod testing_module {
     #[cfg(target_arch = "x86_64")]
     fn interrupts() {
         unsafe { asm!("int3") }
-        assert_eq!(true, true);
     }
 
     fn allocator() {
@@ -46,6 +43,18 @@ pub mod testing_module {
 
     // syscall tests
     fn syscall() {
-        unsafe { asm!("mov rax, 1; int 0x80") }
+        let msg = "Hello from syswrite!\n";
+        let len = msg.len();
+        let msg = msg.as_ptr();
+
+        unsafe {
+            asm!(
+                "mov rax, 3
+                mov rdi, 1
+                mov rsi, r9
+                mov rdx, r10
+                int 0x80", in("r9") msg, in("r10") len
+            )
+        }
     }
 }

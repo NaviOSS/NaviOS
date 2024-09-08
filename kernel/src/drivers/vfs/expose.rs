@@ -1,4 +1,4 @@
-use core::usize;
+use core::{fmt::Debug, usize};
 
 use alloc::string::ToString;
 
@@ -9,7 +9,7 @@ use super::{vfs, FSError, FSResult, Inode, InodeType, Path, FS};
 macro_rules! get_fd {
     ($ri: expr) => {{
         let Some(crate::threading::processes::Resource::File(ref mut file_descriptor)) =
-            crate::scheduler().resources().get_mut($ri)
+            crate::scheduler().current_process().resources.get_mut($ri)
         else {
             return Err(FSError::InvaildFileDescriptorOrRes);
         };
@@ -78,7 +78,7 @@ pub fn close(ri: usize) -> FSResult<()> {
     let fd = get_fd!(ri);
     vfs().close(fd)?;
 
-    scheduler().remove_resource(ri);
+    _ = scheduler().remove_resource(ri);
     Ok(())
 }
 
@@ -141,7 +141,7 @@ impl DirEntry {
     }
 }
 
-pub trait DirIter: Iterator<Item = DirEntry> {}
+pub trait DirIter: Iterator<Item = DirEntry> + Debug {}
 
 #[no_mangle]
 /// opens a diriter as a resource
@@ -150,12 +150,12 @@ pub fn diriter_open(fd_ri: usize) -> FSResult<usize> {
     let fd = get_fd!(fd_ri);
     let diriter = vfs().diriter_open(fd)?;
 
-    scheduler().resources().push(Resource::DirIter(diriter));
-    Ok(scheduler().resources().len() - 1)
+    Ok(scheduler().add_resource(Resource::DirIter(diriter)))
 }
 
 pub fn diriter_next(dir_ri: usize, direntry: &mut DirEntry) -> FSResult<()> {
-    let Some(Resource::DirIter(diriter)) = scheduler().resources().get_mut(dir_ri) else {
+    let Some(Resource::DirIter(diriter)) = scheduler().current_process().resources.get_mut(dir_ri)
+    else {
         return Err(FSError::InvaildFileDescriptorOrRes);
     };
 
@@ -169,6 +169,7 @@ pub fn diriter_next(dir_ri: usize, direntry: &mut DirEntry) -> FSResult<()> {
 }
 
 #[no_mangle]
-pub fn diriter_close(dir_ri: usize) {
+/// may only Err if dir_ri is invaild
+pub fn diriter_close(dir_ri: usize) -> Result<(), ()> {
     scheduler().remove_resource(dir_ri)
 }
