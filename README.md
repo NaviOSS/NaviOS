@@ -30,6 +30,7 @@ cargo run -- no-kvm
 - scheduler with one-thread processes
 - process resources
 - VFS with RamFS
+- ring3 processes
 - syscalls
 - some elf executing
 
