@@ -1,6 +1,9 @@
 # NaviOS 
 badly written open-source generic operating system made for fun written in rust!
 i am attempting to make something like ChromeOS with native wasm support
+this is my first OS!
+
+**star the repo!**
 
 # building and running
 you need a linux system with bash, `xorriso`, `make`, `cargo` and `qemu-system-x86_64` (you need kvm) to run do
@@ -17,6 +20,18 @@ to run without kvm do
 ```
 cargo run -- no-kvm
 ```
+# current features:
+- basics (x86_64: IDT, GDT, interrupts, ACPI, APIC, APIC keyboard, APIC timer, ...)
+- pmm (bitmap allocator)
+- linked-list heap allocator
+- generic keyboard driver
+    - ps/2 scancode set 1 support
+- basic ring0 framebuffer terminal
+- scheduler with one-thread processes
+- process resources
+- VFS with RamFS
+- syscalls
+- some elf executing
 
 currently using the [limine](https://limine-bootloader.org/) bootloader
 
