@@ -1,6 +1,6 @@
 use core::{
     arch::{asm, global_asm},
-    isize,
+    isize, usize,
 };
 
 use alloc::{slice, string::String};
@@ -20,6 +20,7 @@ syscall_table:
     .quad sysopen
     .quad syswrite
     .quad sysread
+    .quad sysclose
 syscall_table_end:
 
 SYSCALL_TABLE_INFO:
@@ -198,6 +199,19 @@ extern "C" fn sysread(registers: SyscallRegisters) {
                 0
             }
         }
+    };
+
+    sysret!(ret)
+}
+
+#[no_mangle]
+extern "C" fn sysclose(registers: SyscallRegisters) {
+    let fd = registers.rdi as usize;
+
+    let ret = if let Err(err) = vfs::expose::close(fd) {
+        -(err as i16)
+    } else {
+        0
     };
 
     sysret!(ret)

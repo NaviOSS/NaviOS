@@ -1,7 +1,7 @@
 use super::STACK_END;
 
 use crate::drivers::vfs::expose::DirIter;
-use crate::drivers::vfs::FileDescriptor;
+use crate::drivers::vfs::{vfs, FileDescriptor, FS};
 use crate::{arch, debug, kernel, scheduler};
 
 use crate::memory::paging;
@@ -145,7 +145,17 @@ impl Process {
 
         let root_page_table = unsafe { &mut (*self.root_page_table) };
         unsafe { root_page_table.free(4) };
+
         debug!(Process, "deallocated the process's page table ...");
+
+        for resource in &mut self.resources {
+            match resource {
+                Resource::File(ref mut fd) => vfs().close(fd).unwrap(),
+                _ => (),
+            }
+        }
+
+        debug!(Process, "closed process resources ...");
 
         self.next.take()
     }

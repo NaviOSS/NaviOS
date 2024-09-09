@@ -1,5 +1,3 @@
-/// exposed functions of VFS it manually uses
-/// a resource index instead of a file descriptor aka ri
 pub mod expose;
 
 use core::usize;

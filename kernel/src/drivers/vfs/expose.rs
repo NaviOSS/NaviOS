@@ -1,3 +1,5 @@
+//! exposed functions of VFS they manually uses
+//! a resource index instead of a file descriptor aka ri
 use core::{fmt::Debug, usize};
 
 use alloc::string::ToString;

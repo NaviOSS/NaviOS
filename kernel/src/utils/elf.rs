@@ -322,7 +322,10 @@ impl<'a> Elf<'a> {
         }
 
         for header in self.program_headers {
-            assert_eq!(header.ptype, ProgramType::LOAD);
+            if header.ptype != ProgramType::LOAD {
+                continue;
+            }
+
             let mut entry_flags = EntryFlags::empty();
 
             if header.flags.contains(ProgramFlags::READ) {
