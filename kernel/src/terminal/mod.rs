@@ -227,7 +227,7 @@ fn get_path(path: &str) -> String {
         }
     }
 
-    return terminal().current_dir.clone() + path;
+    return scheduler().current_process().current_dir.clone() + path;
 }
 
 fn mkdir(args: Vec<&str>) {
@@ -274,7 +274,7 @@ fn ls(args: Vec<&str>) {
         return;
     }
 
-    let dir = open(&terminal().current_dir).unwrap();
+    let dir = open(&scheduler().current_process().current_dir).unwrap();
     let diriter = diriter_open(dir).unwrap();
 
     loop {
@@ -313,7 +313,7 @@ fn cd(args: Vec<&str>) {
         if !path.ends_with('/') {
             path.push('/');
         }
-        terminal().current_dir = path
+        scheduler().current_process().current_dir = path
     }
 }
 
@@ -514,7 +514,10 @@ pub fn shell() {
     print!("\\[fg: (255, 255, 255) ||\nwelcome to NaviOS!\ntype help or ? for a list of avalible commands\n||]");
 
     loop {
-        print!(r"\[fg: (0, 255, 0) ||{}||] # ", terminal().current_dir);
+        print!(
+            r"\[fg: (0, 255, 0) ||{}||] # ",
+            scheduler().current_process().current_dir
+        );
         process_command(readln());
     }
 }

@@ -51,7 +51,6 @@ pub struct Terminal {
 
     pub stdin_buffer: String,
     pub stdout_buffer: String,
-    pub current_dir: String,
 
     pub info: FrameBufferInfo,
     /// x_pos in pixels
@@ -83,7 +82,6 @@ impl Terminal {
             mode: TerminalMode::Init,
             stdin_buffer: String::new(),
             stdout_buffer: String::new(),
-            current_dir: String::from("ram:/"),
 
             info,
             x_pos: 0,

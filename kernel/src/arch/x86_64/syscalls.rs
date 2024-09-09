@@ -1,7 +1,4 @@
-use core::{
-    arch::{asm, global_asm},
-    isize, usize,
-};
+use core::arch::{asm, global_asm};
 
 use alloc::{slice, string::String};
 
@@ -21,6 +18,8 @@ syscall_table:
     .quad syswrite
     .quad sysread
     .quad sysclose
+    .quad syscreate
+    .quad syscreatedir
 syscall_table_end:
 
 SYSCALL_TABLE_INFO:
@@ -82,8 +81,8 @@ struct SyscallRegisters {
     _r12: u64,
     _r11: u64,
     _r10: u64,
-    _r9: u64,
-    _r8: u64,
+    pub r9: u64,
+    pub r8: u64,
     _rbp: u64,
     pub rdi: u64,
     pub rsi: u64,
@@ -94,10 +93,7 @@ struct SyscallRegisters {
 
 macro_rules! sysret {
     ($val: expr) => {
-        unsafe {
-            asm!("mov rax, {:r}", in(reg) $val, options(nostack));
-            return;
-        }
+        return $val as u64
     };
 }
 
@@ -117,7 +113,7 @@ extern "C" fn sysyield() {
 const INVAILD_PTR_ERR: isize = -257;
 
 #[no_mangle]
-extern "C" fn sysopen(registers: SyscallRegisters) {
+extern "C" fn sysopen(registers: SyscallRegisters) -> u64 {
     let path_ptr = registers.rdi as *const u8;
     let len = registers.rsi as usize;
 
@@ -137,7 +133,7 @@ extern "C" fn sysopen(registers: SyscallRegisters) {
 }
 
 #[no_mangle]
-extern "C" fn syswrite(registers: SyscallRegisters) {
+extern "C" fn syswrite(registers: SyscallRegisters) -> u64 {
     let fd = registers.rdi as usize;
     let ptr = registers.rsi as *const u8;
 
@@ -171,7 +167,7 @@ extern "C" fn syswrite(registers: SyscallRegisters) {
 }
 
 #[no_mangle]
-extern "C" fn sysread(registers: SyscallRegisters) {
+extern "C" fn sysread(registers: SyscallRegisters) -> u64 {
     let fd = registers.rdi as usize;
     let ptr = registers.rsi as *mut u8;
 
@@ -205,10 +201,56 @@ extern "C" fn sysread(registers: SyscallRegisters) {
 }
 
 #[no_mangle]
-extern "C" fn sysclose(registers: SyscallRegisters) {
+extern "C" fn sysclose(registers: SyscallRegisters) -> u64 {
     let fd = registers.rdi as usize;
 
     let ret = if let Err(err) = vfs::expose::close(fd) {
+        -(err as i16)
+    } else {
+        0
+    };
+
+    sysret!(ret)
+}
+
+#[no_mangle]
+extern "C" fn syscreate(registers: SyscallRegisters) -> u64 {
+    let path_ptr = registers.rdi as *const u8;
+    let path_len = registers.rsi as usize;
+
+    let name_ptr = registers.rdx as *const u8;
+    let name_len = registers.r8 as usize;
+
+    let path = unsafe { slice::from_raw_parts(path_ptr, path_len) };
+    let path = String::from_utf8_lossy(path);
+
+    let name = unsafe { slice::from_raw_parts(name_ptr, name_len) };
+    let name = String::from_utf8_lossy(name);
+
+    let ret = if let Err(err) = vfs::expose::create(&path, &name) {
+        -(err as i16)
+    } else {
+        0
+    };
+
+    sysret!(ret)
+}
+
+#[no_mangle]
+extern "C" fn syscreatedir(registers: SyscallRegisters) -> u64 {
+    let path_ptr = registers.rdi as *const u8;
+    let path_len = registers.rsi as usize;
+
+    let name_ptr = registers.rdx as *const u8;
+    let name_len = registers.r8 as usize;
+
+    let path = unsafe { slice::from_raw_parts(path_ptr, path_len) };
+    let path = String::from_utf8_lossy(path);
+
+    let name = unsafe { slice::from_raw_parts(name_ptr, name_len) };
+    let name = String::from_utf8_lossy(name);
+
+    let ret = if let Err(err) = vfs::expose::createdir(&path, &name) {
         -(err as i16)
     } else {
         0

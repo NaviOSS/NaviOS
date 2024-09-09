@@ -6,6 +6,7 @@ use crate::{arch, debug, kernel, scheduler};
 
 use crate::memory::paging;
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec::Vec;
 use bitflags::bitflags;
 
@@ -57,6 +58,8 @@ pub struct Process {
     pub root_page_table: *mut PageTable,
     pub resources: Vec<Resource>,
     pub next_ri: usize,
+
+    pub current_dir: String,
     pub next: Option<Box<Self>>,
 }
 
@@ -119,6 +122,7 @@ impl Process {
 
             root_page_table,
             resources,
+            current_dir: String::from("ram:/"),
             next_ri: 0,
             next: None,
         }
