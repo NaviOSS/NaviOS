@@ -154,13 +154,10 @@ extern "C" fn syswrite(registers: SyscallRegisters) -> u64 {
             print!("{}", str);
             0
         }
-        fd => {
-            if let Err(err) = vfs::expose::write(fd, slice) {
-                -(err as i16)
-            } else {
-                0
-            }
-        }
+        fd => match vfs::expose::write(fd, slice) {
+            Err(err) => -(err as isize),
+            Ok(()) => 0,
+        },
     };
 
     sysret!(ret)
@@ -188,13 +185,10 @@ extern "C" fn sysread(registers: SyscallRegisters) -> u64 {
             crate::terminal().stdin_buffer.clear();
             0
         }
-        _ => {
-            if let Err(err) = vfs::expose::read(fd, slice) {
-                -(err as i16)
-            } else {
-                0
-            }
-        }
+        _ => match vfs::expose::read(fd, slice) {
+            Err(err) => -(err as isize),
+            Ok(bytes_read) => bytes_read as isize,
+        },
     };
 
     sysret!(ret)

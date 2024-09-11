@@ -56,7 +56,10 @@ use core::arch::asm;
 #[inline]
 pub fn khalt() -> ! {
     loop {
-        unsafe { asm!("hlt") }
+        #[cfg(target_arch = "x86_64")]
+        unsafe {
+            asm!("hlt")
+        }
     }
 }
 
