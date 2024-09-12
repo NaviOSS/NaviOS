@@ -62,7 +62,7 @@ impl InodeOps for RamInode {
         }
     }
 
-    fn readdir(&mut self) -> FSResult<Vec<usize>> {
+    fn readdir(&self) -> FSResult<Vec<usize>> {
         match self {
             Self::Children(tree) => Ok(tree.values().copied().collect()),
             _ => Err(FSError::NotADirectory),
@@ -95,29 +95,24 @@ impl InodeOps for RamInode {
 }
 
 pub struct RamDirIter {
-    fs: *const dyn FS,
-    entries: Vec<usize>,
-    pub index: usize,
+    index: usize,
+    dir: Vec<DirEntry>,
 }
+
 impl Debug for RamDirIter {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "RamDirIter {{ index: {} }}", self.index)
+        write!(f, "RamDirIter")
     }
 }
 
-impl Iterator for RamDirIter {
-    type Item = DirEntry;
-    fn next(&mut self) -> Option<Self::Item> {
+impl DirIter for RamDirIter {
+    fn next(&mut self) -> Option<&DirEntry> {
         let index = self.index;
-        let entry = *self.entries.get(index)?;
         self.index += 1;
 
-        let node = unsafe { (*self.fs).get_inode(entry).unwrap()? };
-        Some(DirEntry::get_from_inode(node).ok()?)
+        self.dir.get(index)
     }
 }
-
-impl DirIter for RamDirIter {}
 
 pub struct RamFS {
     inodes: Vec<Inode>,
@@ -209,25 +204,54 @@ impl FS for RamFS {
 
     fn createdir(&mut self, path: Path, name: String) -> FSResult<()> {
         let inodeid = self.inodes.len();
-        let name_clone = name.clone();
-        let node = RamInode::new_dir(name, inodeid);
-        self.inodes.push(node);
 
         let resloved = self.reslove_path(path)?;
         if resloved.inode_type != InodeType::Directory {
             return Err(FSError::NotADirectory);
         }
 
-        resloved.ops.insert(name_clone, inodeid)?;
+        resloved.ops.insert(name.clone(), inodeid)?;
+
+        let mut node = RamInode::new_dir(name, inodeid);
+        node.ops.insert("..".to_string(), resloved.inodeid)?;
+
+        self.inodes.push(node);
+
         Ok(())
     }
 
     fn diriter_open(&mut self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
-        let entries = unsafe { (*fd.node).ops.readdir()? };
+        if unsafe { !(*fd.node).is_dir() } {
+            return Err(FSError::NotADirectory);
+        }
+
+        let raminode: *const RamInode =
+            unsafe { ((*fd.node).ops.as_ref() as *const dyn InodeOps).cast() };
+
+        let data = match unsafe { &*raminode } {
+            RamInode::Children(ref data) => data,
+            _ => unreachable!(),
+        };
+
+        let mut data_entries = Vec::with_capacity(data.len());
+
+        for (name, inode_id) in data {
+            let inode = self.get_inode(*inode_id)?.unwrap();
+
+            let name_length = name.len();
+            let mut name_arr = [0u8; 128];
+            name_arr[..name_length].copy_from_slice(name.as_bytes());
+
+            data_entries.push(DirEntry {
+                kind: inode.inode_type,
+                size: inode.size().unwrap_or(0),
+                name_length,
+                name: name_arr,
+            })
+        }
 
         Ok(Box::new(RamDirIter {
-            fs: self,
-            entries,
+            dir: data_entries,
             index: 0,
         }))
     }

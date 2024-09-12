@@ -111,7 +111,7 @@ pub trait InodeOps: Send {
         Err(FSError::OperationNotSupported)
     }
     /// attempts to read the contents of self if it is a directory returning a list of inodes
-    fn readdir(&mut self) -> FSResult<Vec<usize>> {
+    fn readdir(&self) -> FSResult<Vec<usize>> {
         Err(FSError::OperationNotSupported)
     }
     /// attempts to write `buffer.len` bytes from `buffer` into node data if it is a file starting
@@ -189,7 +189,6 @@ pub trait FS: Send {
         let mut path = path.split(&['/', '\\']);
 
         let mut current_inode = self.root_inode()?;
-        let mut prev_inode = current_inode as *const Inode;
         path.next();
 
         while let Some(depth) = path.next() {
@@ -205,11 +204,6 @@ pub trait FS: Send {
                 continue;
             }
 
-            if depth == ".." {
-                current_inode = unsafe { &*prev_inode };
-                continue;
-            }
-
             if !current_inode.is_dir() {
                 return Err(FSError::NoSuchAFileOrDirectory);
             }
@@ -217,8 +211,6 @@ pub trait FS: Send {
             if !current_inode.contains(depth) {
                 return Err(FSError::NoSuchAFileOrDirectory);
             }
-
-            prev_inode = current_inode;
 
             let inodeid = current_inode.get(depth)?.unwrap();
             current_inode = self.get_inode(inodeid)?.unwrap();

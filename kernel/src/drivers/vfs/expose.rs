@@ -108,7 +108,7 @@ pub fn createdir(path: Path, name: &str) -> FSResult<()> {
 
 pub const MAX_NAME_LEN: usize = 128;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
 pub struct DirEntry {
     pub kind: InodeType,
@@ -143,7 +143,9 @@ impl DirEntry {
     }
 }
 
-pub trait DirIter: Iterator<Item = DirEntry> + Debug {}
+pub trait DirIter: Debug {
+    fn next(&mut self) -> Option<&DirEntry>;
+}
 
 #[no_mangle]
 /// opens a diriter as a resource
@@ -163,7 +165,7 @@ pub fn diriter_next(dir_ri: usize, direntry: &mut DirEntry) -> FSResult<()> {
 
     let next = diriter.next();
     if let Some(entry) = next {
-        *direntry = entry
+        *direntry = entry.clone();
     } else {
         unsafe { *direntry = DirEntry::zeroed() }
     }
