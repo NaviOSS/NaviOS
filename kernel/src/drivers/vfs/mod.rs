@@ -45,10 +45,6 @@ pub struct FileDescriptor {
 }
 
 impl FileDescriptor {
-    pub fn size(&self) -> usize {
-        unsafe { (*self.node).size() }
-    }
-
     pub fn name(&self) -> String {
         unsafe { (*self.node).name.clone() }
     }
@@ -74,7 +70,6 @@ pub type FSResult<T> = Result<T, FSError>;
 pub enum InodeType {
     File,
     Directory,
-    Symlink,
 }
 
 /// this Inode is pesudo too far this should only work with RamFS
@@ -88,22 +83,25 @@ pub enum InodeType {
 pub struct Inode {
     name: String,
     inode_type: InodeType,
+    inodeid: usize,
     ///  TODO: use something instead of Box
     ops: Box<dyn InodeOps>,
 }
 
 pub trait InodeOps: Send {
-    fn new_root() -> Inode
-    where
-        Self: Sized;
     /// gets an Inode from self
     /// returns Err(()) if self is not a directory
     /// returns Ok(None) if self doesn't contain `name`
-    fn get(&mut self, name: &str) -> FSResult<Option<&mut Inode>>;
+    /// returns Ok(inodeid) if successful
+    fn get(&self, name: &str) -> FSResult<Option<usize>>;
     /// checks if node contains `name` returns false if it doesn't or if it is not a directory
     fn contains(&self, name: &str) -> bool;
     /// returns the size of node
-    fn size(&self) -> usize;
+    /// different nodes may use this differently but in case it is a normal file it will always give the
+    /// file size in bytes
+    fn size(&self) -> FSResult<usize> {
+        Err(FSError::OperationNotSupported)
+    }
     /// attempts to read `count` bytes of node data if it is a file
     /// panics if invaild `offset`
     fn read(&self, buffer: &mut [u8], offset: usize, count: usize) -> FSResult<()> {
@@ -113,7 +111,7 @@ pub trait InodeOps: Send {
         Err(FSError::OperationNotSupported)
     }
     /// attempts to read the contents of self if it is a directory returning a list of inodes
-    fn readdir(&mut self) -> FSResult<Vec<&mut Inode>> {
+    fn readdir(&mut self) -> FSResult<Vec<usize>> {
         Err(FSError::OperationNotSupported)
     }
     /// attempts to write `buffer.len` bytes from `buffer` into node data if it is a file starting
@@ -127,7 +125,7 @@ pub trait InodeOps: Send {
 
     /// attempts to insert a node to self
     /// returns an FSError::NotADirectory if not a directory
-    fn insert(&mut self, name: String, node: Inode) -> FSResult<()> {
+    fn insert(&mut self, name: String, node: usize) -> FSResult<()> {
         _ = name;
         _ = node;
         Err(FSError::OperationNotSupported)
@@ -136,7 +134,7 @@ pub trait InodeOps: Send {
 
 impl Inode {
     /// quick wrapper around `self.ops.get`
-    pub fn get(&mut self, name: &str) -> FSResult<Option<&mut Inode>> {
+    pub fn get(&self, name: &str) -> FSResult<Option<usize>> {
         self.ops.get(name)
     }
 
@@ -146,7 +144,8 @@ impl Inode {
     }
 
     /// quick wrapper around `self.ops.size`
-    fn size(&self) -> usize {
+    #[inline]
+    fn size(&self) -> FSResult<usize> {
         self.ops.size()
     }
 
@@ -164,22 +163,33 @@ pub trait FS: Send {
     /// for example, `TmpFS` name is "tmpfs"
     /// again we cannot use consts because of `dyn`...
     fn name(&self) -> &'static str;
-
     /// attempts to close a file cleanig all it's resources
     fn close(&mut self, file_descriptor: &mut FileDescriptor) -> FSResult<()> {
         _ = file_descriptor;
         Ok(())
     }
 
-    fn root_inode_mut(&mut self) -> &mut Inode;
+    fn get_inode_mut(&mut self, inode_id: usize) -> FSResult<Option<&mut Inode>> {
+        _ = inode_id;
+        Err(FSError::OperationNotSupported)
+    }
+    fn get_inode(&self, inode_id: usize) -> FSResult<Option<&Inode>> {
+        _ = inode_id;
+        Err(FSError::OperationNotSupported)
+    }
+
+    #[inline]
+    fn root_inode(&self) -> FSResult<&Inode> {
+        Ok(self.get_inode(0)?.unwrap())
+    }
 
     /// goes trough path to get the inode it refers to
     /// will err if there is no such a file or directory or path is straight up invaild
     fn reslove_path(&mut self, path: Path) -> FSResult<&mut Inode> {
         let mut path = path.split(&['/', '\\']);
 
-        let mut current_inode = self.root_inode_mut();
-        let mut prev_inode = current_inode as *mut Inode;
+        let mut current_inode = self.root_inode()?;
+        let mut prev_inode = current_inode as *const Inode;
         path.next();
 
         while let Some(depth) = path.next() {
@@ -196,7 +206,7 @@ pub trait FS: Send {
             }
 
             if depth == ".." {
-                current_inode = unsafe { &mut *prev_inode };
+                current_inode = unsafe { &*prev_inode };
                 continue;
             }
 
@@ -209,10 +219,13 @@ pub trait FS: Send {
             }
 
             prev_inode = current_inode;
-            current_inode = current_inode.get(depth)?.unwrap();
+
+            let inodeid = current_inode.get(depth)?.unwrap();
+            current_inode = self.get_inode(inodeid)?.unwrap();
         }
 
-        return Ok(current_inode);
+        // mutabaly re-borrows?
+        return Ok(self.get_inode_mut(current_inode.inodeid)?.unwrap());
     }
     /// opens a path returning a file descriptor or an Err(()) if path doesn't exist
     fn open(&mut self, path: Path) -> FSResult<FileDescriptor>;
@@ -340,14 +353,6 @@ impl VFS {
 impl FS for VFS {
     fn name(&self) -> &'static str {
         "vfs"
-    }
-
-    fn root_inode_mut(&mut self) -> &mut Inode {
-        unreachable!()
-    }
-
-    fn reslove_path(&mut self, _path: Path) -> FSResult<&mut Inode> {
-        unreachable!()
     }
 
     fn open(&mut self, path: Path) -> FSResult<FileDescriptor> {

@@ -62,7 +62,7 @@ impl FileDescriptorStat {
         *stat = Self {
             inode: file_descriptor.node,
             kind,
-            size: file_descriptor.size(),
+            size: unsafe { (*file_descriptor.node).size().unwrap_or(0) },
         };
 
         Ok(())
@@ -121,7 +121,7 @@ impl DirEntry {
     pub fn get_from_inode(inode: *const Inode) -> FSResult<Self> {
         unsafe {
             let kind = (*inode).inode_type;
-            let size = (*inode).size();
+            let size = (*inode).size().unwrap_or(0);
             let name_slice = (*inode).name.as_bytes();
 
             let name_length = name_slice.len();
