@@ -83,6 +83,23 @@ void pexit() {
 	syscall(0, 0, 0 , 0, 0);
 }
 
+/// wries the textual version of `val` into ptr
+/// returns the start of the written text it will write from backwards
+int itoa(int val, char ptr[10]) {
+	int i = 9;
+	for (; i != 0; i--) {
+		int ch = val % 10;
+		val /= 10;
+		ptr[i] = ch + '0';
+
+		if (val == 0) {
+			break;
+		}
+	}
+
+	return i;
+}
+
 int main() {
 	char filename[7];
 	filename[6] = 0;
@@ -93,11 +110,12 @@ int main() {
 	print("\ncreating ");
 	print(filename);
 	print("...\n");
+	
+	char created = create_n("ram:/", filename);
 
-	if (create_n("ram:/", filename) >= 0) {
-		print("success!\n");
-	} else {
-		print("failed );\n");
+	if (created < 0) {
+		print("err creating!\n");
+		return created;
 	}
 	
 	char data[10];
@@ -108,7 +126,7 @@ int main() {
 	writeout(data, 10);
 	print("' to it ...\n");
 	
-	char full_path[5 + 7] = {'r', 'a', 'm', ':', '/'};
+	char full_path[5 + 7] = "ram:/";
 
 	for (int i = 0; i < strlen(filename); i++) {
 		full_path[5 + i] = filename[i];
@@ -137,12 +155,17 @@ int main() {
 
 void _start() {
 	int64_t err = main();
+	
+	if (err < 0) {
+		char errc[10];
+		int start_idx = itoa(-err, errc);
 
-	char errc = (-err) + '0';
-	print("failed with err: -");
-	writeout(&errc, 1);
-	errc = '\n';
-	writeout(&errc, 1);
+		print("failed with err: -");
+		writeout(&errc[start_idx], 10 - start_idx);
+
+		char newline = '\n';
+		writeout(&newline, 1);
+	}
 
 	pexit();
 }

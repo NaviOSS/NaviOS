@@ -86,6 +86,10 @@ impl InodeOps for RamInode {
     fn insert(&mut self, name: String, node: usize) -> FSResult<()> {
         match self {
             Self::Children(tree) => {
+                if tree.contains_key(&name) {
+                    return Err(FSError::AlreadyExists);
+                }
+
                 tree.insert(name, node);
                 Ok(())
             }

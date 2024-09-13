@@ -62,6 +62,7 @@ pub enum FSError {
     /// ethier a fd which points to a resource which isnt a FileDescriptor or it points to nothing
     InvaildFileDescriptorOrRes,
     InvaildBuffer,
+    AlreadyExists,
 }
 
 pub type FSResult<T> = Result<T, FSError>;
