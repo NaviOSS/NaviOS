@@ -17,10 +17,6 @@ pub enum Resource {
     Null,
     File(FileDescriptor),
     DirIter(Box<dyn DirIter>),
-    /// FIXME:
-    /// dirty soultion it is basically a File that points to a kernel-device the thing is i dont
-    /// have devices yet
-    Reserved,
 }
 
 impl Resource {
@@ -29,7 +25,6 @@ impl Resource {
             Resource::Null => 0,
             Resource::File(_) => 1,
             Resource::DirIter(_) => 2,
-            Resource::Reserved => 3,
         }
     }
 }
@@ -117,7 +112,12 @@ impl Process {
             write_pos: 0,
         }));
         // stdout fd
-        resources.push(Resource::Reserved);
+        resources.push(Resource::File(FileDescriptor {
+            mountpoint: terminal(),
+            node: core::ptr::null_mut(),
+            read_pos: 0,
+            write_pos: 0,
+        }));
 
         Process {
             pid,

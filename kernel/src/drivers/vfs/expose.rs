@@ -174,6 +174,9 @@ pub fn diriter_next(dir_ri: usize, direntry: &mut DirEntry) -> FSResult<()> {
 
 #[no_mangle]
 /// may only Err if dir_ri is invaild
-pub fn diriter_close(dir_ri: usize) -> Result<(), ()> {
-    scheduler().remove_resource(dir_ri)
+pub fn diriter_close(dir_ri: usize) -> FSResult<()> {
+    scheduler()
+        .remove_resource(dir_ri)
+        .ok()
+        .ok_or(FSError::InvaildFileDescriptorOrRes)
 }

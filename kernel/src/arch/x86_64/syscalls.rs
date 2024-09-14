@@ -4,8 +4,6 @@ use alloc::{slice, string::String};
 
 use crate::{
     drivers::vfs::{self, expose::open},
-    print,
-    terminal::framebuffer::VIEWPORT,
     threading::{thread_exit, thread_yeild, wait},
 };
 global_asm!(
@@ -20,9 +18,9 @@ syscall_table:
     .quad sysclose
     .quad syscreate
     .quad syscreatedir
-    .quad 0 // FIXME: replace with diriter_open
-    .quad 0 // FIXME: replace with diriter_close
-    .quad 0 // FIXME: replace with diriter_next
+    .quad sysdiriter_open
+    .quad sysdiriter_close
+    .quad sysdiriter_next
     .quad syswait
 syscall_table_end:
 
@@ -82,6 +80,37 @@ macro_rules! sysret {
     };
 }
 
+/// makes a slice from a ptr and len
+/// returns INVAILD_PTR_ERR if invaild
+macro_rules! make_slice {
+    ($ptr: expr, $len: expr) => {
+        if !($ptr.is_null() && $len == 0) {
+            if $ptr.is_null() || !$ptr.is_aligned() {
+                sysret!(INVAILD_PTR_ERR)
+            }
+
+            unsafe { slice::from_raw_parts($ptr, $len) }
+        } else {
+            &[]
+        }
+    };
+}
+
+/// makes a mutable slice from a ptr and len
+/// returns INVAILD_PTR_ERR if invaild
+macro_rules! make_slice_mut {
+    ($ptr: expr, $len: expr) => {
+        if !($ptr.is_null() && $len == 0) {
+            if $ptr.is_null() || !$ptr.is_aligned() {
+                sysret!(INVAILD_PTR_ERR)
+            }
+
+            unsafe { slice::from_raw_parts_mut($ptr, $len) }
+        } else {
+            &mut []
+        }
+    };
+}
 /// for now
 #[no_mangle]
 extern "C" fn sysexit() {
@@ -99,11 +128,7 @@ const INVAILD_PTR_ERR: isize = -257;
 
 #[no_mangle]
 extern "C" fn sysopen(path_ptr: *const u8, len: usize) -> u64 {
-    if path_ptr.is_null() || !path_ptr.is_aligned() {
-        sysret!(INVAILD_PTR_ERR)
-    }
-
-    let path = unsafe { slice::from_raw_parts(path_ptr, len) };
+    let path = make_slice!(path_ptr, len);
     let path = String::from_utf8_lossy(path);
 
     let ret = match open(&path) {
@@ -116,25 +141,11 @@ extern "C" fn sysopen(path_ptr: *const u8, len: usize) -> u64 {
 
 #[no_mangle]
 extern "C" fn syswrite(fd: usize, ptr: *const u8, len: usize) -> u64 {
-    if ptr.is_null() || !ptr.is_aligned() {
-        sysret!(INVAILD_PTR_ERR)
-    }
+    let slice = make_slice!(ptr, len);
 
-    let slice = unsafe { slice::from_raw_parts(ptr, len) };
-    let ret = match fd {
-        1 => {
-            let str = String::from_utf8_lossy(slice);
-            while VIEWPORT.is_locked() {
-                thread_yeild()
-            }
-
-            print!("{}", str);
-            0
-        }
-        fd => match vfs::expose::write(fd, slice) {
-            Err(err) => -(err as isize),
-            Ok(()) => 0,
-        },
+    let ret = match vfs::expose::write(fd, slice) {
+        Err(err) => -(err as isize),
+        Ok(()) => 0,
     };
 
     sysret!(ret)
@@ -142,25 +153,11 @@ extern "C" fn syswrite(fd: usize, ptr: *const u8, len: usize) -> u64 {
 
 #[no_mangle]
 extern "C" fn sysread(fd: usize, ptr: *mut u8, len: usize) -> u64 {
-    if ptr.is_null() || !ptr.is_aligned() {
-        sysret!(INVAILD_PTR_ERR)
-    }
+    let slice = make_slice_mut!(ptr, len);
 
-    let slice = unsafe { slice::from_raw_parts_mut(ptr, len) };
-
-    let ret = match fd {
-        // 0 => {
-        //     for i in 0..slice.len() {
-        //         slice[i] = terminal::getbyte();
-        //     }
-        //     // flushing stdin
-        //     crate::terminal().stdin_buffer.clear();
-        //     0
-        // }
-        _ => match vfs::expose::read(fd, slice) {
-            Err(err) => -(err as isize),
-            Ok(bytes_read) => bytes_read as isize,
-        },
+    let ret = match vfs::expose::read(fd, slice) {
+        Err(err) => -(err as isize),
+        Ok(bytes_read) => bytes_read as isize,
     };
 
     sysret!(ret)
@@ -184,10 +181,10 @@ extern "C" fn syscreate(
     name_ptr: *const u8,
     name_len: usize,
 ) -> u64 {
-    let path = unsafe { slice::from_raw_parts(path_ptr, path_len) };
+    let path = make_slice!(path_ptr, path_len);
     let path = String::from_utf8_lossy(path);
 
-    let name = unsafe { slice::from_raw_parts(name_ptr, name_len) };
+    let name = make_slice!(name_ptr, name_len);
     let name = String::from_utf8_lossy(name);
 
     let ret = if let Err(err) = vfs::expose::create(&path, &name) {
@@ -206,10 +203,10 @@ extern "C" fn syscreatedir(
     name_ptr: *const u8,
     name_len: usize,
 ) -> u64 {
-    let path = unsafe { slice::from_raw_parts(path_ptr, path_len) };
+    let path = make_slice!(path_ptr, path_len);
     let path = String::from_utf8_lossy(path);
 
-    let name = unsafe { slice::from_raw_parts(name_ptr, name_len) };
+    let name = make_slice!(name_ptr, name_len);
     let name = String::from_utf8_lossy(name);
 
     let ret = if let Err(err) = vfs::expose::createdir(&path, &name) {
@@ -219,6 +216,30 @@ extern "C" fn syscreatedir(
     };
 
     sysret!(ret)
+}
+
+#[no_mangle]
+extern "C" fn sysdiriter_open(dir_ri: usize) -> isize {
+    match vfs::expose::diriter_open(dir_ri) {
+        Err(err) => -(err as isize),
+        Ok(ri) => ri as isize,
+    }
+}
+
+#[no_mangle]
+extern "C" fn sysdiriter_close(diriter_ri: usize) -> isize {
+    match vfs::expose::diriter_close(diriter_ri) {
+        Err(err) => -(err as isize),
+        Ok(()) => 0,
+    }
+}
+
+#[no_mangle]
+extern "C" fn sysdiriter_next(diriter_ri: usize, direntry: &mut vfs::expose::DirEntry) -> isize {
+    match vfs::expose::diriter_next(diriter_ri, direntry) {
+        Err(err) => -(err as isize),
+        Ok(()) => 0,
+    }
 }
 
 #[no_mangle]

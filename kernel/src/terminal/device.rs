@@ -1,13 +1,26 @@
+use alloc::string::String;
+
 use crate::{
     drivers::vfs::{FSResult, FileDescriptor, FS},
     threading::thread_yeild,
 };
 
-use super::framebuffer::{Terminal, TerminalMode};
+use super::framebuffer::{Terminal, TerminalMode, VIEWPORT};
 
 impl FS for Terminal {
     fn name(&self) -> &'static str {
         "tty"
+    }
+
+    fn write(&mut self, _: &mut FileDescriptor, buffer: &[u8]) -> FSResult<()> {
+        let str = String::from_utf8_lossy(buffer);
+        while VIEWPORT.is_locked() {
+            thread_yeild()
+        }
+
+        self.write(&str);
+
+        Ok(())
     }
 
     fn read(&mut self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
