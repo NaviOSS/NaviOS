@@ -20,55 +20,6 @@ macro_rules! get_fd {
     }};
 }
 
-/// ffi safe file info
-#[derive(Debug, Clone, Copy)]
-#[repr(C)]
-pub struct FileDescriptorStat {
-    // TODO: this is unsafe replace with inode_id
-    pub inode: *mut Inode,
-    pub kind: InodeType,
-    pub size: usize,
-}
-
-impl FileDescriptorStat {
-    /// returns a null file descriptor
-    /// it is all zeros
-    #[inline]
-    pub unsafe fn default() -> Self {
-        core::mem::zeroed()
-    }
-    /// the file name length in bytes you can then grab the file name using
-    /// FileDescriptorStat::get_name
-    pub fn name_length(&self) -> usize {
-        unsafe { (*self.inode).name.len() }
-    }
-
-    pub fn get_name(&self, buffer: &mut [u8]) -> FSResult<()> {
-        let name = unsafe { &(*self.inode).name };
-        if buffer.len() != name.len() {
-            return Err(FSError::InvaildBuffer);
-        }
-
-        buffer.copy_from_slice(name.as_bytes());
-        Ok(())
-    }
-
-    /// lives as long as fd is opened
-    /// the only thing that is going to get UD'ed is the `self.name`
-    pub fn get(ri: usize, stat: &mut Self) -> FSResult<()> {
-        let file_descriptor = get_fd!(ri);
-        let kind = unsafe { (*file_descriptor.node).inode_type };
-
-        *stat = Self {
-            inode: file_descriptor.node,
-            kind,
-            size: unsafe { (*file_descriptor.node).size().unwrap_or(0) },
-        };
-
-        Ok(())
-    }
-}
-
 #[no_mangle]
 pub fn open(path: Path) -> FSResult<usize> {
     let fd = vfs().open(path)?;
@@ -118,11 +69,11 @@ pub struct DirEntry {
 }
 
 impl DirEntry {
-    pub fn get_from_inode(inode: *const Inode) -> FSResult<Self> {
+    pub fn get_from_inode_with_name(inode: *const Inode, name: &str) -> FSResult<Self> {
         unsafe {
+            let name_slice = name.as_bytes();
             let kind = (*inode).inode_type;
             let size = (*inode).size().unwrap_or(0);
-            let name_slice = (*inode).name.as_bytes();
 
             let name_length = name_slice.len();
             let mut name = [0u8; MAX_NAME_LEN];
@@ -136,6 +87,10 @@ impl DirEntry {
                 name,
             })
         }
+    }
+
+    pub fn get_from_inode(inode: *const Inode) -> FSResult<Self> {
+        unsafe { Self::get_from_inode_with_name(inode, &(*inode).name) }
     }
 
     pub const unsafe fn zeroed() -> Self {
@@ -179,4 +134,11 @@ pub fn diriter_close(dir_ri: usize) -> FSResult<()> {
         .remove_resource(dir_ri)
         .ok()
         .ok_or(FSError::InvaildFileDescriptorOrRes)
+}
+
+#[no_mangle]
+pub fn fstat(ri: usize, direntry: &mut DirEntry) -> FSResult<()> {
+    let fd = get_fd!(ri);
+    *direntry = DirEntry::get_from_inode(fd.node)?;
+    Ok(())
 }

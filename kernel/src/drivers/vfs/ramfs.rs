@@ -235,16 +235,7 @@ impl FS for RamFS {
         for (name, inode_id) in data {
             let inode = self.get_inode(*inode_id)?.unwrap();
 
-            let name_length = name.len();
-            let mut name_arr = [0u8; 128];
-            name_arr[..name_length].copy_from_slice(name.as_bytes());
-
-            data_entries.push(DirEntry {
-                kind: inode.inode_type,
-                size: inode.size().unwrap_or(0),
-                name_length,
-                name: name_arr,
-            })
+            data_entries.push(DirEntry::get_from_inode_with_name(inode, &name)?)
         }
 
         Ok(Box::new(RamDirIter {

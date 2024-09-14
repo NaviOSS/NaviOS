@@ -104,6 +104,7 @@ impl Process {
         }
 
         let mut resources = Vec::with_capacity(2);
+        // FIXME: the code isn't prepared for any null bs fixme!!!!!!!!!!!!!!!
         // stdin fd
         resources.push(Resource::File(FileDescriptor {
             mountpoint: terminal(),

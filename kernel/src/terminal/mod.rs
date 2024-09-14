@@ -19,7 +19,7 @@ use crate::{
         self,
         expose::{
             close, create, createdir, diriter_close, diriter_next, diriter_open, open, read,
-            DirEntry, FileDescriptorStat,
+            DirEntry,
         },
         vfs,
     },
@@ -319,8 +319,8 @@ fn cat(args: Vec<&str>) {
     }
 
     let opened = res.unwrap();
-    let mut stat = unsafe { FileDescriptorStat::default() };
-    _ = FileDescriptorStat::get(opened, &mut stat);
+    let mut stat = unsafe { DirEntry::zeroed() };
+    _ = vfs::expose::fstat(opened, &mut stat);
 
     let mut buffer: Vec<u8> = Vec::new();
     buffer.resize(stat.size, 0);

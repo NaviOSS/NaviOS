@@ -22,6 +22,7 @@ syscall_table:
     .quad sysdiriter_close
     .quad sysdiriter_next
     .quad syswait
+    .quad sysfstat
 syscall_table_end:
 
 SYSCALL_TABLE_INFO:
@@ -245,4 +246,13 @@ extern "C" fn sysdiriter_next(diriter_ri: usize, direntry: &mut vfs::expose::Dir
 #[no_mangle]
 extern "C" fn syswait(pid: u64) {
     threading::expose::wait(pid);
+}
+
+#[no_mangle]
+extern "C" fn sysfstat(ri: usize, direntry: &mut vfs::expose::DirEntry) -> isize {
+    if let Err(err) = vfs::expose::fstat(ri, direntry) {
+        -(err as isize)
+    } else {
+        0
+    }
 }
