@@ -139,7 +139,9 @@ fn print_stack_trace() {
 
         cross_println!("stack trace: ");
         while fp != 0 {
-            let return_address = *(fp as *const usize).offset(1);
+            let return_address_ptr = (fp as *const usize).offset(1);
+            let return_address = *return_address_ptr;
+
             let name = {
                 if kernel_inited() {
                     let sym = kernel().elf.sym_from_value_range(return_address);

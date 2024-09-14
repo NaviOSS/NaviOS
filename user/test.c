@@ -1,6 +1,7 @@
 //! compile with `gcc -no-pie -nostdlib -static -ffreestanding -fno-stack-protector user/test.c -o user/test` if you have gcc
 // you just need to compile an ELF with type EXE ig
 // NOTE: i dont know C code below may be garbage but it is for test purposes
+#include <stdarg.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -11,7 +12,7 @@ static inline int64_t syscall(uint64_t num, uint64_t arg0, uint64_t arg1, uint64
         "mov %2, %%rdi\n"  
         "mov %3, %%rsi\n"  
         "mov %4, %%rdx\n"          
-	"mov %5, %%r8\n"  
+	"mov %5, %%rcx\n"  
         "int $0x80\n"      
         "mov %%rax, %0\n"  
         : "=r" (result)    
@@ -21,20 +22,26 @@ static inline int64_t syscall(uint64_t num, uint64_t arg0, uint64_t arg1, uint64
     return result;
 }
 
+int printf(const char* format, ...);
+
 size_t strlen(const char* str) {
 	size_t len = 0;
 	const char* ch = str;
 
 	while (*ch != 0) {
-		ch += 1;
-		len += 1;
+		ch++;
+		len++;
 	}
-
+	
 	return len;
 }
 
 int64_t open(const void* path_ptr, size_t len) {
 	return syscall(2, (uint64_t) path_ptr, len, 0, 0);
+}
+
+int64_t close(uint32_t fd) {
+	return syscall(5, fd, 0, 0, 0);
 }
 
 /// wrapper around open that takes a null-terminated path
@@ -100,16 +107,96 @@ int itoa(int val, char ptr[10]) {
 	return i;
 }
 
+void sputc(char c) {
+	writeout(&c, 1);
+}
+
+int printf(const char* format, ...) {
+	int i = 0;
+
+	const char* current;
+	va_list arg;
+	va_start(arg, format);
+	
+	for (current = format; *current != '\0'; current++) {
+		while (*current != '%') {
+			writeout(current, 1);
+			current++;
+			if (*current == '\0') return 0;
+		}
+
+		current++;
+		switch (*current) {
+			case 'd':
+				 i = va_arg(arg, int);
+				if (i < 0) {
+					i = -i;
+					sputc('-');
+				}
+				
+				char result[10];
+				int start = itoa(i, result);
+				writeout(&result[start], 10 - start);
+			break;
+			case 's':
+				print(va_arg(arg, char*));
+			break;
+			case '.':
+				current++;
+				switch (*current) {
+					case '*':						
+						current++;
+						int num = va_arg(arg, int);
+						switch (*current) {
+							case 's':
+								writeout(va_arg(arg, char*), num);
+							break;
+						}
+					break;
+				}
+			break;
+		}
+	}
+	
+	va_end(arg);
+	return 0;
+}
+
+char getchar() {
+	char c;
+	readin(&c, 1);
+	return c;
+}
+
+/// gets a str from stdin places it in ptr, reads until \n
+/// doesn't include \n
+/// returns the length of the str
+/// if max is reached it will return -1 instead
+int getstr(char* ptr, int max) {
+	for (int i = 0; i < max; i++) {
+		char c = getchar();
+		if (c == '\n') return i;
+		ptr[i] = c;
+	}
+
+	if (getchar() == '\n') return max;
+	return -1;
+}
+
 int main() {
 	char filename[7];
-	filename[6] = 0;
 
-	print("Hello from userspace! enter 6 characters with the filename: ");
-	readin(filename, 6);
-	
-	print("\ncreating ");
-	print(filename);
-	print("...\n");
+	print("Hello from userspace! enter 6 or less characters with the filename: ");
+	int filename_len = getstr(filename, 6);
+	if (filename_len == -1) {
+		print("enter 6 or less characters please\n");
+		return -200;
+	}
+
+	filename_len++;
+	filename[filename_len - 1] = 0;
+
+	printf("creating %s ...\n", filename);
 	
 	char created = create_n("ram:/", filename);
 
@@ -119,21 +206,19 @@ int main() {
 	}
 	
 	char data[10];
-	print("enter 10 characters of data to write to it: ");
-	readin(data, 10);
-	
-	print("\nwriting '");
-	writeout(data, 10);
-	print("' to it ...\n");
-	
-	char full_path[5 + 7] = "ram:/";
-
-	for (int i = 0; i < strlen(filename); i++) {
-		full_path[5 + i] = filename[i];
+	print("enter 10 or less characters of data to write to it: ");
+	int data_len = getstr(data, 10);
+	if (data_len == -1) {
+		print("enter 10 or less characters please!\n");
+		return -200;
 	}
 
-	full_path[5 + 6] = 0;
+	printf("writing '%.*s' to it ... \n", data_len, data);
 	
+	char full_path[5 + 7] = "ram:/";
+	for (int i = 0; i < filename_len; i++) 
+		full_path[5 + i] = filename[i];
+
 	// FIXME: open takes full path, but create takes the dir path and the filename?
 	int64_t fd = open_n(full_path);
 
@@ -142,14 +227,17 @@ int main() {
 		return fd;
 	}
 
-	int64_t err = write(fd, data, 10);
+	int64_t err = write(fd, data, data_len);
 	if (err < 0) {
 		print("failed writing to file );\n");
 		return err;
 	}
+	
+	int64_t closed = close(fd);
+	if (closed < 0) return closed;
 
 	print("done!\n");
-
+	
 	return 0;
 }
 
@@ -157,14 +245,7 @@ void _start() {
 	int64_t err = main();
 	
 	if (err < 0) {
-		char errc[10];
-		int start_idx = itoa(-err, errc);
-
-		print("failed with err: -");
-		writeout(&errc[start_idx], 10 - start_idx);
-
-		char newline = '\n';
-		writeout(&newline, 1);
+		printf("failed with err: %d\n", (int) err);
 	}
 
 	pexit();

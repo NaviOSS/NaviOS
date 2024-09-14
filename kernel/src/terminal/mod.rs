@@ -1,3 +1,4 @@
+pub mod device;
 pub mod framebuffer;
 pub mod navitts;
 
@@ -26,7 +27,7 @@ use crate::{
     kernel, print, println, scheduler, serial,
     threading::{
         processes::{Process, ProcessFlags},
-        thread_yeild,
+        thread_yeild, wait,
     },
     utils::elf,
     TEST_ELF,
@@ -41,21 +42,7 @@ pub fn _print(args: fmt::Arguments) {
     terminal().write(&combined);
 }
 
-pub fn getbyte() -> u8 {
-    let old_mode = terminal().mode;
-    terminal().mode = TerminalMode::Stdin;
-
-    let last_len = terminal().stdin_buffer.len();
-    loop {
-        if terminal().stdin_buffer.len() > last_len {
-            terminal().mode = old_mode;
-            return terminal().stdin_buffer.chars().nth(last_len).unwrap() as u8;
-        }
-
-        thread_yeild()
-    }
-}
-
+/// TODO: replace with a normal read?
 pub fn readln() -> String {
     let old_mode = terminal().mode;
     terminal().mode = TerminalMode::Stdin;
@@ -390,7 +377,9 @@ fn userspace(args: Vec<&str>) {
         elf.load_exec(&mut *process.root_page_table).unwrap();
     }
 
+    let pid = process.pid;
     scheduler().add_process(process);
+    wait(pid);
 }
 
 fn meminfo(args: Vec<&str>) {

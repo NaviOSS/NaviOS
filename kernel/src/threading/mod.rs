@@ -273,3 +273,36 @@ pub fn thread_yeild() {
         asm!("int 0x20")
     }
 }
+
+#[no_mangle]
+pub fn wait(pid: u64) {
+    debug!(
+        Process,
+        "{} waiting for {} to exit ...",
+        scheduler().current_process().pid,
+        pid
+    );
+
+    loop {
+        let mut current = scheduler().head.as_mut();
+        let mut found = false;
+
+        while let Some(ref mut process) = current.next {
+            if process.pid == pid {
+                found = true;
+                if process.status == ProcessStatus::WaitingForBurying {
+                    return;
+                }
+            }
+
+            current = process;
+            thread_yeild()
+        }
+
+        if !found {
+            return;
+        }
+
+        thread_yeild()
+    }
+}

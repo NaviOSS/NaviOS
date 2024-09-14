@@ -111,10 +111,6 @@ pub trait InodeOps: Send {
         _ = count;
         Err(FSError::OperationNotSupported)
     }
-    /// attempts to read the contents of self if it is a directory returning a list of inodes
-    fn readdir(&self) -> FSResult<Vec<usize>> {
-        Err(FSError::OperationNotSupported)
-    }
     /// attempts to write `buffer.len` bytes from `buffer` into node data if it is a file starting
     /// from offset
     /// extends the nodes data and node size if `buffer.len` + `offset` is greater then node size
@@ -221,7 +217,10 @@ pub trait FS: Send {
         return Ok(self.get_inode_mut(current_inode.inodeid)?.unwrap());
     }
     /// opens a path returning a file descriptor or an Err(()) if path doesn't exist
-    fn open(&mut self, path: Path) -> FSResult<FileDescriptor>;
+    fn open(&mut self, path: Path) -> FSResult<FileDescriptor> {
+        _ = path;
+        Err(FSError::OperationNotSupported)
+    }
     /// attempts to read `buffer.len` bytes from file_descriptor returns the actual count of the bytes read
     /// shouldn't read directories!
     fn read(&mut self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
@@ -250,7 +249,10 @@ pub trait FS: Send {
     }
 
     /// opens an iterator of directroy entires, fd must be a directory
-    fn diriter_open(&mut self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>>;
+    fn diriter_open(&mut self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
+        _ = fd;
+        Err(FSError::OperationNotSupported)
+    }
 }
 
 pub struct VFS {

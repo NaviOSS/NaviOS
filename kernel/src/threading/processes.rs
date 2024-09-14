@@ -2,7 +2,7 @@ use super::STACK_END;
 
 use crate::drivers::vfs::expose::DirIter;
 use crate::drivers::vfs::{vfs, FileDescriptor, FS};
-use crate::{arch, debug, kernel, scheduler};
+use crate::{arch, debug, kernel, scheduler, terminal};
 
 use crate::memory::paging;
 use alloc::boxed::Box;
@@ -110,7 +110,12 @@ impl Process {
 
         let mut resources = Vec::with_capacity(2);
         // stdin fd
-        resources.push(Resource::Reserved);
+        resources.push(Resource::File(FileDescriptor {
+            mountpoint: terminal(),
+            node: core::ptr::null_mut(),
+            read_pos: 0,
+            write_pos: 0,
+        }));
         // stdout fd
         resources.push(Resource::Reserved);
 

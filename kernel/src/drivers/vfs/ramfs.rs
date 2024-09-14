@@ -62,13 +62,6 @@ impl InodeOps for RamInode {
         }
     }
 
-    fn readdir(&self) -> FSResult<Vec<usize>> {
-        match self {
-            Self::Children(tree) => Ok(tree.values().copied().collect()),
-            _ => Err(FSError::NotADirectory),
-        }
-    }
-
     fn write(&mut self, buffer: &[u8], offset: usize) -> FSResult<()> {
         match self {
             Self::Data(data) => {
@@ -159,12 +152,12 @@ impl FS for RamFS {
 
     fn read(&mut self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
         let count = buffer.len();
-        let count = unsafe {
-            if file_descriptor.read_pos + count > (*file_descriptor.node).size()? {
-                count - (file_descriptor.read_pos + count - (*file_descriptor.node).size()?)
-            } else {
-                count
-            }
+        let file_size = unsafe { (*file_descriptor.node).size()? };
+
+        let count = if file_descriptor.read_pos + count > file_size {
+            file_size - file_descriptor.read_pos
+        } else {
+            count
         };
 
         unsafe {
