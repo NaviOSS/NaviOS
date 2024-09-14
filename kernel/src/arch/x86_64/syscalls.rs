@@ -4,7 +4,7 @@ use alloc::{slice, string::String};
 
 use crate::{
     drivers::vfs::{self, expose::open},
-    threading::{thread_exit, thread_yeild, wait},
+    threading,
 };
 global_asm!(
     "
@@ -115,12 +115,12 @@ macro_rules! make_slice_mut {
 #[no_mangle]
 extern "C" fn sysexit() {
     unsafe { asm!("sti") }
-    thread_exit();
+    threading::expose::thread_exit();
 }
 
 #[no_mangle]
 extern "C" fn sysyield() {
-    thread_yeild()
+    threading::expose::thread_yeild()
 }
 
 /// TODO: look more into errors
@@ -244,5 +244,5 @@ extern "C" fn sysdiriter_next(diriter_ri: usize, direntry: &mut vfs::expose::Dir
 
 #[no_mangle]
 extern "C" fn syswait(pid: u64) {
-    wait(pid);
+    threading::expose::wait(pid);
 }

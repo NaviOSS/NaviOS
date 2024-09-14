@@ -1,3 +1,4 @@
+pub mod expose;
 pub mod processes;
 pub const STACK_SIZE: usize = PAGE_SIZE * 4;
 pub const STACK_START: usize = 0x00007A0000000000;
@@ -10,7 +11,7 @@ use alloc::{boxed::Box, vec::Vec};
 
 use crate::{
     arch::threading::{restore_cpu_status, CPUStatus},
-    debug, kernel, khalt,
+    debug, kernel,
     memory::{
         frame_allocator::Frame,
         paging::{EntryFlags, MapToError, Page, PageTable, PAGE_SIZE},
@@ -252,57 +253,5 @@ impl Scheduler {
         self.current_process().resources[ri] = Resource::Null;
         self.set_next_resource(ri);
         Ok(())
-    }
-}
-
-#[no_mangle]
-pub fn thread_exit() {
-    scheduler().current_process().status = ProcessStatus::WaitingForBurying;
-    // enables interrupts if they were disabled to give control back to the scheduler
-    #[cfg(target_arch = "x86_64")]
-    unsafe {
-        asm!("sti")
-    }
-    khalt()
-}
-
-#[no_mangle]
-pub fn thread_yeild() {
-    #[cfg(target_arch = "x86_64")]
-    unsafe {
-        asm!("int 0x20")
-    }
-}
-
-#[no_mangle]
-pub fn wait(pid: u64) {
-    debug!(
-        Process,
-        "{} waiting for {} to exit ...",
-        scheduler().current_process().pid,
-        pid
-    );
-
-    loop {
-        let mut current = scheduler().head.as_mut();
-        let mut found = false;
-
-        while let Some(ref mut process) = current.next {
-            if process.pid == pid {
-                found = true;
-                if process.status == ProcessStatus::WaitingForBurying {
-                    return;
-                }
-            }
-
-            current = process;
-            thread_yeild()
-        }
-
-        if !found {
-            return;
-        }
-
-        thread_yeild()
     }
 }

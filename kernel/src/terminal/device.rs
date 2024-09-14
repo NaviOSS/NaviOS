@@ -2,7 +2,7 @@ use alloc::string::String;
 
 use crate::{
     drivers::vfs::{FSResult, FileDescriptor, FS},
-    threading::thread_yeild,
+    threading,
 };
 
 use super::framebuffer::{Terminal, TerminalMode, VIEWPORT};
@@ -15,7 +15,7 @@ impl FS for Terminal {
     fn write(&mut self, _: &mut FileDescriptor, buffer: &[u8]) -> FSResult<()> {
         let str = String::from_utf8_lossy(buffer);
         while VIEWPORT.is_locked() {
-            thread_yeild()
+            threading::expose::thread_yeild()
         }
 
         self.write(&str);
@@ -30,7 +30,7 @@ impl FS for Terminal {
 
             // FIXME: the thing is there is no locks here!?????????
             while !self.stdin_buffer.ends_with('\n') {
-                thread_yeild()
+                threading::expose::thread_yeild()
             }
             self.mode = old_mode;
         }

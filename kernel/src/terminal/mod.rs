@@ -26,8 +26,8 @@ use crate::{
     globals::terminal,
     kernel, print, println, scheduler, serial,
     threading::{
+        self,
         processes::{Process, ProcessFlags},
-        thread_yeild, wait,
     },
     utils::elf,
     TEST_ELF,
@@ -57,7 +57,7 @@ pub fn readln() -> String {
             terminal().mode = old_mode;
             return buffer;
         }
-        thread_yeild()
+        threading::expose::thread_yeild()
     }
 }
 
@@ -379,7 +379,7 @@ fn userspace(args: Vec<&str>) {
 
     let pid = process.pid;
     scheduler().add_process(process);
-    wait(pid);
+    threading::expose::wait(pid);
 }
 
 fn meminfo(args: Vec<&str>) {
