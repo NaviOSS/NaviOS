@@ -25,11 +25,7 @@ use crate::{
     },
     globals::terminal,
     kernel, print, println, scheduler, serial,
-    threading::{
-        self,
-        processes::{Process, ProcessFlags},
-    },
-    utils::elf,
+    threading::{self, expose::SpwanFlags},
     TEST_ELF,
 };
 
@@ -370,15 +366,10 @@ fn userspace(args: Vec<&str>) {
     }
 
     let elf_bytes = TEST_ELF.to_vec();
-    let elf = elf::Elf::new(&elf_bytes[0]).unwrap();
+    let pid = unsafe {
+        threading::expose::spawn("user_test", &elf_bytes[0], SpwanFlags::empty()).unwrap()
+    };
 
-    let process = Process::create(elf.header.entry_point, "user_test", ProcessFlags::USERSPACE);
-    unsafe {
-        elf.load_exec(&mut *process.root_page_table).unwrap();
-    }
-
-    let pid = process.pid;
-    scheduler().add_process(process);
     threading::expose::wait(pid);
 }
 

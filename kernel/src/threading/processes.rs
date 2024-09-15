@@ -19,6 +19,15 @@ pub enum Resource {
     DirIter(Box<dyn DirIter>),
 }
 
+impl Clone for Resource {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Null => Self::Null,
+            Self::File(ref fd) => Self::File(fd.clone()),
+            Self::DirIter(ref diriter) => Self::DirIter(DirIter::clone(&**diriter)),
+        }
+    }
+}
 impl Resource {
     pub const fn variant(&self) -> u8 {
         match self {

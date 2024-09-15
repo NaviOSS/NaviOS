@@ -2,7 +2,7 @@
 //! a resource index instead of a file descriptor aka ri
 use core::{fmt::Debug, usize};
 
-use alloc::string::ToString;
+use alloc::{boxed::Box, string::ToString};
 
 use crate::{scheduler, threading::processes::Resource};
 
@@ -100,6 +100,7 @@ impl DirEntry {
 
 pub trait DirIter: Debug {
     fn next(&mut self) -> Option<&DirEntry>;
+    fn clone(&self) -> Box<dyn DirIter>;
 }
 
 #[no_mangle]

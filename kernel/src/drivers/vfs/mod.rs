@@ -32,7 +32,7 @@ pub fn init() {
     debug!(VFS, "done ...");
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FileDescriptor {
     pub mountpoint: *mut dyn FS,
     pub node: *mut Inode,

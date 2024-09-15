@@ -4,7 +4,7 @@ use alloc::{slice, string::String};
 
 use crate::{
     drivers::vfs::{self, expose::open},
-    threading,
+    threading::{self, expose::SpwanFlags},
 };
 global_asm!(
     "
@@ -23,6 +23,7 @@ syscall_table:
     .quad sysdiriter_next
     .quad syswait
     .quad sysfstat
+    .quad sysspawn
 syscall_table_end:
 
 SYSCALL_TABLE_INFO:
@@ -254,5 +255,24 @@ extern "C" fn sysfstat(ri: usize, direntry: &mut vfs::expose::DirEntry) -> isize
         -(err as isize)
     } else {
         0
+    }
+}
+
+#[no_mangle]
+extern "C" fn sysspawn(
+    name_ptr: *const u8,
+    name_len: usize,
+    elf_ptr: *const u8,
+    flags: SpwanFlags,
+) -> u64 {
+    let name = make_slice!(name_ptr, name_len);
+    let name = String::from_utf8_lossy(name);
+
+    unsafe {
+        let ret = match threading::expose::spawn(&name, elf_ptr, flags) {
+            Err(err) => -(err as i64),
+            Ok(pid) => pid as i64,
+        };
+        sysret!(ret);
     }
 }

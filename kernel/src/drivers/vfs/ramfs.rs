@@ -91,6 +91,7 @@ impl InodeOps for RamInode {
     }
 }
 
+#[derive(Clone)]
 pub struct RamDirIter {
     index: usize,
     dir: Vec<DirEntry>,
@@ -108,6 +109,10 @@ impl DirIter for RamDirIter {
         self.index += 1;
 
         self.dir.get(index)
+    }
+
+    fn clone(&self) -> Box<dyn DirIter> {
+        Box::new(Clone::clone(self))
     }
 }
 
