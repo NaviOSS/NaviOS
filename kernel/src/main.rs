@@ -30,8 +30,10 @@ pub use memory::VirtAddr;
 use terminal::framebuffer::Terminal;
 use threading::processes::ProcessFlags;
 use threading::Scheduler;
-
-const TEST_ELF: &[u8] = include_bytes!("../../user/test");
+/// TODO: add a ramdisk and add it's compiling insturctions to build.rs
+/// maybe add USTAR to RamFS translation support
+/// to make this work for now you have to run make in ../../programs/
+const TEST_ELF: &[u8] = include_bytes!("../../programs/build/test");
 
 #[macro_export]
 macro_rules! print {

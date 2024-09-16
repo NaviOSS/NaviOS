@@ -39,15 +39,11 @@ currently using the [limine](https://limine-bootloader.org/) bootloader
 # roadmap
 note: i dont know much about osdev (this is my first OS), stuff prefixed with ? is missing info and more stuff may be added in the feature
 ## next:
+- [ ] add a method to load ramdisks?
+- [ ] add an init ramdisk
+- [ ] rewrite most of the commands as a userspace program in C, load them in the init ramdisk probably mounted under programs:/
 - [ ] sync
-    - [X] locking the serial
-    - [X] locking the terminal
-    - [X] improve peformance
     - [ ] improve the peformance of the frame_allocator it takes 5 seconds to map 7*4 mbs without kvm?
-- [X] process resources
-- [ ] inode_id?
-- [ ] actual syscalls and some userspace programs
-- [ ] finally showcasing the OS!
 - [ ] replace the current linked list allocator with a good buddy allocator
 
 ## roadmap
