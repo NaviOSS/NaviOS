@@ -10,6 +10,7 @@ ovmf-prebuilt = "0.1.0-alpha.1"
 kernel = { target = "x86_64-unknown-none", path = "kernel", artifact = "bin", features = [
     "test",
 ]}
+tar = "0.4"
 
 [workspace]
 members = ["kernel", "macros"]
