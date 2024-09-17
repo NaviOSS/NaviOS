@@ -122,6 +122,7 @@ fn main() {
     out(compile_programs());
     make_ramdisk();
     make_iso();
+    cleanup();
 
     let iso_path = current_dir().unwrap().join("navios.iso");
     println!("cargo:rerun-if-changed={}", iso_path.display());
