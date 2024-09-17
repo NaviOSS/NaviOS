@@ -69,7 +69,7 @@ impl Inode {
 
     #[inline]
     unsafe fn data_ptr(this: *const Self) -> *const u8 {
-        this.byte_add(size_of::<Self>()) as *const u8
+        this.byte_add(512) as *const u8
     }
 
     #[inline]

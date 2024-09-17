@@ -26,7 +26,6 @@ use crate::{
     globals::terminal,
     kernel, print, println, scheduler, serial,
     threading::{self, expose::SpwanFlags},
-    TEST_ELF,
 };
 
 #[doc(hidden)]
@@ -355,16 +354,14 @@ fn userspace(args: Vec<&str>) {
         return;
     }
 
-    // let opened = vfs::expose::open("sys:/programs/test").expect("USERSPACE TEST IS NOT OPENED!!!!");
-    // let mut fstat = unsafe { DirEntry::zeroed() };
-    //
-    // vfs::expose::fstat(opened, &mut fstat).unwrap();
-    //
-    // let mut elf_bytes = Vec::with_capacity(fstat.size);
-    // elf_bytes.resize(fstat.size, 0);
-    //
-    // vfs::expose::read(opened, &mut elf_bytes).unwrap();
-    let elf_bytes = TEST_ELF;
+    let opened = vfs::expose::open("sys:/programs/test").expect("USERSPACE TEST IS NOT OPENED!!!!");
+    let mut fstat = unsafe { DirEntry::zeroed() };
+
+    vfs::expose::fstat(opened, &mut fstat).unwrap();
+
+    let mut elf_bytes = Vec::with_capacity(fstat.size);
+    elf_bytes.resize(fstat.size, 0);
+    vfs::expose::read(opened, &mut elf_bytes).unwrap();
 
     let pid = unsafe {
         threading::expose::spawn("user_test", &elf_bytes[0], SpwanFlags::empty()).unwrap()
