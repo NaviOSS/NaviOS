@@ -104,6 +104,7 @@ fn make_ramdisk() {
     tar_builder
         .append_dir_all("programs", "programs/build")
         .unwrap();
+    tar_builder.finish().unwrap();
 }
 
 fn cleanup() {
@@ -118,10 +119,9 @@ fn main() {
     put_limine_config();
     put_boot_files();
 
-    make_iso();
-    make_ramdisk();
     out(compile_programs());
-    cleanup();
+    make_ramdisk();
+    make_iso();
 
     let iso_path = current_dir().unwrap().join("navios.iso");
     println!("cargo:rerun-if-changed={}", iso_path.display());

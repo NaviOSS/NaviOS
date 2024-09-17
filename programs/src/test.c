@@ -15,9 +15,14 @@ int main() {
   filename_len++;
   filename[filename_len - 1] = 0;
 
-  printf("creating %s ...\n", filename);
+  /// TODO: improve
+  char full_path[5 + 7] = "ram:/";
+  for (int i = 0; i < filename_len; i++)
+    full_path[5 + i] = filename[i];
 
-  char created = create_n("ram:/", filename);
+  printf("creating %s with path %s ...\n", filename, full_path);
+
+  char created = create_n(full_path);
 
   if (created < 0) {
     printf("err creating!\n");
@@ -33,10 +38,6 @@ int main() {
   }
 
   printf("writing '%.*s' to it ... \n", data_len, data);
-
-  char full_path[5 + 7] = "ram:/";
-  for (int i = 0; i < filename_len; i++)
-    full_path[5 + i] = filename[i];
 
   // FIXME: open takes full path, but create takes the dir path and the
   // filename?

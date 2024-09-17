@@ -1,12 +1,17 @@
+use core::ffi::CStr;
+
 use alloc::slice;
 use lazy_static::lazy_static;
 use limine::file::File;
 use limine::framebuffer::MemoryModel;
+use limine::modules::InternalModule;
+use limine::modules::ModuleFlags;
 use limine::request::FramebufferRequest;
 use limine::request::HhdmRequest;
 use limine::request::KernelAddressRequest;
 use limine::request::KernelFileRequest;
 use limine::request::MemoryMapRequest;
+use limine::request::ModuleRequest;
 use limine::request::RsdpRequest;
 
 use limine::response::MemoryMapResponse;
@@ -15,6 +20,7 @@ use limine::BaseRevision;
 use crate::memory::align_up;
 use crate::terminal::framebuffer::FrameBufferInfo;
 use crate::terminal::framebuffer::PixelFormat;
+use crate::utils::ustar::TarArchiveIter;
 
 #[used]
 #[link_section = ".requests"]
@@ -43,6 +49,15 @@ static MMAP_REQUEST: MemoryMapRequest = MemoryMapRequest::new();
 #[used]
 #[link_section = ".requests"]
 static FRAMEBUFFER_REQUEST: FramebufferRequest = FramebufferRequest::new();
+
+const RAMDISK_MODULE: InternalModule = InternalModule::new()
+    .with_path(unsafe { CStr::from_bytes_with_nul_unchecked(b"ramdisk.tar\0") })
+    .with_flags(ModuleFlags::REQUIRED);
+
+#[used]
+#[link_section = ".requests"]
+static MODULES_REQUEST: ModuleRequest =
+    ModuleRequest::new().with_internal_modules(&[&RAMDISK_MODULE]);
 
 pub fn get_phy_offset() -> usize {
     HHDM_REQUEST.get_response().unwrap().offset() as usize
@@ -118,4 +133,15 @@ pub fn get_framebuffer() -> (&'static mut [u8], FrameBufferInfo) {
     let buffer = unsafe { slice::from_raw_parts_mut(first.addr(), size) };
 
     (buffer, info)
+}
+
+fn get_ramdisk_file() -> &'static File {
+    MODULES_REQUEST
+        .get_response()
+        .expect("failed getting modules!")
+        .modules()[0]
+}
+
+pub fn get_ramdisk() -> TarArchiveIter<'static> {
+    unsafe { TarArchiveIter::new(get_ramdisk_file().addr()) }
 }

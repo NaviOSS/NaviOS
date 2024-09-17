@@ -177,19 +177,11 @@ extern "C" fn sysclose(fd: usize) -> u64 {
 }
 
 #[no_mangle]
-extern "C" fn syscreate(
-    path_ptr: *const u8,
-    path_len: usize,
-    name_ptr: *const u8,
-    name_len: usize,
-) -> u64 {
+extern "C" fn syscreate(path_ptr: *const u8, path_len: usize) -> u64 {
     let path = make_slice!(path_ptr, path_len);
     let path = String::from_utf8_lossy(path);
 
-    let name = make_slice!(name_ptr, name_len);
-    let name = String::from_utf8_lossy(name);
-
-    let ret = if let Err(err) = vfs::expose::create(&path, &name) {
+    let ret = if let Err(err) = vfs::expose::create(&path) {
         -(err as i16)
     } else {
         0
@@ -199,19 +191,11 @@ extern "C" fn syscreate(
 }
 
 #[no_mangle]
-extern "C" fn syscreatedir(
-    path_ptr: *const u8,
-    path_len: usize,
-    name_ptr: *const u8,
-    name_len: usize,
-) -> u64 {
+extern "C" fn syscreatedir(path_ptr: *const u8, path_len: usize) -> u64 {
     let path = make_slice!(path_ptr, path_len);
     let path = String::from_utf8_lossy(path);
 
-    let name = make_slice!(name_ptr, name_len);
-    let name = String::from_utf8_lossy(name);
-
-    let ret = if let Err(err) = vfs::expose::createdir(&path, &name) {
+    let ret = if let Err(err) = vfs::expose::createdir(&path) {
         -(err as i16)
     } else {
         0

@@ -76,14 +76,14 @@ impl InodeOps for RamInode {
         }
     }
 
-    fn insert(&mut self, name: String, node: usize) -> FSResult<()> {
+    fn insert(&mut self, name: &str, node: usize) -> FSResult<()> {
         match self {
             Self::Children(tree) => {
-                if tree.contains_key(&name) {
+                if tree.contains_key(name) {
                     return Err(FSError::AlreadyExists);
                 }
 
-                tree.insert(name, node);
+                tree.insert(name.to_string(), node);
                 Ok(())
             }
             _ => Err(FSError::NotADirectory),
@@ -187,35 +187,26 @@ impl FS for RamFS {
         Ok(())
     }
 
-    fn create(&mut self, path: Path, name: String) -> FSResult<()> {
+    fn create(&mut self, path: Path) -> FSResult<()> {
         let inodeid = self.inodes.len();
-        let name_clone = name.clone();
-        let node = RamInode::new_file(name, &[], inodeid);
 
+        let (resloved, name) = self.reslove_path_uncreated(path)?;
+        resloved.ops.insert(name, inodeid)?;
+
+        let node = RamInode::new_file(name.to_string(), &[], inodeid);
         self.inodes.push(node);
 
-        let resloved = self.reslove_path(path)?;
-
-        if resloved.inode_type != InodeType::Directory {
-            return Err(FSError::NotADirectory);
-        }
-
-        resloved.ops.insert(name_clone, inodeid)?;
         Ok(())
     }
 
-    fn createdir(&mut self, path: Path, name: String) -> FSResult<()> {
+    fn createdir(&mut self, path: Path) -> FSResult<()> {
         let inodeid = self.inodes.len();
 
-        let resloved = self.reslove_path(path)?;
-        if resloved.inode_type != InodeType::Directory {
-            return Err(FSError::NotADirectory);
-        }
+        let (resloved, name) = self.reslove_path_uncreated(path)?;
+        resloved.ops.insert(name, inodeid)?;
 
-        resloved.ops.insert(name.clone(), inodeid)?;
-
-        let mut node = RamInode::new_dir(name, inodeid);
-        node.ops.insert("..".to_string(), resloved.inodeid)?;
+        let mut node = RamInode::new_dir(name.to_string(), inodeid);
+        node.ops.insert("..", resloved.inodeid)?;
 
         self.inodes.push(node);
 

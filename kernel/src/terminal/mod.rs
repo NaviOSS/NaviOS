@@ -221,14 +221,9 @@ fn mkdir(args: Vec<&str>) {
 
     let path = get_path(args[1]);
 
-    let mut spilt: Vec<&str> = path.split(['/', '\\']).collect();
-
-    let dir_name = spilt.pop().unwrap();
-    let path = spilt.join("/");
-
-    let result = createdir(&path, dir_name);
+    let result = createdir(&path);
     if let Err(err) = result {
-        println!("failed touching `{dir_name}` in {path}, error: {:?}", err);
+        println!("failed touching {path}, error: {:?}", err);
     }
 }
 
@@ -240,14 +235,9 @@ fn touch(args: Vec<&str>) {
 
     let path = get_path(args[1]);
 
-    let mut spilt: Vec<&str> = path.split(['/', '\\']).collect();
-
-    let file_name = spilt.pop().unwrap();
-    let path = spilt.join("/");
-
-    let result = create(&path, file_name);
+    let result = create(&path);
     if let Err(err) = result {
-        println!("failed touching `{file_name}` in {path}, error: {:?}", err);
+        println!("failed touching {path}, error: {:?}", err);
     }
 }
 
@@ -365,7 +355,17 @@ fn userspace(args: Vec<&str>) {
         return;
     }
 
-    let elf_bytes = TEST_ELF.to_vec();
+    // let opened = vfs::expose::open("sys:/programs/test").expect("USERSPACE TEST IS NOT OPENED!!!!");
+    // let mut fstat = unsafe { DirEntry::zeroed() };
+    //
+    // vfs::expose::fstat(opened, &mut fstat).unwrap();
+    //
+    // let mut elf_bytes = Vec::with_capacity(fstat.size);
+    // elf_bytes.resize(fstat.size, 0);
+    //
+    // vfs::expose::read(opened, &mut elf_bytes).unwrap();
+    let elf_bytes = TEST_ELF;
+
     let pid = unsafe {
         threading::expose::spawn("user_test", &elf_bytes[0], SpwanFlags::empty()).unwrap()
     };
@@ -491,7 +491,7 @@ pub fn shell() {
 |_| \_|\__,_| \_/ |_|\____/|_____/
 ||]"
     );
-    print!("\\[fg: (255, 255, 255) ||\nwelcome to NaviOS!\ntype help or ? for a list of avalible commands\n||]");
+    print!("\\[fg: (255, 255, 255) ||\nwelcome to NaviOS!\ntype help or ? for a list of avalible commands\nyou are now in ram:/ a playground, sys: is also mounted it contains the init ramdisk\n||]");
 
     loop {
         print!(

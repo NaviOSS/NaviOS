@@ -2,7 +2,7 @@
 //! a resource index instead of a file descriptor aka ri
 use core::{fmt::Debug, usize};
 
-use alloc::{boxed::Box, string::ToString};
+use alloc::boxed::Box;
 
 use crate::{scheduler, threading::processes::Resource};
 
@@ -48,13 +48,13 @@ pub fn write(ri: usize, buffer: &[u8]) -> FSResult<()> {
 }
 
 #[no_mangle]
-pub fn create(path: Path, name: &str) -> FSResult<()> {
-    vfs().create(path, name.to_string())
+pub fn create(path: Path) -> FSResult<()> {
+    vfs().create(path)
 }
 
 #[no_mangle]
-pub fn createdir(path: Path, name: &str) -> FSResult<()> {
-    vfs().createdir(path, name.to_string())
+pub fn createdir(path: Path) -> FSResult<()> {
+    vfs().createdir(path)
 }
 
 pub const MAX_NAME_LEN: usize = 128;

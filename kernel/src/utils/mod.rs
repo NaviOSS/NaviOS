@@ -1,4 +1,6 @@
 pub mod elf;
+pub mod ustar;
+
 // TODO: impl our own Optional type
 use spin::Mutex;
 
