@@ -1,9 +1,12 @@
 use core::arch::asm;
 
+use alloc::string::ToString;
 use bitflags::bitflags;
 
 use crate::{
-    debug, khalt, scheduler,
+    debug,
+    drivers::vfs::{self, FSResult},
+    khalt, scheduler,
     threading::processes::{Process, ProcessStatus},
     utils::elf::{Elf, ElfError},
 };
@@ -87,4 +90,23 @@ pub unsafe fn spawn(name: &str, elf_ptr: *const u8, flags: SpwanFlags) -> Result
 
     scheduler().add_process(process);
     Ok(pid)
+}
+
+/// also ensures the cwd ends with /
+/// will only Err if new_dir doesn't exists or is not a directory
+#[no_mangle]
+pub fn chdir(new_dir: &str) -> FSResult<()> {
+    vfs::vfs().verify_path_dir(new_dir)?;
+    let cwd = &mut scheduler().current_process().current_dir;
+    *cwd = new_dir.to_string();
+    if !cwd.ends_with('/') {
+        cwd.push('/');
+    }
+
+    Ok(())
+}
+
+#[no_mangle]
+pub fn getcwd<'a>() -> &'a str {
+    &scheduler().current_process().current_dir
 }

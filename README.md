@@ -29,10 +29,11 @@ cargo run -- no-kvm
 - basic ring0 framebuffer terminal
 - scheduler with one-thread processes
 - process resources
-- VFS with RamFS
+- VFS with RamFS (ustar unpacking support)
 - ring3 processes
 - syscalls
 - some elf executing
+- init ramdisk
 
 currently using the [limine](https://limine-bootloader.org/) bootloader
 
@@ -44,6 +45,7 @@ note: i dont know much about osdev (this is my first OS), stuff prefixed with ? 
 - [ ] rewrite most of the commands as a userspace program in C, load them in the init ramdisk probably mounted under programs:/
 - [ ] sync
     - [ ] improve the peformance of the frame_allocator it takes 5 seconds to map 7*4 mbs without kvm?
+- [ ] argc && argv?!
 - [ ] replace the current linked list allocator with a good buddy allocator
 
 ## roadmap

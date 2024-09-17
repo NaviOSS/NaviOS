@@ -63,6 +63,7 @@ pub enum FSError {
     /// ethier a fd which points to a resource which isnt a FileDescriptor or it points to nothing
     InvaildFileDescriptorOrRes,
     AlreadyExists,
+    NotExecuteable,
 }
 
 pub type FSResult<T> = Result<T, FSError>;
@@ -341,7 +342,7 @@ impl VFS {
     pub(self) fn get_from_path<'a>(
         &mut self,
         path: Path<'a>,
-    ) -> FSResult<(Option<&mut Box<dyn FS>>, &'a str)> {
+    ) -> FSResult<(&mut Box<dyn FS>, &'a str)> {
         let mut spilt_path = path.split(&['/', '\\']);
 
         let drive = spilt_path.next().ok_or(FSError::InvaildDrive)?;
@@ -350,7 +351,8 @@ impl VFS {
         }
 
         Ok((
-            self.get_with_name_mut(drive.as_bytes()),
+            self.get_with_name_mut(drive.as_bytes())
+                .ok_or(FSError::InvaildDrive)?,
             &path[drive.len()..],
         ))
     }
@@ -358,7 +360,6 @@ impl VFS {
     /// checks if a path is a vaild dir returns Err if path has an error
     pub fn verify_path_dir(&mut self, path: Path) -> FSResult<()> {
         let (mountpoint, path) = self.get_from_path(path)?;
-        let mountpoint = mountpoint.ok_or(FSError::InvaildDrive)?;
 
         let res = mountpoint.reslove_path(path)?;
 
@@ -397,7 +398,6 @@ impl FS for VFS {
 
     fn open(&mut self, path: Path) -> FSResult<FileDescriptor> {
         let (mountpoint, path) = self.get_from_path(path)?;
-        let mountpoint = mountpoint.ok_or(FSError::InvaildDrive)?;
 
         let file = mountpoint.open(path)?;
 
@@ -414,7 +414,6 @@ impl FS for VFS {
 
     fn create(&mut self, path: Path) -> FSResult<()> {
         let (mountpoint, path) = self.get_from_path(path)?;
-        let mountpoint = mountpoint.ok_or(FSError::InvaildDrive)?;
 
         if path.ends_with('/') {
             return Err(FSError::NotAFile);
@@ -425,7 +424,6 @@ impl FS for VFS {
 
     fn createdir(&mut self, path: Path) -> FSResult<()> {
         let (mountpoint, path) = self.get_from_path(path)?;
-        let mountpoint = mountpoint.ok_or(FSError::InvaildDrive)?;
 
         mountpoint.createdir(path)
     }

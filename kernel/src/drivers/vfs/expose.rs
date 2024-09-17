@@ -1,6 +1,6 @@
 //! exposed functions of VFS they manually uses
 //! a resource index instead of a file descriptor aka ri
-use core::{fmt::Debug, usize};
+use core::{fmt::Debug, str, usize};
 
 use alloc::boxed::Box;
 
@@ -69,6 +69,11 @@ pub struct DirEntry {
 }
 
 impl DirEntry {
+    #[inline]
+    pub fn name(&self) -> &str {
+        unsafe { str::from_utf8_unchecked(&self.name[..self.name_length]) }
+    }
+
     pub fn get_from_inode_with_name(inode: *const Inode, name: &str) -> FSResult<Self> {
         unsafe {
             let name_slice = name.as_bytes();

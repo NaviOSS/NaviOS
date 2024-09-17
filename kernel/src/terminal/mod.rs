@@ -8,6 +8,7 @@ use core::{
 };
 
 use alloc::{
+    borrow::ToOwned,
     string::{String, ToString},
     vec::Vec,
 };
@@ -21,7 +22,7 @@ use crate::{
             close, create, createdir, diriter_close, diriter_next, diriter_open, open, read,
             DirEntry,
         },
-        vfs,
+        FSError, FSResult, InodeType,
     },
     globals::terminal,
     kernel, print, println, scheduler, serial,
@@ -75,7 +76,7 @@ fn help(args: Vec<&str>) {
         "info:
     scroll up using `page up` and scroll down using `page down`,
     this shell supports string slices starting with '\"'
-commands:
+commands (additionally there may be some elfs in sys:/programs/ which were not listed here):
     help, ?: displays this
     echo `text`: echoes back text
     clear: clears the screen
@@ -94,7 +95,7 @@ commands:
 
     cat `src_files`: echoes the contents of a file
     write `target_file` `src_text`: writes `src_text` to `target_file`
-    userspace: launches test userspace elf
+    test: launches test userspace elf located at sys:/programs/
     meminfo: gives some memory info
     breakpoint: executes int3"
     );
@@ -209,7 +210,7 @@ fn get_path(path: &str) -> String {
         }
     }
 
-    return scheduler().current_process().current_dir.clone() + path;
+    return threading::expose::getcwd().to_owned() + path;
 }
 
 fn mkdir(args: Vec<&str>) {
@@ -272,20 +273,9 @@ fn cd(args: Vec<&str>) {
         return;
     }
 
-    let mut path = get_path(args[1]);
-    let verify = vfs().verify_path_dir(&path);
-
-    if verify.is_err() {
-        println!("{}: path error: {:?}", args[0], verify.unwrap_err())
-    } else {
-        // must add / because it is stupid, if for example we set the current_dir to ram:/test
-        // using `touch` will create an empty file with path ram:/test`file_name`
-        // FIXME: consider fixing this next, the code is already spaghetti, the next update should
-        // fix all of this
-        if !path.ends_with('/') {
-            path.push('/');
-        }
-        scheduler().current_process().current_dir = path
+    let path = get_path(args[1]);
+    if let Err(err) = threading::expose::chdir(&path) {
+        println!("{}: path error: {:?}", args[0], err)
     }
 }
 
@@ -347,29 +337,6 @@ fn write(args: Vec<&str>) {
     close(opened).unwrap();
 }
 
-/// runs `crate::userspace_test as a userspace process`
-fn userspace(args: Vec<&str>) {
-    if args.len() != 1 {
-        println!("{}: excepts no args", args[0]);
-        return;
-    }
-
-    let opened = vfs::expose::open("sys:/programs/test").expect("USERSPACE TEST IS NOT OPENED!!!!");
-    let mut fstat = unsafe { DirEntry::zeroed() };
-
-    vfs::expose::fstat(opened, &mut fstat).unwrap();
-
-    let mut elf_bytes = Vec::with_capacity(fstat.size);
-    elf_bytes.resize(fstat.size, 0);
-    vfs::expose::read(opened, &mut elf_bytes).unwrap();
-
-    let pid = unsafe {
-        threading::expose::spawn("user_test", &elf_bytes[0], SpwanFlags::empty()).unwrap()
-    };
-
-    threading::expose::wait(pid);
-}
-
 fn meminfo(args: Vec<&str>) {
     if args.len() != 1 {
         println!("{}: excepts no args", args[0]);
@@ -422,6 +389,56 @@ fn breakpoint(args: Vec<&str>) {
 
     unsafe { core::arch::asm!("int3") }
 }
+
+/// lookups command in PATH and cwd and spwans and waits for it if it exists
+fn execute_command(args: Vec<&str>) -> FSResult<()> {
+    let command = args[0];
+    let path_var = &[threading::expose::getcwd(), "sys:/programs/"];
+
+    for cwd_path in path_var {
+        let cwd_path = cwd_path.to_string();
+
+        let cwd = vfs::expose::open(&cwd_path)?;
+        let diriter = vfs::expose::diriter_open(cwd)?;
+
+        let mut entry = unsafe { DirEntry::zeroed() };
+        loop {
+            vfs::expose::diriter_next(diriter, &mut entry)?;
+            if entry == unsafe { DirEntry::zeroed() } {
+                break;
+            }
+
+            if entry.name() == command && entry.kind == InodeType::File {
+                let full_path = cwd_path + command;
+                let opened = vfs::expose::open(&full_path)?;
+
+                let mut buffer = Vec::with_capacity(entry.size);
+                buffer.resize(entry.size, 0);
+                vfs::expose::read(opened, &mut buffer)?;
+
+                vfs::expose::close(opened)?;
+
+                // FIXME: should be CLONE_RESOURCES tho
+                let pid = unsafe {
+                    threading::expose::spawn(command, &buffer[0], SpwanFlags::empty())
+                        .ok()
+                        .ok_or(FSError::NotExecuteable)?
+                };
+
+                threading::expose::wait(pid);
+
+                vfs::expose::diriter_close(diriter)?;
+                vfs::expose::close(cwd)?;
+                return Ok(());
+            }
+        }
+
+        vfs::expose::diriter_close(diriter)?;
+        vfs::expose::close(cwd)?;
+    }
+    Err(FSError::NoSuchAFileOrDirectory)
+}
+
 // bad shell
 pub fn process_command(command: String) {
     let mut unterminated_str_slice = false;
@@ -460,12 +477,14 @@ pub fn process_command(command: String) {
 
         "cat" => cat,
         "write" => write,
-        "userspace" => userspace,
         "meminfo" => meminfo,
         "breakpoint" => breakpoint,
         "" => return,
-        _ => {
-            println!("unknown command {}", command[0]);
+        cmd => {
+            if let Err(err) = execute_command(command) {
+                println!("unknown command {}: {:?}", cmd, err);
+            }
+
             return;
         }
     })(command)
@@ -491,10 +510,7 @@ pub fn shell() {
     print!("\\[fg: (255, 255, 255) ||\nwelcome to NaviOS!\ntype help or ? for a list of avalible commands\nyou are now in ram:/ a playground, sys: is also mounted it contains the init ramdisk\n||]");
 
     loop {
-        print!(
-            r"\[fg: (0, 255, 0) ||{}||] # ",
-            scheduler().current_process().current_dir
-        );
+        print!(r"\[fg: (0, 255, 0) ||{}||] # ", threading::expose::getcwd());
         process_command(readln());
     }
 }
