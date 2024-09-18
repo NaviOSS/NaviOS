@@ -292,5 +292,5 @@ extern "C" fn sysgetcwd(path_ptr: *mut u8, len: usize) -> u64 {
     }
 
     slice.copy_from_slice(&got[..len]);
-    return 0;
+    sysret!(got.len());
 }
