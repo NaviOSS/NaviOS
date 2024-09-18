@@ -116,6 +116,7 @@ fn panic(info: &PanicInfo) -> ! {
     unsafe { asm!("cli") }
     unsafe {
         terminal::framebuffer::VIEWPORT.force_unlock();
+        arch::x86_64::serial::SERIAL.inner.force_unlock();
     }
 
     debug_assert!(!terminal::framebuffer::VIEWPORT.is_locked());

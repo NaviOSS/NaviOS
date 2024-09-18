@@ -241,32 +241,6 @@ fn touch(args: Vec<&str>) {
     }
 }
 
-fn ls(args: Vec<&str>) {
-    if args.len() != 1 {
-        println!("{}: expected 0 args", args[0]);
-        return;
-    }
-
-    let dir = open(&scheduler().current_process().current_dir).unwrap();
-    let diriter = diriter_open(dir).unwrap();
-
-    loop {
-        let mut entry = unsafe { DirEntry::zeroed() };
-        _ = diriter_next(diriter, &mut entry);
-
-        if entry == unsafe { DirEntry::zeroed() } {
-            break;
-        }
-
-        let name_string = String::from_utf8(entry.name[..entry.name_length].to_vec()).unwrap();
-
-        println!("{}", name_string);
-    }
-
-    _ = diriter_close(diriter);
-    close(dir).unwrap();
-}
-
 fn cd(args: Vec<&str>) {
     if args.len() != 2 {
         println!("{}: expected only the target directory.", args[0]);
@@ -470,7 +444,6 @@ pub fn process_command(command: String) {
         "pkill" => pkill,
         "pkillall" => pkillall,
 
-        "ls" => ls,
         "touch" => touch,
         "mkdir" => mkdir,
         "cd" => cd,
