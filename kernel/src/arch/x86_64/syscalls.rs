@@ -1,4 +1,9 @@
-use core::arch::{asm, global_asm};
+// TODO: figure out errors
+// for now errors are a big mess
+use core::{
+    arch::{asm, global_asm},
+    str,
+};
 
 use alloc::{slice, string::String};
 
@@ -24,6 +29,8 @@ syscall_table:
     .quad syswait
     .quad sysfstat
     .quad sysspawn
+    .quad syschdir
+    .quad sysgetcwd
 syscall_table_end:
 
 SYSCALL_TABLE_INFO:
@@ -259,4 +266,31 @@ extern "C" fn sysspawn(
         };
         sysret!(ret);
     }
+}
+
+#[no_mangle]
+extern "C" fn syschdir(path_ptr: *const u8, path_len: usize) -> u64 {
+    let slice = make_slice!(path_ptr, path_len);
+    let Ok(name) = str::from_utf8(slice) else {
+        sysret!(-100i64);
+    };
+
+    if let Err(err) = threading::expose::chdir(name) {
+        sysret!(-(err as i64))
+    }
+
+    sysret!(0)
+}
+
+#[no_mangle]
+extern "C" fn sysgetcwd(path_ptr: *mut u8, len: usize) -> u64 {
+    let slice = make_slice_mut!(path_ptr, len);
+    let got = threading::expose::getcwd().as_bytes();
+
+    if got.len() > len {
+        return -1i64 as u64;
+    }
+
+    slice.copy_from_slice(&got[..len]);
+    return 0;
 }

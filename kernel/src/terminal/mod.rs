@@ -420,7 +420,7 @@ fn execute_command(args: Vec<&str>) -> FSResult<()> {
 
                 // FIXME: should be CLONE_RESOURCES tho
                 let pid = unsafe {
-                    threading::expose::spawn(command, &buffer[0], SpwanFlags::empty())
+                    threading::expose::spawn(command, &buffer[0], SpwanFlags::CLONE_CWD)
                         .ok()
                         .ok_or(FSError::NotExecuteable)?
                 };

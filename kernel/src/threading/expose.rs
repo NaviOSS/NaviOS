@@ -70,6 +70,7 @@ bitflags! {
     #[repr(C)]
     pub struct SpwanFlags: u8 {
         const CLONE_RESOURCES = 1 << 0;
+        const CLONE_CWD = 1 << 1;
     }
 }
 
@@ -86,6 +87,10 @@ pub unsafe fn spawn(name: &str, elf_ptr: *const u8, flags: SpwanFlags) -> Result
 
     if flags.contains(SpwanFlags::CLONE_RESOURCES) {
         process.resources = scheduler().current_process().resources.clone();
+    }
+
+    if flags.contains(SpwanFlags::CLONE_CWD) {
+        process.current_dir = scheduler().current_process().current_dir.clone();
     }
 
     scheduler().add_process(process);
