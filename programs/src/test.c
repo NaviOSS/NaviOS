@@ -7,12 +7,10 @@ typedef struct Str {
   uint8_t data[];
 } Str;
 
-int main(size_t argc, Str *argv) {
+int main(size_t argc, Str **argv) {
   printf("got %d args!\n", argc);
   for (int i = 0; i < argc; i++) {
-    Str *arg = argv;
-    argv++;
-    argv = (Str *)((uint8_t *)argv + arg->len);
+    Str *arg = argv[i];
     printf("arg: %.*s\n", arg->len, arg->data);
   }
 
@@ -77,8 +75,8 @@ int main(size_t argc, Str *argv) {
   return 0;
 }
 
-void _start(size_t *argc, Str *argv) {
-  int64_t err = main(*argc, argv);
+void _start(size_t argc, Str **argv) {
+  int64_t err = main(argc, argv);
 
   if (err < 0) {
     printf("failed with err: %d\n", (int)err);

@@ -112,22 +112,16 @@ impl Process {
             if argv.len() != 0 {
                 let mut start_addr = ARGV_START;
                 const USIZE_BYTES: usize = size_of::<usize>();
+                let argc = argv.len();
 
                 // argc
                 copy_to_userspace(
                     page_table,
                     start_addr,
-                    &core::mem::transmute::<_, [u8; USIZE_BYTES]>(argv.len()),
+                    &core::mem::transmute::<_, [u8; USIZE_BYTES]>(argc),
                 );
 
-                // set rsi and rdi to argc and argv
-                #[cfg(target_arch = "x86_64")]
-                {
-                    context.rdi = start_addr as u64;
-                    context.rsi = (start_addr + USIZE_BYTES) as u64;
-                }
-
-                // argv
+                // argv*
                 start_addr += USIZE_BYTES;
 
                 for arg in argv {
@@ -145,7 +139,29 @@ impl Process {
                     start_addr += len;
                 }
 
-                // looks like this: argc: 8 (u64) -> argv: (len: 8 (u64) + bytes: len ([u8])) * argc
+                let argv_addr = start_addr;
+                let mut current_argv_ptr = ARGV_START + USIZE_BYTES /* after argc */;
+                // argv**
+                for arg in argv {
+                    copy_to_userspace(
+                        page_table,
+                        start_addr,
+                        &core::mem::transmute::<_, [u8; USIZE_BYTES]>(current_argv_ptr),
+                    );
+                    start_addr += USIZE_BYTES;
+
+                    current_argv_ptr += USIZE_BYTES; // skip the len
+                    current_argv_ptr += arg.len(); // skip the data
+                }
+
+                // set rdi and rsi to argc and argv
+                // _start looks like: extern "C" _start(argc: u64, argv: *const &str)
+                #[cfg(target_arch = "x86_64")]
+                {
+                    context.rdi = argc as u64;
+                    context.rsi = argv_addr as u64;
+                }
+                // looks like this: argc: 8 (u64) -> argv: (len: 8 (u64) + bytes: len ([u8])) * argc -> argv_pointers: 8 (u64) * argc
                 // where numbers is bytes count, (TYPE) is the type of the bytes
             }
         }
