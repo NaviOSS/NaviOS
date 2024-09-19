@@ -20,7 +20,7 @@ pub struct Kernel {
 impl Kernel {
     // TODO: lock the frame_allocator!!!
     #[inline]
-    pub fn frame_allocator(&'static mut self) -> &mut RegionAllocator {
+    pub fn frame_allocator(&'static mut self) -> &'static mut RegionAllocator {
         &mut self.frame_allocator
     }
 }
