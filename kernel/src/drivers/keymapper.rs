@@ -278,11 +278,22 @@ extern "C" fn __navi_map_key(keycode: KeyCode, keyflags: KeyFlags) -> u32 {
 impl Key {
     pub fn map_key(&self) -> char {
         let mappings = DEFAULT_MAPPING.get_const(self.code);
+        let mut empty_mapping = None;
+
         for mapping in mappings {
             if mapping.flags == self.flags {
                 return mapping.result;
             }
+
+            if mapping.flags.is_empty() && mapping.result != '\0' && empty_mapping.is_none() {
+                empty_mapping = Some(mapping);
+            }
         }
+
+        if let Some(mapping) = empty_mapping {
+            return mapping.result;
+        }
+
         return '\0';
     }
 }

@@ -4,7 +4,7 @@ use alloc::string::ToString;
 use bitflags::bitflags;
 
 use crate::{
-    debug,
+    /*     debug, */
     drivers::vfs::{self, FSResult},
     khalt, scheduler,
     threading::processes::{Process, ProcessStatus},
@@ -34,12 +34,12 @@ pub fn thread_yeild() {
 
 #[no_mangle]
 pub fn wait(pid: u64) {
-    debug!(
-        Process,
-        "{} waiting for {} to exit ...",
-        scheduler().current_process().pid,
-        pid
-    );
+    // debug!(
+    //     Process,
+    //     "{} waiting for {} to exit ...",
+    //     scheduler().current_process().pid,
+    //     pid
+    // );
 
     loop {
         let mut current = scheduler().head.as_mut();

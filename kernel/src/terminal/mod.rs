@@ -18,12 +18,13 @@ use crate::{
     arch,
     drivers::vfs::{
         self,
-        expose::{close, createdir, open, read, DirEntry},
+        expose::{close, open, DirEntry},
         FSError, FSResult, InodeType,
     },
     globals::terminal,
     kernel, print, println, scheduler, serial,
     threading::{self, expose::SpwanFlags},
+    utils::elf::ElfHeader,
 };
 
 #[doc(hidden)]
@@ -52,15 +53,6 @@ pub fn readln() -> String {
         }
         threading::expose::thread_yeild()
     }
-}
-
-pub fn echo(args: Vec<&str>) {
-    if args.len() != 2 {
-        println!("echo: expected 1 arg");
-        return;
-    }
-
-    println!("{}", args[1]);
 }
 
 fn help(args: Vec<&str>) {
@@ -210,20 +202,6 @@ fn get_path(path: &str) -> String {
     return threading::expose::getcwd().to_owned() + path;
 }
 
-fn mkdir(args: Vec<&str>) {
-    if args.len() != 2 {
-        println!("{}: expected just the new dir path", args[0]);
-        return;
-    }
-
-    let path = get_path(args[1]);
-
-    let result = createdir(&path);
-    if let Err(err) = result {
-        println!("failed touching {path}, error: {:?}", err);
-    }
-}
-
 fn cd(args: Vec<&str>) {
     if args.len() != 2 {
         println!("{}: expected only the target directory.", args[0]);
@@ -234,39 +212,6 @@ fn cd(args: Vec<&str>) {
     if let Err(err) = threading::expose::chdir(&path) {
         println!("{}: path error: {:?}", args[0], err)
     }
-}
-
-fn cat(args: Vec<&str>) {
-    if args.len() != 2 {
-        println!("{}: expected only the target file path", args[0]);
-        return;
-    }
-
-    let path = get_path(args[1]);
-    let res = open(&path);
-
-    if let Err(err) = res {
-        println!("{}: failed to open file, error: {:?}", args[0], err);
-        return;
-    }
-
-    let opened = res.unwrap();
-    let mut stat = unsafe { DirEntry::zeroed() };
-    _ = vfs::expose::fstat(opened, &mut stat);
-
-    let mut buffer: Vec<u8> = Vec::new();
-    buffer.resize(stat.size, 0);
-
-    let read = read(opened, &mut buffer);
-
-    if let Err(err) = read {
-        println!("{}: failed to read file, error: {:?}", args[0], err);
-    }
-
-    let output = unsafe { String::from_utf8_unchecked(buffer) };
-    println!("{}", output);
-
-    close(opened).unwrap();
 }
 
 fn write(args: Vec<&str>) {
@@ -366,6 +311,10 @@ fn execute_command(args: Vec<&str>) -> FSResult<()> {
             }
 
             if entry.name() == command && entry.kind == InodeType::File {
+                if entry.size < size_of::<ElfHeader>() {
+                    return Err(FSError::NotExecuteable);
+                }
+
                 let full_path = cwd_path + command;
                 let opened = vfs::expose::open(&full_path)?;
 
@@ -375,6 +324,10 @@ fn execute_command(args: Vec<&str>) -> FSResult<()> {
 
                 vfs::expose::close(opened)?;
 
+                // FIXME:
+                // spwan should take &[u8] and figure out if it is big enough
+                // i put it here because i wont see it if i put it somewhere else, my memory
+                // feature sucks ^^^^
                 // FIXME: should be CLONE_RESOURCES tho
                 let pid = unsafe {
                     threading::expose::spawn(command, &buffer[0], &args, SpwanFlags::CLONE_CWD)
@@ -417,7 +370,6 @@ pub fn process_command(command: String) {
     }
 
     (match command[0] {
-        "echo" => echo,
         "?" | "help" => help,
         "clear" => clear,
         "reboot" => reboot_cmd,
@@ -427,10 +379,8 @@ pub fn process_command(command: String) {
         "pkill" => pkill,
         "pkillall" => pkillall,
 
-        "mkdir" => mkdir,
         "cd" => cd,
 
-        "cat" => cat,
         "write" => write,
         "meminfo" => meminfo,
         "breakpoint" => breakpoint,

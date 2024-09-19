@@ -3,15 +3,7 @@
 #include <sys.h>
 
 int main() {
-  uint8_t buffer[1024];
-
-  size_t len = getcwd(buffer, 1024);
-  if (len < 0) {
-    printf("ls: failed getting the current work dir!\n");
-    return -1;
-  }
-
-  int64_t fd = open(buffer, len);
+  int64_t fd = open_n(".");
   if (fd < 0) {
     printf("ls: failed opening current work dir\n");
     return -1;
