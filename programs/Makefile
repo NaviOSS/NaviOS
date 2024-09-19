@@ -24,7 +24,7 @@ ${STDLIB}: ${STDLIB_PATH}
 
 ${BUILD_DIR}/%: ${SRC_DIR}/%.c
 	@mkdir -p ${BUILD_DIR}
-	${CC} ${CFLAGS} $< -L${STDLIB_PATH} -lstd -o $@
+	${CC} ${CFLAGS} $< -Wl,-u _start -L${STDLIB_PATH} -lstd -o $@
 
 clean:
 	rm -rf ${LIB_DIR}

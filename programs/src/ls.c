@@ -37,8 +37,3 @@ int main() {
   close(fd);
   return 0;
 }
-
-void _start() {
-  main();
-  pexit();
-}

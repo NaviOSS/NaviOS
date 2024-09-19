@@ -1,6 +1,6 @@
 #include "stdio.h"
-#include "sys.h"
 #include <stdint.h>
+#include <string.h>
 
 typedef struct Str {
   size_t len;
@@ -27,14 +27,12 @@ int main(size_t argc, Str **argv) {
   filename_len++;
   filename[filename_len - 1] = 0;
 
-  /// TODO: improve
-  char full_path[5 + 7] = "ram:/";
-  for (int i = 0; i < filename_len; i++)
-    full_path[5 + i] = filename[i];
+  char fullpath[5 + 7] = "ram:/";
+  strcat(fullpath, filename);
 
-  printf("creating %s with path %s ...\n", filename, full_path);
+  printf("creating %s with path %s ...\n", filename, fullpath);
 
-  char created = create_n(full_path);
+  char created = create_n(fullpath);
 
   if (created < 0) {
     printf("err creating!\n");
@@ -53,7 +51,7 @@ int main(size_t argc, Str **argv) {
 
   // FIXME: open takes full path, but create takes the dir path and the
   // filename?
-  int64_t fd = open_n(full_path);
+  int64_t fd = open_n(fullpath);
 
   if (fd < 0) {
     printf("failed opening the file );\n");
@@ -73,14 +71,4 @@ int main(size_t argc, Str **argv) {
   printf("done!\n");
 
   return 0;
-}
-
-void _start(size_t argc, Str **argv) {
-  int64_t err = main(argc, argv);
-
-  if (err < 0) {
-    printf("failed with err: %d\n", (int)err);
-  }
-
-  pexit();
 }
