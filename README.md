@@ -6,7 +6,7 @@ this is my first OS!
 **star the repo!**
 
 # building and running
-you need a linux system with bash, `xorriso`, `make`, `cargo` and `qemu-system-x86_64` (you need kvm) to run do
+you need a linux system with `bash`, `git`, `xorriso`, `make`, `cargo` and `qemu-system-x86_64` (you need kvm otherwise run with `no-kvm` argument) to run do
 
 ```
 cargo run
