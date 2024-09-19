@@ -18,7 +18,7 @@ use crate::{
     arch,
     drivers::vfs::{
         self,
-        expose::{close, create, createdir, open, read, DirEntry},
+        expose::{close, createdir, open, read, DirEntry},
         FSError, FSResult, InodeType,
     },
     globals::terminal,
@@ -219,20 +219,6 @@ fn mkdir(args: Vec<&str>) {
     let path = get_path(args[1]);
 
     let result = createdir(&path);
-    if let Err(err) = result {
-        println!("failed touching {path}, error: {:?}", err);
-    }
-}
-
-fn touch(args: Vec<&str>) {
-    if args.len() != 2 {
-        println!("{}: expected just the new file path", args[0]);
-        return;
-    }
-
-    let path = get_path(args[1]);
-
-    let result = create(&path);
     if let Err(err) = result {
         println!("failed touching {path}, error: {:?}", err);
     }
@@ -441,7 +427,6 @@ pub fn process_command(command: String) {
         "pkill" => pkill,
         "pkillall" => pkillall,
 
-        "touch" => touch,
         "mkdir" => mkdir,
         "cd" => cd,
 

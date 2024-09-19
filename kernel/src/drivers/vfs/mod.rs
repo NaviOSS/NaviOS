@@ -4,6 +4,7 @@ use core::usize;
 
 use crate::{
     debug,
+    threading::expose::getcwd,
     utils::{
         ustar::{self, TarArchiveIter},
         Locked,
@@ -11,7 +12,13 @@ use crate::{
 };
 pub mod ramfs;
 
-use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String, vec::Vec};
+use alloc::{
+    borrow::ToOwned,
+    boxed::Box,
+    collections::btree_map::BTreeMap,
+    string::{String, ToString},
+    vec::Vec,
+};
 use expose::DirIter;
 use lazy_static::lazy_static;
 use spin::MutexGuard;
@@ -339,10 +346,27 @@ impl VFS {
     /// gets the drive name from `path` then gets the drive
     /// path must be absolute starting with DRIVE_NAME:/
     /// returns an &str which removes the DRIVE_NAME:/ from path
-    pub(self) fn get_from_path<'a>(
+    /// also handles relative path
+    pub(self) fn get_from_path(&mut self, path: Path) -> FSResult<(&mut Box<dyn FS>, String)> {
+        let mut spilt_path = path.split(&['/', '\\']);
+
+        let drive = spilt_path.next().ok_or(FSError::InvaildDrive)?;
+        if !(drive.ends_with(':')) {
+            let full_path = getcwd().to_owned() + path;
+            return self.get_from_path_checked(&full_path);
+        }
+
+        Ok((
+            self.get_with_name_mut(drive.as_bytes())
+                .ok_or(FSError::InvaildDrive)?,
+            path[drive.len()..].to_string(),
+        ))
+    }
+    /// get_from_path but path cannot be realtive to cwd
+    pub(self) fn get_from_path_checked(
         &mut self,
-        path: Path<'a>,
-    ) -> FSResult<(&mut Box<dyn FS>, &'a str)> {
+        path: Path,
+    ) -> FSResult<(&mut Box<dyn FS>, String)> {
         let mut spilt_path = path.split(&['/', '\\']);
 
         let drive = spilt_path.next().ok_or(FSError::InvaildDrive)?;
@@ -353,15 +377,15 @@ impl VFS {
         Ok((
             self.get_with_name_mut(drive.as_bytes())
                 .ok_or(FSError::InvaildDrive)?,
-            &path[drive.len()..],
+            path[drive.len()..].to_string(),
         ))
     }
 
     /// checks if a path is a vaild dir returns Err if path has an error
     pub fn verify_path_dir(&mut self, path: Path) -> FSResult<()> {
-        let (mountpoint, path) = self.get_from_path(path)?;
+        let (mountpoint, path) = self.get_from_path_checked(path)?;
 
-        let res = mountpoint.reslove_path(path)?;
+        let res = mountpoint.reslove_path(&path)?;
 
         if !res.is_dir() {
             return Err(FSError::NotADirectory);
@@ -399,7 +423,7 @@ impl FS for VFS {
     fn open(&mut self, path: Path) -> FSResult<FileDescriptor> {
         let (mountpoint, path) = self.get_from_path(path)?;
 
-        let file = mountpoint.open(path)?;
+        let file = mountpoint.open(&path)?;
 
         Ok(file)
     }
@@ -419,13 +443,13 @@ impl FS for VFS {
             return Err(FSError::NotAFile);
         }
 
-        mountpoint.create(path)
+        mountpoint.create(&path)
     }
 
     fn createdir(&mut self, path: Path) -> FSResult<()> {
         let (mountpoint, path) = self.get_from_path(path)?;
 
-        mountpoint.createdir(path)
+        mountpoint.createdir(&path)
     }
 
     fn close(&mut self, file_descriptor: &mut FileDescriptor) -> FSResult<()> {
