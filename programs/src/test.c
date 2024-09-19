@@ -1,11 +1,7 @@
 #include "stdio.h"
 #include <stdint.h>
 #include <string.h>
-
-typedef struct Str {
-  size_t len;
-  uint8_t data[];
-} Str;
+#include <utils.h>
 
 int main(size_t argc, Str **argv) {
   printf("got %d args!\n", argc);
