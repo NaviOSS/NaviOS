@@ -1,7 +1,21 @@
 #include "stdio.h"
 #include "sys.h"
+#include <stdint.h>
 
-int main() {
+typedef struct Str {
+  size_t len;
+  uint8_t data[];
+} Str;
+
+int main(size_t argc, Str *argv) {
+  printf("got %d args!\n", argc);
+  for (int i = 0; i < argc; i++) {
+    Str *arg = argv;
+    argv++;
+    argv = (Str *)((uint8_t *)argv + arg->len);
+    printf("arg: %.*s\n", arg->len, arg->data);
+  }
+
   char filename[7];
 
   printf(
@@ -63,8 +77,8 @@ int main() {
   return 0;
 }
 
-void _start() {
-  int64_t err = main();
+void _start(size_t *argc, Str *argv) {
+  int64_t err = main(*argc, argv);
 
   if (err < 0) {
     printf("failed with err: %d\n", (int)err);

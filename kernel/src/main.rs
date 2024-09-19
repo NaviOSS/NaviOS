@@ -228,7 +228,12 @@ fn kstart() -> ! {
 #[no_mangle]
 fn kmain() -> ! {
     debug!(Scheduler, "done ...");
-    scheduler().create_process(terminal::shell as usize, "shell", ProcessFlags::empty());
+    scheduler().create_process(
+        terminal::shell as usize,
+        "shell",
+        &[],
+        ProcessFlags::empty(),
+    );
 
     serial!("Hello, world!, running tests...\n");
 

@@ -55,8 +55,8 @@ pub struct CPUStatus {
     r8: u64,
 
     rbp: u64,
-    rdi: u64,
-    rsi: u64,
+    pub rdi: u64,
+    pub rsi: u64,
 
     rdx: u64,
     rcx: u64,

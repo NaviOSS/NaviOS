@@ -4,6 +4,10 @@ pub const STACK_SIZE: usize = PAGE_SIZE * 4;
 pub const STACK_START: usize = 0x00007A0000000000;
 pub const STACK_END: usize = STACK_START + STACK_SIZE;
 
+pub const ENVIROMENT_START: usize = 0x00007E0000000000;
+pub const ARGV_START: usize = ENVIROMENT_START + 0xA000000000;
+pub const ARGV_SIZE: usize = PAGE_SIZE * 4;
+
 use core::arch::asm;
 use processes::{Process, ProcessFlags, ProcessStatus, Resource};
 
@@ -29,40 +33,56 @@ fn trim_trailing_zeros(slice: &[u8]) -> &[u8] {
     }
 }
 
+/// allocates and maps an area starting from `$start` with size `$size` and returns `Result<(), MapToError>` in `$page_table`
+macro_rules! alloc_map {
+    ($page_table: expr, $start: ident, $size: ident) => {
+        let page_table = $page_table;
+
+        const PAGES: usize = $size / PAGE_SIZE;
+        const END: usize = $start + $size;
+
+        // allocating frames
+        let mut frames: [Frame; PAGES] = [Frame::containing_address(0); PAGES];
+
+        for i in 0..frames.len() {
+            frames[i] = kernel()
+                .frame_allocator()
+                .allocate_frame()
+                .ok_or(MapToError::FrameAllocationFailed)?;
+        }
+
+        for frame in frames {
+            let virt_addr = frame.start_address | kernel().phy_offset;
+            let byte_array = virt_addr as *mut u8;
+            let byte_array = unsafe { core::slice::from_raw_parts_mut(byte_array, PAGE_SIZE) };
+            byte_array.fill(0);
+        }
+
+        let start_page = Page::containing_address($start);
+        let end_page = Page::containing_address(END);
+
+        let iter = Page::iter_pages(start_page, end_page);
+
+        for (i, page) in iter.enumerate() {
+            page_table.map_to(
+                page,
+                frames[i],
+                EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE | EntryFlags::PRESENT,
+            )?;
+        }
+
+        return Ok(());
+    };
+}
+
 /// allocates and maps a stack to page_table
 pub fn alloc_stack(page_table: &mut PageTable) -> Result<(), MapToError> {
-    // allocating frames
-    let mut frames: [Frame; STACK_SIZE / PAGE_SIZE] =
-        [Frame::containing_address(0); STACK_SIZE / PAGE_SIZE];
+    alloc_map!(page_table, STACK_START, STACK_SIZE);
+}
 
-    for i in 0..frames.len() {
-        frames[i] = kernel()
-            .frame_allocator()
-            .allocate_frame()
-            .ok_or(MapToError::FrameAllocationFailed)?;
-    }
-
-    for frame in frames {
-        let virt_addr = frame.start_address | kernel().phy_offset;
-        let byte_array = virt_addr as *mut u8;
-        let byte_array = unsafe { core::slice::from_raw_parts_mut(byte_array, PAGE_SIZE) };
-        byte_array.fill(0);
-    }
-
-    let start_page = Page::containing_address(STACK_START);
-    let end_page = Page::containing_address(STACK_END); // === STACK_END
-
-    let iter = Page::iter_pages(start_page, end_page);
-
-    for (i, page) in iter.enumerate() {
-        page_table.map_to(
-            page,
-            frames[i],
-            EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE | EntryFlags::PRESENT,
-        )?;
-    }
-
-    Ok(())
+/// allocates and maps the argv area to `page_table`
+pub fn alloc_argv(page_table: &mut PageTable) -> Result<(), MapToError> {
+    alloc_map!(page_table, ARGV_START, ARGV_SIZE);
 }
 
 pub struct Scheduler {
@@ -85,7 +105,8 @@ impl Scheduler {
         debug!(Scheduler, "initing ...");
         asm!("cli");
 
-        let mut process = Box::new(Process::new(function, 0, name, ProcessFlags::empty()));
+        let mut process =
+            Box::new(Process::new(function, 0, name, &[], ProcessFlags::empty()).unwrap());
 
         let this = Self {
             current_process: &mut *process,
@@ -204,8 +225,14 @@ impl Scheduler {
 
     /// wrapper around `Process::create` that also adds the result to self using
     /// `Self::add_process`
-    pub fn create_process(&mut self, function: usize, name: &str, flags: ProcessFlags) {
-        self.add_process(Process::create(function, name, flags));
+    pub fn create_process(
+        &mut self,
+        function: usize,
+        name: &str,
+        argv: &[&str],
+        flags: ProcessFlags,
+    ) {
+        self.add_process(Process::create(function, name, argv, flags).unwrap());
     }
 
     #[inline]

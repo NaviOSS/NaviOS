@@ -18,10 +18,7 @@ use crate::{
     arch,
     drivers::vfs::{
         self,
-        expose::{
-            close, create, createdir, diriter_close, diriter_next, diriter_open, open, read,
-            DirEntry,
-        },
+        expose::{close, create, createdir, open, read, DirEntry},
         FSError, FSResult, InodeType,
     },
     globals::terminal,
@@ -394,7 +391,7 @@ fn execute_command(args: Vec<&str>) -> FSResult<()> {
 
                 // FIXME: should be CLONE_RESOURCES tho
                 let pid = unsafe {
-                    threading::expose::spawn(command, &buffer[0], SpwanFlags::CLONE_CWD)
+                    threading::expose::spawn(command, &buffer[0], &args, SpwanFlags::CLONE_CWD)
                         .ok()
                         .ok_or(FSError::NotExecuteable)?
                 };

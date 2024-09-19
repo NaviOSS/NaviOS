@@ -254,13 +254,18 @@ extern "C" fn sysspawn(
     name_ptr: *const u8,
     name_len: usize,
     elf_ptr: *const u8,
+    argc: usize,
+    argv: *const (usize, *const u8),
     flags: SpwanFlags,
 ) -> u64 {
     let name = make_slice!(name_ptr, name_len);
     let name = String::from_utf8_lossy(name);
 
+    let argv = make_slice!(argv, argc);
+
     unsafe {
-        let ret = match threading::expose::spawn(&name, elf_ptr, flags) {
+        let argv: &[&str] = core::mem::transmute(argv);
+        let ret = match threading::expose::spawn(&name, elf_ptr, argv, flags) {
             Err(err) => -(err as i64),
             Ok(pid) => pid as i64,
         };

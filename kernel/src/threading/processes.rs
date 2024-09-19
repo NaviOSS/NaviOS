@@ -1,10 +1,10 @@
-use super::STACK_END;
+use super::{ARGV_START, STACK_END};
 
 use crate::drivers::vfs::expose::DirIter;
 use crate::drivers::vfs::{vfs, FileDescriptor, FS};
-use crate::{arch, debug, kernel, scheduler, terminal};
+use crate::{arch, debug, kernel, scheduler, terminal, VirtAddr};
 
-use crate::memory::paging;
+use crate::memory::paging::{self, MapToError, Page};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -67,9 +67,30 @@ pub struct Process {
     pub next: Option<Box<Self>>,
 }
 
+#[inline]
+fn copy_to_userspace(page_table: &mut PageTable, addr: VirtAddr, obj: &[u8]) {
+    // FIXME: this assumes the next pages is mapped to the next frames
+    // spilt obj into pages...
+    let page = Page::containing_address(addr);
+    let diff = addr - page.start_address;
+
+    let frame = page_table.get_frame(page).unwrap();
+
+    let phys_addr = frame.start_address + diff;
+    let virt_addr = phys_addr | kernel().phy_offset;
+    unsafe {
+        core::ptr::copy_nonoverlapping(obj.as_ptr(), virt_addr as *mut u8, obj.len());
+    }
+}
 impl Process {
     #[inline]
-    pub fn new(function: usize, pid: u64, name: &str, flags: ProcessFlags) -> Self {
+    pub fn new(
+        function: usize,
+        pid: u64,
+        name: &str,
+        argv: &[&str],
+        flags: ProcessFlags,
+    ) -> Result<Self, MapToError> {
         let name_bytes = name.as_bytes();
 
         let mut name = [0u8; 64];
@@ -80,11 +101,53 @@ impl Process {
         let status = ProcessStatus::Waiting;
         let mut context = CPUStatus::default();
 
-        let root_page_table_addr = paging::allocate_pml4().unwrap();
+        let root_page_table_addr = paging::allocate_pml4()?;
         let root_page_table = (root_page_table_addr | kernel().phy_offset) as *mut PageTable;
 
         unsafe {
-            super::alloc_stack(&mut *root_page_table).unwrap();
+            let page_table = &mut *root_page_table;
+            super::alloc_stack(page_table)?;
+            super::alloc_argv(page_table)?;
+
+            if argv.len() != 0 {
+                let mut start_addr = ARGV_START;
+                const USIZE_BYTES: usize = size_of::<usize>();
+
+                // argc
+                copy_to_userspace(
+                    page_table,
+                    start_addr,
+                    &core::mem::transmute::<_, [u8; USIZE_BYTES]>(argv.len()),
+                );
+
+                // set rsi and rdi to argc and argv
+                #[cfg(target_arch = "x86_64")]
+                {
+                    context.rdi = start_addr as u64;
+                    context.rsi = (start_addr + USIZE_BYTES) as u64;
+                }
+
+                // argv
+                start_addr += USIZE_BYTES;
+
+                for arg in argv {
+                    let arg = arg.as_bytes();
+                    let len = arg.len();
+
+                    copy_to_userspace(
+                        page_table,
+                        start_addr,
+                        &core::mem::transmute::<_, [u8; USIZE_BYTES]>(len),
+                    );
+                    start_addr += USIZE_BYTES;
+
+                    copy_to_userspace(page_table, start_addr, arg);
+                    start_addr += len;
+                }
+
+                // looks like this: argc: 8 (u64) -> argv: (len: 8 (u64) + bytes: len ([u8])) * argc
+                // where numbers is bytes count, (TYPE) is the type of the bytes
+            }
         }
 
         #[cfg(target_arch = "x86_64")]
@@ -129,7 +192,7 @@ impl Process {
             write_pos: 0,
         }));
 
-        Process {
+        Ok(Process {
             pid,
             name,
             status,
@@ -140,21 +203,26 @@ impl Process {
             current_dir: String::from("ram:/"),
             next_ri: 0,
             next: None,
-        }
+        })
     }
 
-    pub fn create(function: usize, name: &str, flags: ProcessFlags) -> Self {
+    pub fn create(
+        function: usize,
+        name: &str,
+        argv: &[&str],
+        flags: ProcessFlags,
+    ) -> Result<Self, MapToError> {
         let pid = scheduler().next_pid;
         debug!(
             Process,
             "creating a process with pid {} ({}) ...", pid, name
         );
 
-        let results = Self::new(function, pid, name, flags);
+        let results = Self::new(function, pid, name, argv, flags)?;
         scheduler().next_pid += 1;
 
         debug!(Process, "success ...");
-        results
+        Ok(results)
     }
 
     /// frees self and then returns next

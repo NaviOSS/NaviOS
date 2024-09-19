@@ -27,7 +27,7 @@ int main() {
     DirEntry entry = {};
     diriter_next(diriter, &entry);
 
-    if (entry.name_length == 0 && entry.size == 0)
+    if (entry.name_length == 0)
       break;
 
     printf("%.*s\n", entry.name_length, entry.name);

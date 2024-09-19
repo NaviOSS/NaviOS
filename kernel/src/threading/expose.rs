@@ -77,10 +77,17 @@ bitflags! {
 /// FIXME: unsafe because elf_ptr has to be non-null and aligned
 /// maybe return an error instead
 /// and we need to get rid of the aligned requirment
-pub unsafe fn spawn(name: &str, elf_ptr: *const u8, flags: SpwanFlags) -> Result<u64, ElfError> {
+pub unsafe fn spawn(
+    name: &str,
+    elf_ptr: *const u8,
+    argv: &[&str],
+    flags: SpwanFlags,
+) -> Result<u64, ElfError> {
     let elf = Elf::new(&*elf_ptr)?;
 
-    let mut process = Process::create(elf.header.entry_point, name, ProcessFlags::USERSPACE);
+    let mut process = Process::create(elf.header.entry_point, name, argv, ProcessFlags::USERSPACE)
+        .ok()
+        .ok_or(ElfError::MapToError)?;
     let pid = process.pid;
 
     elf.load_exec(&mut *process.root_page_table)?;
