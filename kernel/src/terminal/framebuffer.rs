@@ -11,7 +11,7 @@ use crate::{
     debug,
     drivers::keyboard::{Key, KeyCode, KeyFlags},
     memory::align_down,
-    TERMINAL,
+    serial, TERMINAL,
 };
 
 use super::navitts::{Attributes, NaviTTES};
@@ -73,6 +73,8 @@ impl Terminal {
         for i in 0..buffer.len() {
             buffer[i] = 0;
         }
+
+        serial!("{} {:#?}\n", buffer.len(), info);
 
         VIEWPORT.lock().resize(buffer.len(), 0);
         let this = Self {
