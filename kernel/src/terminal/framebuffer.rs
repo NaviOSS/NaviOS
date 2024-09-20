@@ -294,6 +294,12 @@ impl Terminal {
             self.newline(viewport);
         }
 
+        if (self.y_pos + glyph.height()) * self.info.stride * self.info.bytes_per_pixel
+            >= self.viewport_start + self.buffer.len()
+        {
+            self.scroll_down(true, viewport);
+        }
+
         for (row, rows) in glyph.raster().iter().enumerate() {
             for (col, byte) in rows.iter().enumerate() {
                 self.set_pixel(
