@@ -5,7 +5,7 @@ use bitflags::bitflags;
 use macros::display_consts;
 
 use crate::{
-    cross_println, kernel,
+    kernel,
     memory::paging::{EntryFlags, Page, PageTable},
     VirtAddr,
 };
@@ -86,6 +86,7 @@ pub enum ElfError {
     NotAnElf,
     NotAnExecutable,
     MapToError,
+    SupportedElfCorrupted,
 }
 
 impl ElfHeader {
@@ -256,9 +257,13 @@ impl<'a> Elf<'a> {
     }
 
     /// creates an elf from a u8 ptr that lives as long as `bytes`
-    pub fn new(bytes: &u8) -> Result<Self, ElfError> {
-        let bytes = bytes as *const u8;
-        let header_ptr = bytes as *const ElfHeader;
+    pub fn new(bytes: &[u8]) -> Result<Self, ElfError> {
+        if bytes.len() < size_of::<ElfHeader>() {
+            return Err(ElfError::NotAnElf);
+        }
+
+        let bytes_ptr = bytes.as_ptr();
+        let header_ptr = bytes_ptr as *const ElfHeader;
 
         let header = unsafe {
             if (*header_ptr).verify() {
@@ -280,8 +285,14 @@ impl<'a> Elf<'a> {
             header.program_headers_table_entry_size as usize
         );
 
+        if bytes.len() < header.section_header_table_offset
+            || bytes.len() < header.program_headers_table_offset
+        {
+            return Err(ElfError::SupportedElfCorrupted);
+        }
+
         let section_header_table_ptr =
-            unsafe { bytes.add(header.section_header_table_offset) } as *const SectionHeader;
+            unsafe { bytes_ptr.add(header.section_header_table_offset) } as *const SectionHeader;
 
         // TODO: instead make an nth_section function and a section_len function or whateve
         // because section_header_ptr may be unaligned same for programe headers
@@ -296,7 +307,8 @@ impl<'a> Elf<'a> {
 
         let program_headers_table = if header.program_headers_table_offset != 0 {
             let program_headers_table_ptr =
-                unsafe { bytes.add(header.program_headers_table_offset) } as *const ProgramHeader;
+                unsafe { bytes_ptr.add(header.program_headers_table_offset) }
+                    as *const ProgramHeader;
             assert!(program_headers_table_ptr.is_aligned());
             unsafe {
                 slice::from_raw_parts(
@@ -369,24 +381,24 @@ impl<'a> Elf<'a> {
         Ok(())
     }
 
-    pub fn debug(&self) {
-        cross_println!("{:#?}", self);
-        cross_println!("section names section {:#?}", self.section_names_table());
-
-        for sym in self.symtable().unwrap() {
-            cross_println!(
-                "sym {}: `{}`",
-                sym.name_index,
-                self.string_table_index(sym.name_index)
-            );
-        }
-
-        for section in self.sections {
-            cross_println!(
-                "section {}: '{}'",
-                section.name_index,
-                self.section_names_table_index(section.name_index)
-            );
-        }
-    }
+    // pub fn debug(&self) {
+    //     cross_println!("{:#?}", self);
+    //     cross_println!("section names section {:#?}", self.section_names_table());
+    //
+    //     for sym in self.symtable().unwrap() {
+    //         cross_println!(
+    //             "sym {}: `{}`",
+    //             sym.name_index,
+    //             self.string_table_index(sym.name_index)
+    //         );
+    //     }
+    //
+    //     for section in self.sections {
+    //         cross_println!(
+    //             "section {}: '{}'",
+    //             section.name_index,
+    //             self.section_names_table_index(section.name_index)
+    //         );
+    //     }
+    // }
 }

@@ -309,6 +309,7 @@ fn get_rsdp() -> RSDPDesc {
     let ptr = addr as *mut RSDPDesc;
 
     let desc = unsafe { *ptr };
+    assert!(desc.vaildate());
     desc
 }
 

@@ -1,16 +1,10 @@
-use crate::{debug, kernel, scheduler};
+use crate::debug;
 use core::{
     alloc::{GlobalAlloc, Layout},
     ptr,
 };
 
-use crate::{
-    memory::{
-        align_up,
-        paging::{EntryFlags, IterPage, Page, PAGE_SIZE},
-    },
-    utils::Locked,
-};
+use crate::{memory::align_up, utils::Locked};
 
 #[derive(Debug)]
 pub struct Node {
@@ -157,81 +151,6 @@ impl LinkedListAllocator {
         ptr::write_volatile(node_ptr, node);
 
         self.head.next = Some(&mut *node_ptr);
-    }
-
-    pub const PAGES_PER_EXTEND: usize = 128;
-    pub fn extend_heap_by(&mut self, size: usize) -> Result<(), ()> {
-        let times =
-            align_up(size, PAGE_SIZE * Self::PAGES_PER_EXTEND) / PAGE_SIZE / Self::PAGES_PER_EXTEND;
-
-        for _ in 0..times {
-            self.extend_heap()?;
-        }
-
-        debug!(
-            LinkedListAllocator,
-            "extended the heap {} time(s) by {:#x}",
-            times,
-            times * PAGE_SIZE * Self::PAGES_PER_EXTEND
-        );
-        Ok(())
-    }
-
-    /// extends the heap by `PAGES_PER_EXTEND` pages
-    pub fn extend_heap(&mut self) -> Result<(), ()> {
-        let start_page = Page::containing_address(self.heap_end + PAGE_SIZE);
-        let end_page = Page::containing_address(self.heap_end + PAGE_SIZE * Self::PAGES_PER_EXTEND);
-        let iter = IterPage {
-            start: start_page,
-            end: end_page,
-        };
-
-        for page in iter {
-            unsafe {
-                let allocated_frame = kernel().frame_allocator().allocate_frame().ok_or(())?;
-
-                // extend the heap in all processes
-                let mut current = &scheduler().head;
-                while let Some(ref process) = current.next {
-                    let page_table = &mut *process.root_page_table;
-
-                    page_table
-                        .map_to(
-                            page,
-                            allocated_frame,
-                            EntryFlags::PRESENT | EntryFlags::WRITABLE,
-                        )
-                        .or(Err(()))?;
-
-                    current = process;
-                }
-            }
-        }
-
-        self.heap_end = end_page.start_address + PAGE_SIZE;
-
-        unsafe {
-            self.add_free_node(start_page.start_address, PAGE_SIZE * Self::PAGES_PER_EXTEND);
-        }
-        // self.head.next should contain our extended Node we combine all the extended Nodes
-        // togther
-        while let Some(ref mut node) = self.head.next.as_mut().unwrap().next {
-            if !(node.size % (PAGE_SIZE * Self::PAGES_PER_EXTEND) == 0) {
-                break;
-            }
-
-            let node_next = node.next.take();
-            let node_size = node.size;
-
-            let to_combine = self.head.next.take().unwrap();
-            to_combine.next = node_next;
-
-            to_combine.size = to_combine.size + node_size;
-
-            self.head.next = Some(to_combine);
-        }
-
-        Ok(())
     }
 
     /// adjusts layout

@@ -263,12 +263,6 @@ impl PageTable {
         Ok(())
     }
 
-    /// maps a kernel only `Page` to `Frame` with present and writeable flags
-    pub fn map_to_writeable(&mut self, page: Page, frame: Frame) -> Result<(), MapToError> {
-        let flags = EntryFlags::PRESENT | EntryFlags::WRITABLE;
-        self.map_to(page, frame, flags)
-    }
-
     /// gets the frame page points to
     pub fn get_frame(&mut self, page: Page) -> Option<Frame> {
         let (_, level_1_index, level_2_index, level_3_index, level_4_index) =
@@ -280,28 +274,6 @@ impl PageTable {
         let entry = &level_1_table[level_1_index];
 
         entry.frame()
-    }
-
-    /// wether or not a page is mapped
-    pub fn is_mapped(&self, page: Page) -> bool {
-        let (_, level_1_index, level_2_index, level_3_index, level_4_index) =
-            translate(page.start_address);
-
-        let Some(level_3_table) = self[level_4_index].mapped_to() else {
-            return false;
-        };
-
-        let Some(level_2_table) = level_3_table[level_3_index].mapped_to() else {
-            return false;
-        };
-
-        let Some(level_1_table) = level_2_table[level_2_index].mapped_to() else {
-            return false;
-        };
-
-        let entry = &level_1_table[level_1_index];
-
-        entry.is_mapped()
     }
 }
 

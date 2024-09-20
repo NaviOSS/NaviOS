@@ -105,11 +105,6 @@ impl TarArchiveIter<'_> {
         Some(ret)
     }
 
-    #[inline]
-    pub fn peek(&self) -> Option<&Inode> {
-        self.at
-    }
-
     /// makes a new tar archive from ptr
     /// unsafe because ptr has to be mapped and non-null
     pub unsafe fn new(ptr: *const u8) -> Self {

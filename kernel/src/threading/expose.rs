@@ -79,11 +79,11 @@ bitflags! {
 /// and we need to get rid of the aligned requirment
 pub unsafe fn spawn(
     name: &str,
-    elf_ptr: *const u8,
+    elf_bytes: &[u8],
     argv: &[&str],
     flags: SpwanFlags,
 ) -> Result<u64, ElfError> {
-    let elf = Elf::new(&*elf_ptr)?;
+    let elf = Elf::new(elf_bytes)?;
 
     let mut process = Process::create(elf.header.entry_point, name, argv, ProcessFlags::USERSPACE)
         .ok()

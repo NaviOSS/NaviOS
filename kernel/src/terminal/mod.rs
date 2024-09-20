@@ -24,7 +24,6 @@ use crate::{
     globals::terminal,
     kernel, print, println, scheduler, serial,
     threading::{self, expose::SpwanFlags},
-    utils::elf::ElfHeader,
 };
 
 #[doc(hidden)]
@@ -311,10 +310,6 @@ fn execute_command(args: Vec<&str>) -> FSResult<()> {
             }
 
             if entry.name() == command && entry.kind == InodeType::File {
-                if entry.size < size_of::<ElfHeader>() {
-                    return Err(FSError::NotExecuteable);
-                }
-
                 let full_path = cwd_path + command;
                 let opened = vfs::expose::open(&full_path)?;
 
@@ -324,13 +319,9 @@ fn execute_command(args: Vec<&str>) -> FSResult<()> {
 
                 vfs::expose::close(opened)?;
 
-                // FIXME:
-                // spwan should take &[u8] and figure out if it is big enough
-                // i put it here because i wont see it if i put it somewhere else, my memory
-                // feature sucks ^^^^
                 // FIXME: should be CLONE_RESOURCES tho
                 let pid = unsafe {
-                    threading::expose::spawn(command, &buffer[0], &args, SpwanFlags::CLONE_CWD)
+                    threading::expose::spawn(command, &buffer, &args, SpwanFlags::CLONE_CWD)
                         .ok()
                         .ok_or(FSError::NotExecuteable)?
                 };

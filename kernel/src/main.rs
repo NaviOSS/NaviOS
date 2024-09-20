@@ -64,6 +64,7 @@ pub fn khalt() -> ! {
 
 #[allow(unused_imports)]
 use core::panic::PanicInfo;
+use core::slice;
 
 /// prints to both the serial and the terminal doesn't print to the terminal if it panicked or if
 /// it is not ready...
@@ -177,8 +178,8 @@ pub extern "C" fn kinit() {
         *MEMORY_SIZE
     );
 
-    let kernel_img_addr = unsafe { &*kernel_img.0 };
-    let elf = utils::elf::Elf::new(kernel_img_addr).unwrap();
+    let kernel_img_bytes = unsafe { slice::from_raw_parts(kernel_img.0, kernel_img.1) };
+    let elf = utils::elf::Elf::new(kernel_img_bytes).unwrap();
 
     unsafe {
         KERNEL = Some(Kernel {

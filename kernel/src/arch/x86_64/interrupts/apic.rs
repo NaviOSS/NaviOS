@@ -111,11 +111,6 @@ impl IOREDTBL {
         }
     }
 
-    pub const fn from_regs(lower: u32, higher: u32) -> Self {
-        let combined = lower as u64 | (higher as u64) << 31;
-        unsafe { core::mem::transmute(combined) }
-    }
-
     pub const fn into_regs(self) -> (u32, u32) {
         let combined: u64 = unsafe { core::mem::transmute(self) };
         (combined as u32, (combined >> 31) as u32)
