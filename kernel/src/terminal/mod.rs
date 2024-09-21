@@ -22,8 +22,9 @@ use crate::{
         FSError, FSResult, InodeType,
     },
     globals::terminal,
-    kernel, print, println, scheduler, serial,
-    threading::{self, expose::SpwanFlags},
+    print, println, scheduler, serial,
+    threading::{self, expose::SpwanFlags, processes::ProcessInfo},
+    utils::{self, expose::SysInfo},
 };
 
 #[doc(hidden)]
@@ -127,25 +128,26 @@ fn plist(args: Vec<&str>) {
         return;
     }
 
-    let mut process_list: Vec<(u64, [u8; 64])> = Vec::new();
+    let mut info = SysInfo::null();
+    utils::expose::info(&mut info);
 
-    let mut current = &scheduler().head;
-    process_list.push((current.pid, current.name));
+    let mut process_list: Vec<ProcessInfo> = Vec::with_capacity(info.processes_count);
+    process_list.resize(info.processes_count, ProcessInfo::null());
+    threading::expose::pcollect(&mut process_list).unwrap();
 
-    while let Some(ref process) = current.next {
-        process_list.push((process.pid, process.name));
-        current = process;
-    }
-
-    println!("{} process(s) is currently running:", process_list.len());
-    println!("name:  pid");
-    for (pid, name) in process_list {
+    for ProcessInfo {
+        ppid,
+        pid,
+        name,
+        status: _,
+    } in process_list
+    {
         let mut name = name.to_vec();
         while name.last() == Some(&0) {
             name.pop();
         }
 
-        println!("{}:  {}", str::from_utf8(&name).unwrap(), pid);
+        println!("{}:  {}  {}", str::from_utf8(&name).unwrap(), pid, ppid);
     }
 }
 
@@ -167,9 +169,12 @@ fn pkill(args: Vec<&str>) {
         println!("it looks like you are trying to kill us sadly this doesn't work duo to a bug which will never be fixed\nwe will try to do that anyways you monster!")
     }
 
-    scheduler()
-        .pkill(pid)
-        .unwrap_or_else(|_| println!("couldn't find a process with pid `{}`", pid));
+    threading::expose::pkill(pid).unwrap_or_else(|_| {
+        println!(
+            "couldn't find a process with pid `{}` or the current process doesn't own it",
+            pid
+        )
+    });
 }
 
 fn pkillall(args: Vec<&str>) {
@@ -244,22 +249,11 @@ fn meminfo(args: Vec<&str>) {
         return;
     }
 
-    let bitmap = &*kernel().frame_allocator().bitmap;
-    let mut memory_max = 0;
-    let mut memory_used = 0;
-    let mut memory_ava = 0;
+    let mut info = SysInfo::null();
+    utils::expose::info(&mut info);
 
-    for byte in bitmap {
-        for i in 0..8 {
-            memory_max += crate::memory::paging::PAGE_SIZE;
-            let frame_used = (byte >> i) & 1 == 1;
-            if frame_used {
-                memory_used += crate::memory::paging::PAGE_SIZE;
-            } else {
-                memory_ava += crate::memory::paging::PAGE_SIZE;
-            }
-        }
-    }
+    let (memory_max, memory_used) = (info.total_mem, info.used_mem);
+    let memory_ava = memory_max - memory_used;
 
     println!("memory info:");
     println!(

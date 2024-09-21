@@ -1,4 +1,5 @@
 pub mod elf;
+pub mod expose;
 pub mod ustar;
 
 // TODO: impl our own Optional type

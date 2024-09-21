@@ -90,6 +90,7 @@ pub struct Scheduler {
     /// raw pointers for peformance, we are ring0 we need the lowest stuff
     current_process: *mut Process,
     pub next_pid: u64,
+    pub processes_count: usize,
 }
 
 impl Scheduler {
@@ -106,12 +107,13 @@ impl Scheduler {
         asm!("cli");
 
         let mut process =
-            Box::new(Process::new(function, 0, name, &[], ProcessFlags::empty()).unwrap());
+            Box::new(Process::new(function, 0, 0, name, &[], ProcessFlags::empty()).unwrap());
 
         let this = Self {
             current_process: &mut *process,
             head: process,
             next_pid: 1,
+            processes_count: 1,
         };
 
         SCHEDULER = Some(this);
@@ -138,6 +140,7 @@ impl Scheduler {
                 .is_some_and(|x| x.status == ProcessStatus::WaitingForBurying)
             {
                 self.current_process().next = self.current_process().next.as_mut().unwrap().free();
+                self.processes_count -= 1;
             }
 
             if self.current_process().next.is_some() {
@@ -163,32 +166,26 @@ impl Scheduler {
         }
 
         current.next = Some(Box::new(process));
+        self.processes_count += 1;
     }
 
-    /// sets a process with pid `pid` status to WaitingForBurying returns Err(()) if there is no
-    /// such a process
-    pub fn pkill(&mut self, pid: u64) -> Result<(), ()> {
+    pub fn find(&mut self, pid: u64) -> Option<&mut Process> {
         let mut current = &mut *self.head;
-        let mut found = false;
+        if current.pid == pid {
+            return Some(current);
+        }
+
+        let mut found = None;
         while let Some(ref mut process) = current.next {
-            if current.pid == pid {
-                found = true;
+            if process.pid == pid {
+                found = Some(&mut **process);
                 break;
             }
 
             current = &mut **process;
-            if current.pid == pid {
-                found = true;
-                break;
-            }
         }
 
-        if !found {
-            Err(())
-        } else {
-            current.status = ProcessStatus::WaitingForBurying;
-            Ok(())
-        }
+        found
     }
 
     /// sets all process(s) with name `name` status to WaitingForBurying returns Err(()) if there is no
@@ -216,7 +213,7 @@ impl Scheduler {
             Err(())
         } else {
             for pid in plist {
-                self.pkill(pid)?
+                expose::pkill(pid)?
             }
 
             Ok(())

@@ -46,6 +46,7 @@ bitflags! {
     }
 }
 
+#[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessStatus {
     Waiting,
@@ -54,6 +55,7 @@ pub enum ProcessStatus {
 }
 
 pub struct Process {
+    pub ppid: u64,
     pub pid: u64,
     pub name: [u8; 64],
     pub status: ProcessStatus,
@@ -65,6 +67,26 @@ pub struct Process {
 
     pub current_dir: String,
     pub next: Option<Box<Self>>,
+}
+
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct ProcessInfo {
+    pub ppid: u64,
+    pub pid: u64,
+    pub name: [u8; 64],
+    pub status: ProcessStatus,
+}
+
+impl ProcessInfo {
+    pub fn null() -> Self {
+        Self {
+            ppid: 0,
+            pid: 0,
+            name: [0; 64],
+            status: ProcessStatus::Waiting,
+        }
+    }
 }
 
 #[inline]
@@ -86,6 +108,7 @@ impl Process {
     #[inline]
     pub fn new(
         function: usize,
+        ppid: u64,
         pid: u64,
         name: &str,
         argv: &[&str],
@@ -209,6 +232,7 @@ impl Process {
         }));
 
         Ok(Process {
+            ppid,
             pid,
             name,
             status,
@@ -234,7 +258,14 @@ impl Process {
             "creating a process with pid {} ({}) ...", pid, name
         );
 
-        let results = Self::new(function, pid, name, argv, flags)?;
+        let results = Self::new(
+            function,
+            scheduler().current_process().pid,
+            pid,
+            name,
+            argv,
+            flags,
+        )?;
         scheduler().next_pid += 1;
 
         debug!(Process, "success ...");
@@ -261,5 +292,14 @@ impl Process {
         debug!(Process, "closed process resources ...");
 
         self.next.take()
+    }
+
+    pub fn info(&self) -> ProcessInfo {
+        ProcessInfo {
+            ppid: self.ppid,
+            pid: self.pid,
+            name: self.name,
+            status: self.status,
+        }
     }
 }

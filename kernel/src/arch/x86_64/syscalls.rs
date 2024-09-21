@@ -9,7 +9,8 @@ use alloc::{slice, string::String};
 
 use crate::{
     drivers::vfs::{self, expose::open},
-    threading::{self, expose::SpwanFlags},
+    threading::{self, expose::SpwanFlags, processes::ProcessInfo},
+    utils::{self, expose::SysInfo},
 };
 global_asm!(
     "
@@ -31,6 +32,8 @@ syscall_table:
     .quad sysspawn
     .quad syschdir
     .quad sysgetcwd
+    .quad sysinfo
+    .quad syspcollect
 syscall_table_end:
 
 SYSCALL_TABLE_INFO:
@@ -228,8 +231,15 @@ extern "C" fn sysdiriter_close(diriter_ri: usize) -> isize {
 }
 
 #[no_mangle]
-extern "C" fn sysdiriter_next(diriter_ri: usize, direntry: &mut vfs::expose::DirEntry) -> isize {
-    match vfs::expose::diriter_next(diriter_ri, direntry) {
+unsafe extern "C" fn sysdiriter_next(
+    diriter_ri: usize,
+    direntry: *mut vfs::expose::DirEntry,
+) -> isize {
+    if direntry.is_null() {
+        return INVAILD_PTR_ERR;
+    }
+
+    match vfs::expose::diriter_next(diriter_ri, &mut *direntry) {
         Err(err) => -(err as isize),
         Ok(()) => 0,
     }
@@ -300,4 +310,28 @@ extern "C" fn sysgetcwd(path_ptr: *mut u8, len: usize) -> u64 {
 
     slice[..got.len()].copy_from_slice(&got);
     sysret!(got.len());
+}
+
+#[no_mangle]
+extern "C" fn sysinfo(ptr: *mut SysInfo) -> isize {
+    if ptr.is_null() {
+        return INVAILD_PTR_ERR;
+    }
+
+    unsafe {
+        utils::expose::info(&mut *ptr);
+    }
+
+    0
+}
+
+#[no_mangle]
+extern "C" fn syspcollect(ptr: *mut ProcessInfo, len: usize) -> u64 {
+    let slice = make_slice_mut!(ptr, len);
+
+    if let Err(()) = threading::expose::pcollect(slice) {
+        (-1i64) as u64
+    } else {
+        0
+    }
 }

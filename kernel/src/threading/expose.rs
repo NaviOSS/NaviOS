@@ -11,7 +11,7 @@ use crate::{
     utils::elf::{Elf, ElfError},
 };
 
-use super::processes::ProcessFlags;
+use super::processes::{ProcessFlags, ProcessInfo};
 
 #[no_mangle]
 pub fn thread_exit() {
@@ -121,4 +121,63 @@ pub fn chdir(new_dir: &str) -> FSResult<()> {
 #[no_mangle]
 pub fn getcwd<'a>() -> &'a str {
     &scheduler().current_process().current_dir
+}
+
+#[no_mangle]
+/// can only Err if pid doesn't belong to process
+pub fn pkill(pid: u64) -> Result<(), ()> {
+    if pid < scheduler().current_process().pid {
+        return Err(());
+    }
+
+    let process = scheduler().find(pid).ok_or(())?;
+
+    if process.ppid == scheduler().current_process().pid
+        || process.pid == scheduler().current_process().pid
+    {
+        process.status = ProcessStatus::WaitingForBurying;
+        return Ok(());
+    }
+
+    let mut ppid = process.ppid;
+
+    while ppid != 0 {
+        let process = scheduler().find(ppid).ok_or(())?;
+
+        if process.pid == scheduler().current_process().pid {
+            process.status = ProcessStatus::WaitingForBurying;
+            return Ok(());
+        }
+
+        ppid = process.ppid;
+    }
+
+    Err(())
+}
+
+#[no_mangle]
+/// collects as much processes as it can in `buffer`
+/// collects `buffer.len()` processes
+/// if it didn't finish returns Err(())
+pub fn pcollect(info: &mut [ProcessInfo]) -> Result<(), ()> {
+    let mut current = &mut *scheduler().head;
+    let mut i = 1;
+
+    if 0 >= info.len() {
+        return Err(());
+    }
+
+    info[0] = current.info();
+
+    while let Some(ref mut process) = current.next {
+        if i >= info.len() {
+            return Err(());
+        }
+
+        info[i] = process.info();
+
+        current = &mut *process;
+        i += 1;
+    }
+    Ok(())
 }
