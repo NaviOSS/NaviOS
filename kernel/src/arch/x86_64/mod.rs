@@ -42,12 +42,17 @@ pub fn inw(port: u16) -> u16 {
     value
 }
 
+/// simple init less likely to panic
+/// highly required
 #[inline]
-pub fn init() {
+pub fn init_phase1() {
     init_serial();
     init_gdt();
     init_idt();
-
+}
+/// complexer init
+#[inline]
+pub fn init_phase2() {
     acpi::enable_acpi(FADT::get(get_sdt()));
     apic::enable_apic_interrupts();
 }

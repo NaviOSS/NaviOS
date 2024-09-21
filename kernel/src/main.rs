@@ -77,22 +77,7 @@ macro_rules! cross_println {
         if crate::terminal_inited() && !crate::terminal().panicked {
             crate::terminal().panicked = true;
 
-            crate::println!(r"\[fg: (155, 0, 0) ||{}||]", format_args!($($arg)*));
-            crate::terminal().panicked = false;
-        }
-    };
-}
-
-#[allow(unused)]
-macro_rules! cross_printerr {
-    ($($arg:tt)*) => {
-        crate::serial!($($arg)*);
-        crate::serial!("\n");
-
-        if crate::terminal_inited() && !crate::terminal().panicked  {
-            crate::terminal().panicked = true;
-
-            crate::println!(r"\[fg: (0, 0, 255) ||{}||]", format_args!($($arg)*));
+            crate::println!(r"{}", format_args!($($arg)*));
             crate::terminal().panicked = false;
         }
     };
@@ -109,19 +94,16 @@ macro_rules! debug {
     };
 }
 
-#[allow(dead_code)]
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     unsafe { asm!("cli") }
     unsafe {
-        terminal::framebuffer::VIEWPORT.force_unlock();
         arch::x86_64::serial::SERIAL.inner.force_unlock();
     }
+    terminal().enter_panic();
 
-    debug_assert!(!terminal::framebuffer::VIEWPORT.is_locked());
-
-    cross_printerr!(
+    cross_println!(
         "kernel panic:\n{}, at {}",
         info.message(),
         info.location().unwrap()
@@ -165,6 +147,8 @@ fn print_stack_trace() {
 
 #[no_mangle]
 pub extern "C" fn kinit() {
+    arch::init_phase1();
+    Terminal::init();
     // initing globals
     let phy_offset = get_phy_offset();
     let kernel_img = limine::kernel_image_info();
@@ -188,16 +172,16 @@ pub extern "C" fn kinit() {
             frame_allocator: RegionAllocator::new(),
             elf,
         });
+        memory::init(get_phy_offset_end());
+        Terminal::init_finish();
+        println!("Terminal initialized successfuly");
     }
 
     // initing the arch
-    arch::init();
+    arch::init_phase2();
 
     unsafe {
-        memory::init(get_phy_offset_end());
         vfs::init();
-
-        Terminal::init();
 
         let mut ramdisk = limine::get_ramdisk();
         let mut ramfs = Box::new(vfs::ramfs::RamFS::new());

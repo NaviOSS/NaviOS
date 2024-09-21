@@ -375,6 +375,10 @@ pub fn process_command(command: String) {
         "write" => write,
         "meminfo" => meminfo,
         "breakpoint" => breakpoint,
+        "page_fault" => unsafe {
+            *(0xdeadbeef as *mut u8) = 0xAA;
+            unreachable!()
+        },
         "" => return,
         cmd => {
             if let Err(err) = execute_command(command) {

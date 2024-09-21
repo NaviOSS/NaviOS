@@ -57,7 +57,6 @@ unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
         heap_start,
         heap_start + INIT_HEAP_SIZE
     );
-
     let page_range = {
         let heap_start = heap_start;
         let heap_end = heap_start + INIT_HEAP_SIZE;
@@ -69,6 +68,7 @@ unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
     serial!("Iter created!\n");
 
     let flags = EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE;
+
     for page in page_range {
         let frame = kernel()
             .frame_allocator()
@@ -86,5 +86,12 @@ unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
 }
 
 pub fn init(heap_start: usize) {
-    unsafe { init_heap(heap_start).unwrap() }
+    let attempt = unsafe { init_heap(heap_start) };
+    if let Err(err) = attempt {
+        match err {
+            MapToError::FrameAllocationFailed => {
+                panic!("frame allocation failure while attempting to init the heap")
+            }
+        }
+    }
 }

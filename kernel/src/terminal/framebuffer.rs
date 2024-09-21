@@ -1,7 +1,7 @@
 /// TODO: fix the framebuffer acting like BGR even tho it is RGB
 use alloc::{string::String, vec::Vec};
 use lazy_static::lazy_static;
-use spin::{Mutex, MutexGuard};
+use spin::Mutex;
 
 use core::ptr;
 
@@ -11,7 +11,7 @@ use crate::{
     debug,
     drivers::keyboard::{Key, KeyCode, KeyFlags},
     memory::align_down,
-    serial, TERMINAL,
+    println, serial, terminal, TERMINAL,
 };
 
 use super::navitts::{Attributes, NaviTTES};
@@ -21,6 +21,7 @@ pub enum TerminalMode {
     Init,
     Stdout,
     Stdin,
+    Panic,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -40,6 +41,8 @@ pub struct FrameBufferInfo {
 
 const RASTER_HEIGHT: RasterHeight = RasterHeight::Size20;
 const WRITE_COLOR: (u8, u8, u8) = (255, 255, 255);
+const DWRITE_COLOR: (u8, u8, u8) = (255, 0, 0);
+
 #[derive(Debug)]
 pub struct Terminal {
     /// this is a lock indpendant of VIEWPORT lock, it is used only with Write::write_fmt
@@ -57,6 +60,8 @@ pub struct Terminal {
     pub x_pos: usize,
     /// y_pos in pixels
     pub y_pos: usize,
+    pub draw_from_x: usize,
+    pub draw_from_y: usize,
     /// wether or not the current panic happend in another panic because of the terminal
     pub panicked: bool,
 }
@@ -66,6 +71,7 @@ lazy_static! {
 }
 
 impl Terminal {
+    /// must finish the init using init_finish after memory is ready
     pub fn init() {
         debug!(Terminal, "initing (framebuffer) ...");
         let (buffer, info) = crate::limine::get_framebuffer();
@@ -76,7 +82,6 @@ impl Terminal {
 
         serial!("{} {:#?}\n", buffer.len(), info);
 
-        VIEWPORT.lock().resize(buffer.len(), 0);
         let this = Self {
             buffer,
             viewport_start: 0,
@@ -88,11 +93,17 @@ impl Terminal {
             info,
             x_pos: 0,
             y_pos: 0,
+            draw_from_x: 0,
+            draw_from_y: 0,
             panicked: false,
         };
 
         unsafe { TERMINAL = Some(this) };
         debug!(Terminal, "done ...");
+    }
+
+    pub fn init_finish() {
+        VIEWPORT.lock().resize(terminal().buffer.len(), 0);
     }
 
     pub fn on_key_pressed(&mut self, key: Key) {
@@ -122,24 +133,27 @@ impl Terminal {
 
     #[inline]
     /// respects `self.x_pos` and `self.y_pos` to start copying from
-    pub fn draw_viewport(&mut self, viewport: &mut MutexGuard<Vec<u8>>) {
-        let current_byte = (self.x_pos * self.y_pos) * self.info.bytes_per_pixel;
+    pub fn draw_viewport(&mut self, viewport: &mut [u8]) {
+        let mut current_byte = self.get_byte_offset(self.draw_from_x, self.draw_from_y);
+
         let len = self.buffer.len();
 
         if current_byte > len {
-            return self.scroll_down(true, viewport);
+            current_byte = 0;
         }
 
         let start = self.viewport_start + current_byte;
         self.buffer[current_byte..].copy_from_slice(&viewport[start..len + start - current_byte]);
+
+        self.draw_from_x = self.x_pos;
+        self.draw_from_y = self.y_pos;
     }
 
-    pub fn clear(&mut self, viewport: &mut MutexGuard<Vec<u8>>) {
+    pub fn clear(&mut self, viewport: &mut [u8]) {
         self.viewport_start = 0;
 
         self.x_pos = 0;
         self.y_pos = 0;
-        viewport.truncate(self.buffer.len());
         viewport.fill(0);
 
         self.stdin_buffer = String::new();
@@ -152,69 +166,59 @@ impl Terminal {
         self.draw_viewport(viewport);
     }
 
+    #[inline(always)]
     fn get_byte_offset(&self, x: usize, y: usize) -> usize {
         (y * self.info.stride + x) * self.info.bytes_per_pixel
     }
 
-    #[inline]
+    #[inline(always)]
     fn scroll_amount(&self) -> usize {
         self.info.stride * self.info.bytes_per_pixel * RASTER_HEIGHT.val()
     }
 
     #[inline]
-    fn scroll_up(&mut self, viewport: &mut MutexGuard<Vec<u8>>) {
-        let (old_y, old_x) = (self.y_pos, self.x_pos);
-        self.y_pos = 0;
-        self.x_pos = 0;
-
+    fn scroll_up(&mut self, viewport: &mut Vec<u8>) {
         let scroll_amount = self.scroll_amount();
         if self.viewport_start >= scroll_amount {
             self.viewport_start -= scroll_amount;
-
             self.draw_viewport(viewport)
         }
+    }
 
-        (self.y_pos, self.x_pos) = (old_y, old_x);
+    #[inline(always)]
+    fn force_scroll_down(&mut self, viewport: &mut [u8]) {
+        let scroll_amount = self.scroll_amount();
+        let len = viewport.len();
+
+        viewport.copy_within(scroll_amount..len, 0);
+        viewport[len - scroll_amount..len].fill(0);
+        self.x_pos = 0;
+        self.y_pos -= RASTER_HEIGHT.val();
     }
 
     // may the inline gods optimize this mess :pray: :pray: :pray:
     #[inline]
     /// if make_space it resizes viewport if possible if not removes the first line from buffer
     /// (shifts the buffer up by 1 line)
-    fn scroll_down(&mut self, make_space: bool, viewport: &mut MutexGuard<Vec<u8>>) {
-        let (mut old_y, old_x) = (self.y_pos, self.x_pos);
-
+    fn scroll_down(&mut self, make_space: bool, viewport: &mut Vec<u8>) {
         let scroll_amount = self.scroll_amount();
-        self.y_pos = 0;
-        self.x_pos = 0;
-
         let len = viewport.len();
 
         // this should only execute if we were scrolling using page up and page down
         if !make_space && len >= self.viewport_start + scroll_amount + self.buffer.len() {
             self.viewport_start += scroll_amount;
-            self.draw_viewport(viewport);
         } else if make_space {
             if len + scroll_amount <= self.buffer.len() * 4 {
                 viewport.resize(len + scroll_amount, 0);
-
                 self.viewport_start += scroll_amount;
-
-                self.draw_viewport(viewport);
             } else {
-                viewport.copy_within(scroll_amount..len, 0);
-                viewport[len - scroll_amount..len].fill(0);
-
-                old_y -= RASTER_HEIGHT.val();
-
-                self.draw_viewport(viewport);
+                self.force_scroll_down(viewport);
             }
         }
-
-        (self.y_pos, self.x_pos) = (old_y, old_x);
+        self.draw_viewport(viewport);
     }
 
-    fn newline(&mut self, viewport: &mut MutexGuard<Vec<u8>>) {
+    fn newline(&mut self, viewport: &mut Vec<u8>) {
         self.y_pos += RASTER_HEIGHT.val();
         self.x_pos = 0;
 
@@ -225,7 +229,7 @@ impl Terminal {
         }
     }
 
-    pub fn remove_char(&mut self, c: char, viewport: &mut MutexGuard<Vec<u8>>) {
+    pub fn remove_char(&mut self, c: char, viewport: &mut [u8]) {
         let glyph = Self::raster(c);
 
         if self.x_pos >= glyph.width() {
@@ -243,7 +247,7 @@ impl Terminal {
         }
     }
 
-    pub fn backspace(&mut self, viewport: &mut MutexGuard<Vec<u8>>) {
+    pub fn backspace(&mut self, viewport: &mut [u8]) {
         self.stdin_buffer.pop(); // popping backspace
         let Some(char) = self.stdin_buffer.pop() else {
             return;
@@ -251,19 +255,12 @@ impl Terminal {
         self.remove_char(char, viewport)
     }
 
-    fn set_pixel(
-        &self,
-        x: usize,
-        y: usize,
-        intens: u32,
-        color: (u8, u8, u8),
-        viewport: &mut MutexGuard<Vec<u8>>,
-    ) {
+    fn set_pixel(&self, x: usize, y: usize, intens: u32, color: (u8, u8, u8), viewport: &mut [u8]) {
         let color = (color.0 as u32, color.1 as u32, color.2 as u32);
 
         let color = match self.info.pixel_format {
-            PixelFormat::Rgb => [intens * color.0, intens * color.1, intens * color.2, 0],
-            PixelFormat::Bgr => [intens * color.2, intens * color.1, intens * color.0, 0],
+            PixelFormat::Bgr => [intens * color.0, intens * color.1, intens * color.2, 0],
+            PixelFormat::Rgb => [intens * color.2, intens * color.1, intens * color.0, 0],
         };
         let bytes_per_pixel = self.info.bytes_per_pixel;
         let byte_offset = self.get_byte_offset(x, y);
@@ -284,22 +281,9 @@ impl Terminal {
         }
     }
 
-    fn draw_char(
-        &mut self,
-        glyph: RasterizedChar,
-        color: (u8, u8, u8),
-        viewport: &mut MutexGuard<Vec<u8>>,
-    ) {
-        if (self.x_pos + glyph.width()) > self.info.stride {
-            self.newline(viewport);
-        }
-
-        if (self.y_pos + glyph.height()) * self.info.stride * self.info.bytes_per_pixel
-            >= self.viewport_start + self.buffer.len()
-        {
-            self.scroll_down(true, viewport);
-        }
-
+    /// UNCHECKED doesn't do boundaries checks!
+    /// will panic if the glyph is outside boundaries
+    fn draw_char(&mut self, glyph: RasterizedChar, color: (u8, u8, u8), viewport: &mut [u8]) {
         for (row, rows) in glyph.raster().iter().enumerate() {
             for (col, byte) in rows.iter().enumerate() {
                 self.set_pixel(
@@ -323,7 +307,19 @@ impl Terminal {
         glyph
     }
 
-    pub fn putc(&mut self, c: char, color: (u8, u8, u8), viewport: &mut MutexGuard<Vec<u8>>) {
+    pub fn putc(&mut self, c: char, color: (u8, u8, u8), viewport: &mut Vec<u8>) {
+        let glyph = Self::raster(c);
+
+        if (self.x_pos + glyph.width()) > self.info.stride {
+            self.newline(viewport);
+        }
+
+        if (self.y_pos + glyph.height()) * self.info.stride * self.info.bytes_per_pixel
+            >= self.viewport_start + self.buffer.len()
+        {
+            self.scroll_down(true, viewport);
+        }
+
         match c {
             '\n' => {
                 self.newline(viewport);
@@ -331,13 +327,37 @@ impl Terminal {
             '\x08' => self.backspace(viewport),
 
             _ => {
-                self.draw_char(Self::raster(c), color, viewport);
+                self.draw_char(glyph, color, viewport);
             }
         }
     }
 
+    /// puts a character without extending viewport
+    pub fn eputc(&mut self, c: char, color: (u8, u8, u8), viewport: &mut [u8]) {
+        let glyph = Self::raster(c);
+        if (self.y_pos + glyph.height()) * self.info.stride * self.info.bytes_per_pixel
+            >= self.viewport_start + self.buffer.len()
+        {
+            self.force_scroll_down(viewport);
+        }
+
+        match c {
+            '\n' => {
+                self.y_pos += RASTER_HEIGHT.val();
+                self.x_pos = 0;
+
+                if self.y_pos * self.info.stride * self.info.bytes_per_pixel
+                    >= self.viewport_start + self.buffer.len()
+                {
+                    self.force_scroll_down(viewport);
+                }
+            }
+            _ => self.draw_char(glyph, color, viewport),
+        }
+    }
+
     const INPUT_CHAR: (u8, u8, u8) = (170, 200, 30);
-    pub fn stdin_putc(&mut self, c: char, viewport: &mut MutexGuard<Vec<u8>>) {
+    pub fn stdin_putc(&mut self, c: char, viewport: &mut Vec<u8>) {
         // removing the _ if we are in stdin mode
         if self.mode == TerminalMode::Stdin && !self.stdin_buffer.is_empty() {
             self.remove_char('_', viewport)
@@ -355,12 +375,7 @@ impl Terminal {
         self.draw_viewport(viewport)
     }
 
-    fn write_slice(
-        &mut self,
-        str: &str,
-        attributes: Attributes,
-        viewport: &mut MutexGuard<Vec<u8>>,
-    ) {
+    fn write_slice(&mut self, str: &str, attributes: Attributes, viewport: &mut Vec<u8>) {
         let old_mode = self.mode;
         self.mode = TerminalMode::Stdout;
         self.stdout_buffer.push_str(str);
@@ -377,7 +392,7 @@ impl Terminal {
         &mut self,
         escape_seq: NaviTTES,
         default_attributes: Attributes,
-        viewport: &mut MutexGuard<Vec<u8>>,
+        viewport: &mut Vec<u8>,
     ) {
         match escape_seq {
             NaviTTES::Slice(s) => self.write_slice(s, default_attributes, viewport),
@@ -395,13 +410,38 @@ impl Terminal {
             }
         }
     }
+
+    /// directly write to buffer
+    pub fn dwrite(&mut self, str: &str) {
+        let (mut buffer, _) = crate::limine::get_framebuffer();
+
+        for c in str.chars() {
+            self.eputc(c, DWRITE_COLOR, &mut buffer);
+        }
+    }
+
     pub fn write(&mut self, str: &str) {
-        let viewport = &mut VIEWPORT.lock();
+        match self.mode {
+            TerminalMode::Panic => self.dwrite(str),
+            _ => {
+                let viewport = &mut VIEWPORT.lock();
 
-        let parsed = NaviTTES::parse_str(str);
-        let mut default_attributes = Attributes::default();
-        default_attributes.fg = WRITE_COLOR;
+                let parsed = NaviTTES::parse_str(str);
+                let mut default_attributes = Attributes::default();
+                default_attributes.fg = WRITE_COLOR;
 
-        self.write_es(parsed, default_attributes, viewport)
+                self.write_es(parsed, default_attributes, viewport)
+            }
+        }
+    }
+
+    #[allow(unused)]
+    pub fn enter_panic(&mut self) {
+        self.x_pos = 0;
+        self.y_pos = 0;
+        self.buffer.fill(0);
+
+        self.mode = TerminalMode::Panic;
+        println!("PANIC MODE");
     }
 }
