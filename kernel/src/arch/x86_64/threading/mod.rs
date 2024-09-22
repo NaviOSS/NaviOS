@@ -36,7 +36,7 @@ bitflags! {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-#[repr(C)]
+#[repr(C, packed)]
 pub struct CPUStatus {
     pub rsp: u64,
     pub rflags: RFLAGS,
@@ -63,6 +63,24 @@ pub struct CPUStatus {
     rbx: u64,
     pub cr3: u64,
     rax: u64,
+
+    // ffi-safe alternative for u128
+    xmm15: [u8; 16],
+    xmm14: [u8; 16],
+    xmm13: [u8; 16],
+    xmm12: [u8; 16],
+    xmm11: [u8; 16],
+    xmm10: [u8; 16],
+    xmm9: [u8; 16],
+    xmm8: [u8; 16],
+    xmm7: [u8; 16],
+    xmm6: [u8; 16],
+    xmm5: [u8; 16],
+    xmm4: [u8; 16],
+    xmm3: [u8; 16],
+    xmm2: [u8; 16],
+    xmm1: [u8; 16],
+    xmm0: [u8; 16],
 }
 
 global_asm!(
@@ -98,6 +116,24 @@ restore_cpu_status:
     push [rdi + 0x70] // rdi
     push [rdi + 0xA0] // rax
 
+    lea rax, [rdi + 0xA8]
+    movdqu xmm15, [rax+0x00]
+    movdqu xmm14, [rax+0x10]
+    movdqu xmm13, [rax+0x20]
+    movdqu xmm12, [rax+0x30]
+    movdqu xmm11, [rax+0x40]
+    movdqu xmm10, [rax+0x50]
+    movdqu xmm9, [rax+0x60]
+    movdqu xmm8, [rax+0x70]
+    movdqu xmm7, [rax+0x80]
+    movdqu xmm6, [rax+0x90]
+    movdqu xmm5, [rax+0xA0]
+    movdqu xmm4, [rax+0xB0]
+    movdqu xmm3, [rax+0xC0]
+    movdqu xmm2, [rax+0xD0]
+    movdqu xmm1, [rax+0xE0]
+    movdqu xmm0, [rax+0xF0]
+
     mov rax, [rdi + 0x98]
     mov cr3, rax
     
@@ -107,6 +143,24 @@ restore_cpu_status:
     iretq
 
 context_switch_stub:
+    sub rsp, 16*16      // allocate space for xmm registers
+    movdqu [rsp+0x00], xmm0
+    movdqu [rsp+0x10], xmm1
+    movdqu [rsp+0x20], xmm2
+    movdqu [rsp+0x30], xmm3
+    movdqu [rsp+0x40], xmm4
+    movdqu [rsp+0x50], xmm5
+    movdqu [rsp+0x60], xmm6
+    movdqu [rsp+0x70], xmm7
+    movdqu [rsp+0x80], xmm8
+    movdqu [rsp+0x90], xmm9
+    movdqu [rsp+0xA0], xmm10
+    movdqu [rsp+0xB0], xmm11
+    movdqu [rsp+0xC0], xmm12
+    movdqu [rsp+0xD0], xmm13
+    movdqu [rsp+0xE0], xmm14
+    movdqu [rsp+0xF0], xmm15
+
     push rax
     mov rax, cr3
     push rax

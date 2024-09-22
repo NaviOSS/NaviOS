@@ -110,6 +110,8 @@ fn panic(info: &PanicInfo) -> ! {
     );
     print_stack_trace();
 
+    crate::serial!("tty stdout dump:\n{}\n", crate::terminal().stdout_buffer);
+    crate::serial!("tty stdout dump:\n{}\n", crate::terminal().stdin_buffer);
     khalt()
 }
 

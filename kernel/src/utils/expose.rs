@@ -8,16 +8,6 @@ pub struct SysInfo {
     pub processes_count: usize,
 }
 
-impl SysInfo {
-    pub fn null() -> Self {
-        Self {
-            total_mem: 0,
-            used_mem: 0,
-            processes_count: 0,
-        }
-    }
-}
-
 #[no_mangle]
 pub fn info(sysinfo: &mut SysInfo) {
     let mut used_mem = 0;

@@ -78,17 +78,6 @@ pub struct ProcessInfo {
     pub status: ProcessStatus,
 }
 
-impl ProcessInfo {
-    pub fn null() -> Self {
-        Self {
-            ppid: 0,
-            pid: 0,
-            name: [0; 64],
-            status: ProcessStatus::Waiting,
-        }
-    }
-}
-
 #[inline]
 fn copy_to_userspace(page_table: &mut PageTable, addr: VirtAddr, obj: &[u8]) {
     // FIXME: this assumes the next pages is mapped to the next frames

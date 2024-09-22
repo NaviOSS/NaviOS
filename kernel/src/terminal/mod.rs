@@ -23,8 +23,7 @@ use crate::{
     },
     globals::terminal,
     print, println, scheduler, serial,
-    threading::{self, expose::SpwanFlags, processes::ProcessInfo},
-    utils::{self, expose::SysInfo},
+    threading::{self, expose::SpwanFlags},
 };
 
 #[doc(hidden)]
@@ -122,35 +121,6 @@ fn shutdown_cmd(args: Vec<&str>) {
     arch::power::shutdown();
 }
 
-fn plist(args: Vec<&str>) {
-    if args.len() != 1 {
-        println!("{}: expected 0 args", args[0]);
-        return;
-    }
-
-    let mut info = SysInfo::null();
-    utils::expose::info(&mut info);
-
-    let mut process_list: Vec<ProcessInfo> = Vec::with_capacity(info.processes_count);
-    process_list.resize(info.processes_count, ProcessInfo::null());
-    threading::expose::pcollect(&mut process_list).unwrap();
-
-    for ProcessInfo {
-        ppid,
-        pid,
-        name,
-        status: _,
-    } in process_list
-    {
-        let mut name = name.to_vec();
-        while name.last() == Some(&0) {
-            name.pop();
-        }
-
-        println!("{}:  {}  {}", str::from_utf8(&name).unwrap(), pid, ppid);
-    }
-}
-
 fn pkill(args: Vec<&str>) {
     if args.len() != 2 {
         println!("{}: expected the pid", args[0]);
@@ -243,39 +213,6 @@ fn write(args: Vec<&str>) {
     close(opened).unwrap();
 }
 
-fn meminfo(args: Vec<&str>) {
-    if args.len() != 1 {
-        println!("{}: excepts no args", args[0]);
-        return;
-    }
-
-    let mut info = SysInfo::null();
-    utils::expose::info(&mut info);
-
-    let (memory_max, memory_used) = (info.total_mem, info.used_mem);
-    let memory_ava = memory_max - memory_used;
-
-    println!("memory info:");
-    println!(
-        "memory_max: {}    memory_used: {}\nmemory_ava: {}",
-        memory_max, memory_used, memory_ava
-    );
-
-    println!(
-        "{}KiBs out of {}KiBs used",
-        memory_used / 1024,
-        memory_max / 1024
-    );
-
-    println!(
-        "{}MiBs out of {}MiBs used",
-        memory_used / 1024 / 1024,
-        memory_max / 1024 / 1024
-    );
-
-    println!("note that this is not 100% accurate, memory_max and memory_used is more then the actual number in 90% of cases, unusable memory also counts as used")
-}
-
 fn breakpoint(args: Vec<&str>) {
     if args.len() != 1 {
         println!("{}: excepts no args", args[0]);
@@ -360,14 +297,12 @@ pub fn process_command(command: String) {
         "reboot" => reboot_cmd,
         "shutdown" => shutdown_cmd,
 
-        "plist" => plist,
         "pkill" => pkill,
         "pkillall" => pkillall,
 
         "cd" => cd,
 
         "write" => write,
-        "meminfo" => meminfo,
         "breakpoint" => breakpoint,
         "page_fault" => unsafe {
             *(0xdeadbeef as *mut u8) = 0xAA;

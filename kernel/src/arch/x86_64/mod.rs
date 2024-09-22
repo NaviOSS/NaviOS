@@ -42,6 +42,24 @@ pub fn inw(port: u16) -> u16 {
     value
 }
 
+#[inline]
+pub fn enable_sse() {
+    unsafe {
+        asm!(
+            "
+            mov rax, cr0
+            and ax, 0xFFFB
+            or ax, 0x2
+            mov cr0, rax
+            mov rax, cr4
+            or ax, 3 << 9
+            mov cr4, rax
+        ",
+            options(nostack)
+        )
+    }
+}
+
 /// simple init less likely to panic
 /// highly required
 #[inline]
@@ -55,4 +73,5 @@ pub fn init_phase1() {
 pub fn init_phase2() {
     acpi::enable_acpi(FADT::get(get_sdt()));
     apic::enable_apic_interrupts();
+    enable_sse();
 }
