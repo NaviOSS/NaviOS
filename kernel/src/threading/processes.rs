@@ -6,7 +6,7 @@ use crate::drivers::vfs::expose::DirIter;
 use crate::drivers::vfs::{vfs, FileDescriptor, FS};
 use crate::memory::align_up;
 use crate::utils::elf::{Elf, ElfError};
-use crate::{arch, debug, kernel, scheduler, serial, terminal, VirtAddr};
+use crate::{arch, debug, kernel, scheduler, terminal, VirtAddr};
 
 use crate::memory::paging::{self, EntryFlags, MapToError, Page, PAGE_SIZE};
 use alloc::boxed::Box;
@@ -276,7 +276,6 @@ impl Process {
     #[inline(always)]
     /// creates a userspace process from an elf
     pub fn from_elf(elf: Elf, name: &str, argv: &[&str]) -> Result<Self, ElfError> {
-        serial!("creating from elf!\n");
         let mut process = Self::create(elf.header.entry_point, name, argv, ProcessFlags::USERSPACE)
             .ok()
             .ok_or(ElfError::MapToError)?;

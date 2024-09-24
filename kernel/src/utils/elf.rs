@@ -7,7 +7,7 @@ use macros::display_consts;
 use crate::{
     kernel,
     memory::paging::{EntryFlags, IterPage, Page, PageTable, PAGE_SIZE},
-    serial, VirtAddr,
+    VirtAddr,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]

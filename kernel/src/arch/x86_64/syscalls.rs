@@ -34,10 +34,11 @@ syscall_table:
     .quad sysgetcwd
     .quad sysinfo
     .quad syspcollect
+    .quad syssbrk
 syscall_table_end:
 
 SYSCALL_TABLE_INFO:
-    .word (syscall_table_end - syscall_table) / 8
+    .quad (syscall_table_end - syscall_table) / 8
 .set KERNEL_UNSUPPORTED, 7
 .section .text
 .global syscall_base
