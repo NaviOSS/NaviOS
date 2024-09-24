@@ -28,24 +28,23 @@ cargo run -- no-kvm
     - ps/2 scancode set 1 support
 - basic ring0 framebuffer terminal
 - scheduler with one-thread processes
-- process resources
 - VFS with RamFS (ustar unpacking support)
-- ring3 processes
-- syscalls
-- some elf executing
 - init ramdisk
+- userspace:
+    - resources
+    - userspace elf executing
+    - argc && argv
+    - C stdlib
+    - alot of syscalls (TODO: make a list)
+    - program break and (sbrk (untested))
 
 currently using the [limine](https://limine-bootloader.org/) bootloader
 
 # roadmap
 note: i dont know much about osdev (this is my first OS), stuff prefixed with ? is missing info and more stuff may be added in the feature
 ## next:
-- [X] add a method to load ramdisks
-- [X] add an init ramdisk
-- [ ] rewrite most of the commands as a userspace program in C, load them in the init ramdisk probably mounted under programs:/
 - [ ] sync
     - [ ] improve the peformance of the frame_allocator it takes 5 seconds to map 7*4 mbs without kvm?
-- [ ] argc && argv?!
 - [ ] replace the current linked list allocator with a good buddy allocator
 
 ## roadmap
