@@ -1,6 +1,6 @@
 pub mod expose;
 pub mod processes;
-pub const STACK_SIZE: usize = PAGE_SIZE * 4;
+pub const STACK_SIZE: usize = PAGE_SIZE * 5;
 pub const STACK_START: usize = 0x00007A0000000000;
 pub const STACK_END: usize = STACK_START + STACK_SIZE;
 
@@ -107,7 +107,7 @@ impl Scheduler {
         asm!("cli");
 
         let mut process =
-            Box::new(Process::new(function, 0, 0, name, &[], 0, ProcessFlags::empty()).unwrap());
+            Box::new(Process::new(function, 0, 0, name, &[], ProcessFlags::empty()).unwrap());
 
         let this = Self {
             current_process: &mut *process,
@@ -227,10 +227,9 @@ impl Scheduler {
         function: usize,
         name: &str,
         argv: &[&str],
-        data_start: usize,
         flags: ProcessFlags,
     ) {
-        self.add_process(Process::create(function, name, argv, data_start, flags).unwrap());
+        self.add_process(Process::create(function, name, argv, flags).unwrap());
     }
 
     #[inline]

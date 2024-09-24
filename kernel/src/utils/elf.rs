@@ -6,9 +6,8 @@ use macros::display_consts;
 
 use crate::{
     kernel,
-    memory::paging::{EntryFlags, Page},
-    threading::processes::Process,
-    VirtAddr,
+    memory::paging::{EntryFlags, IterPage, Page, PageTable, PAGE_SIZE},
+    serial, VirtAddr,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -328,21 +327,20 @@ impl<'a> Elf<'a> {
         })
     }
 
-    /// loads an executable elf, in `process`
-    /// changes `process` data break to elf program break
-    pub fn load_exec(&self, process: &mut Process) -> Result<(), ElfError> {
-        let page_table = unsafe { &mut *process.root_page_table };
+    /// loads an executable ELF, maps, and copies it to `page_table`.
+    /// returns the program break on success.
+    pub fn load_exec(&self, page_table: &mut PageTable) -> Result<VirtAddr, ElfError> {
         if self.header.kind != ElfType::EXE {
             return Err(ElfError::NotAnExecutable);
         }
 
-        let mut data_break = 0;
+        let mut program_break = 0;
         for header in self.program_headers {
             if header.ptype != ProgramType::LOAD {
                 continue;
             }
 
-            let mut entry_flags = EntryFlags::empty();
+            let mut entry_flags = EntryFlags::PRESENT | EntryFlags::USER_ACCESSIBLE;
 
             if header.flags.contains(ProgramFlags::READ) {
                 entry_flags |= EntryFlags::empty();
@@ -356,37 +354,48 @@ impl<'a> Elf<'a> {
                 entry_flags |= EntryFlags::empty();
             }
 
-            // assumes ring3
-            entry_flags |= EntryFlags::PRESENT | EntryFlags::USER_ACCESSIBLE;
+            let start_page = Page::containing_address(header.vaddr);
+            let end_page = Page::containing_address(header.vaddr + header.memz + PAGE_SIZE);
+            let iter = IterPage {
+                start: start_page,
+                end: end_page,
+            };
 
-            let page = Page::containing_address(header.vaddr);
-            let frame = kernel()
-                .frame_allocator()
-                .allocate_frame()
-                .ok_or(ElfError::MapToError)?;
-
-            page_table
-                .map_to(page, frame, entry_flags)
-                .ok()
-                .ok_or(ElfError::MapToError)?;
+            let pages_required = (header.memz + (PAGE_SIZE - 1)) / PAGE_SIZE;
 
             unsafe {
-                let mem_start = (frame.start_address | kernel().phy_offset) as *mut u8;
-
                 let file_start = (self.header as *const ElfHeader as *const u8).add(header.offset);
-
-                let mem = slice::from_raw_parts_mut(mem_start, header.memz);
-                mem.fill(0);
-
                 let file = slice::from_raw_parts(file_start, header.filez);
-                mem[0..file.len()].copy_from_slice(file);
+
+                for (index, page) in iter.enumerate() {
+                    let frame = kernel()
+                        .frame_allocator()
+                        .allocate_frame()
+                        .ok_or(ElfError::MapToError)?;
+
+                    page_table
+                        .map_to(page, frame, entry_flags)
+                        .ok()
+                        .ok_or(ElfError::MapToError)?;
+
+                    let mem_start = (frame.start_address | kernel().phy_offset) as *mut u8;
+
+                    let size_to_copy = if index < pages_required - 1 {
+                        PAGE_SIZE
+                    } else {
+                        header.memz % PAGE_SIZE
+                    };
+
+                    let mem = slice::from_raw_parts_mut(mem_start, size_to_copy);
+                    mem.fill(0);
+                    mem.copy_from_slice(
+                        &file[index * PAGE_SIZE..(index * PAGE_SIZE) + size_to_copy],
+                    );
+                }
             }
-
-            data_break = header.vaddr + header.memz;
+            program_break = header.vaddr + header.memz;
         }
-
-        process.data_break = data_break;
-        Ok(())
+        Ok(program_break)
     }
 
     // pub fn debug(&self) {

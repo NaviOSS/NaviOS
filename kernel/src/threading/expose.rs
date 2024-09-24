@@ -11,7 +11,7 @@ use crate::{
     utils::elf::{Elf, ElfError},
 };
 
-use super::processes::{ProcessFlags, ProcessInfo};
+use super::processes::ProcessInfo;
 
 #[no_mangle]
 pub fn thread_exit() {
@@ -85,18 +85,8 @@ pub unsafe fn spawn(
 ) -> Result<u64, ElfError> {
     let elf = Elf::new(elf_bytes)?;
 
-    let mut process = Process::create(
-        elf.header.entry_point,
-        name,
-        argv,
-        0,
-        ProcessFlags::USERSPACE,
-    )
-    .ok()
-    .ok_or(ElfError::MapToError)?;
+    let mut process = Process::from_elf(elf, name, argv)?;
     let pid = process.pid;
-
-    elf.load_exec(&mut process)?;
 
     if flags.contains(SpwanFlags::CLONE_RESOURCES) {
         process.resources = scheduler().current_process().resources.clone();

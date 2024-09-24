@@ -5,7 +5,8 @@ use super::{ARGV_START, STACK_END};
 use crate::drivers::vfs::expose::DirIter;
 use crate::drivers::vfs::{vfs, FileDescriptor, FS};
 use crate::memory::align_up;
-use crate::{arch, debug, kernel, scheduler, terminal, VirtAddr};
+use crate::utils::elf::{Elf, ElfError};
+use crate::{arch, debug, kernel, scheduler, serial, terminal, VirtAddr};
 
 use crate::memory::paging::{self, EntryFlags, MapToError, Page, PAGE_SIZE};
 use alloc::boxed::Box;
@@ -101,14 +102,13 @@ fn copy_to_userspace(page_table: &mut PageTable, addr: VirtAddr, obj: &[u8]) {
     }
 }
 impl Process {
-    #[inline]
+    #[inline(always)]
     pub fn new(
         function: usize,
         ppid: u64,
         pid: u64,
         name: &str,
         argv: &[&str],
-        data_start: usize,
         flags: ProcessFlags,
     ) -> Result<Self, MapToError> {
         let name_bytes = name.as_bytes();
@@ -228,8 +228,6 @@ impl Process {
             write_pos: 0,
         }));
 
-        let data_start = align_up(data_start, PAGE_SIZE);
-
         Ok(Process {
             ppid,
             pid,
@@ -240,11 +238,11 @@ impl Process {
             root_page_table,
             resources,
             current_dir: String::from("ram:/"),
-
             next_ri: 0,
+
             data_pages: 0,
-            data_break: data_start,
-            data_start,
+            data_break: 0,
+            data_start: 0,
             next: None,
         })
     }
@@ -253,7 +251,6 @@ impl Process {
         function: usize,
         name: &str,
         argv: &[&str],
-        data_break: usize,
         flags: ProcessFlags,
     ) -> Result<Self, MapToError> {
         let pid = scheduler().next_pid;
@@ -268,13 +265,26 @@ impl Process {
             pid,
             name,
             argv,
-            data_break,
             flags,
         )?;
         scheduler().next_pid += 1;
 
         debug!(Process, "success ...");
         Ok(results)
+    }
+
+    #[inline(always)]
+    /// creates a userspace process from an elf
+    pub fn from_elf(elf: Elf, name: &str, argv: &[&str]) -> Result<Self, ElfError> {
+        serial!("creating from elf!\n");
+        let mut process = Self::create(elf.header.entry_point, name, argv, ProcessFlags::USERSPACE)
+            .ok()
+            .ok_or(ElfError::MapToError)?;
+        let data_break = unsafe { elf.load_exec(&mut *process.root_page_table)? };
+
+        process.data_start = align_up(data_break, PAGE_SIZE);
+        process.data_break = process.data_start;
+        Ok(process)
     }
 
     /// frees self and then returns next

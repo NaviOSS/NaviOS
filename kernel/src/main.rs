@@ -211,7 +211,6 @@ fn kmain() -> ! {
         terminal::shell as usize,
         "shell",
         &[],
-        0,
         ProcessFlags::empty(),
     );
 
