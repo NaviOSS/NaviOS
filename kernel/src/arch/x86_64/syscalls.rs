@@ -335,3 +335,8 @@ extern "C" fn syspcollect(ptr: *mut ProcessInfo, len: usize) -> u64 {
         0
     }
 }
+
+#[no_mangle]
+extern "C" fn syssbrk(amount: usize) -> *mut u8 {
+    threading::expose::sbrk(amount)
+}

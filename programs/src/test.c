@@ -1,10 +1,12 @@
 #include "stdio.h"
 #include <stdint.h>
 #include <string.h>
+#include <sys.h>
 #include <utils.h>
 
 int main(size_t argc, Str **argv) {
-  printf("got %d args!\n", argc);
+  void *at = sbrk(0);
+  printf("got %d args! break at %p\n", argc, at);
   for (int i = 0; i < argc; i++) {
     Str *arg = argv[i];
     printf("arg: %.*s\n", arg->len, arg->data);

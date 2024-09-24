@@ -39,7 +39,7 @@ macro_rules! create_idt {
 lazy_static! {
     pub static ref IDT: IDTT = create_idt!(
         (0, divide_by_zero_handler, ATTR_INT),
-        (3, breakpoint_handler, ATTR_INT),
+        (3, breakpoint_handler, ATTR_INT | ATTR_RING3),
         (6, invaild_opcode, ATTR_INT),
         (8, dobule_fault_handler, ATTR_TRAP, 0),
         (0xC, stack_segment_fault_handler, ATTR_TRAP, 0),

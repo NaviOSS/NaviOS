@@ -3,7 +3,11 @@ use alloc::{string::String, vec::Vec};
 use lazy_static::lazy_static;
 use spin::Mutex;
 
-use core::ptr;
+use core::{
+    fmt::Write,
+    ptr,
+    str::{self, Chars},
+};
 
 use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 
@@ -13,8 +17,6 @@ use crate::{
     memory::align_down,
     println, serial, terminal, TERMINAL,
 };
-
-use super::navitts::{Attributes, NaviTTES};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalMode {
@@ -39,9 +41,11 @@ pub struct FrameBufferInfo {
     pub pixel_format: PixelFormat,
 }
 
+type RGB = (u8, u8, u8);
+
 const RASTER_HEIGHT: RasterHeight = RasterHeight::Size20;
-const WRITE_COLOR: (u8, u8, u8) = (255, 255, 255);
-const DWRITE_COLOR: (u8, u8, u8) = (255, 0, 0);
+const WRITE_COLOR: RGB = (255, 255, 255);
+const BG_COLOR: RGB = (0, 0, 0);
 
 #[derive(Debug)]
 pub struct Terminal {
@@ -64,6 +68,12 @@ pub struct Terminal {
     pub draw_from_y: usize,
     /// wether or not the current panic happend in another panic because of the terminal
     pub panicked: bool,
+
+    /// changed by ansii escape sequnceses
+    /// currently only `\e[38;2;<r>;<g>;<b>m` is supported
+    pub text_fg: (u8, u8, u8),
+    /// currently only `\e[48;2;<r>;<g>;<b>m` is supported
+    pub text_bg: (u8, u8, u8),
 }
 
 lazy_static! {
@@ -96,6 +106,8 @@ impl Terminal {
             draw_from_x: 0,
             draw_from_y: 0,
             panicked: false,
+            text_fg: WRITE_COLOR,
+            text_bg: BG_COLOR,
         };
 
         unsafe { TERMINAL = Some(this) };
@@ -307,33 +319,8 @@ impl Terminal {
         glyph
     }
 
-    pub fn putc(&mut self, c: char, color: (u8, u8, u8), viewport: &mut Vec<u8>) {
-        let glyph = Self::raster(c);
-
-        if (self.x_pos + glyph.width()) > self.info.stride {
-            self.newline(viewport);
-        }
-
-        if (self.y_pos + glyph.height()) * self.info.stride * self.info.bytes_per_pixel
-            >= self.viewport_start + self.buffer.len()
-        {
-            self.scroll_down(true, viewport);
-        }
-
-        match c {
-            '\n' => {
-                self.newline(viewport);
-            }
-            '\x08' => self.backspace(viewport),
-
-            _ => {
-                self.draw_char(glyph, color, viewport);
-            }
-        }
-    }
-
     /// puts a character without extending viewport
-    pub fn eputc(&mut self, c: char, color: (u8, u8, u8), viewport: &mut [u8]) {
+    pub fn dputc(&mut self, c: char, color: (u8, u8, u8), viewport: &mut [u8]) {
         let glyph = Self::raster(c);
         if (self.y_pos + glyph.height()) * self.info.stride * self.info.bytes_per_pixel
             >= self.viewport_start + self.buffer.len()
@@ -352,6 +339,27 @@ impl Terminal {
                     self.force_scroll_down(viewport);
                 }
             }
+            _ => self.draw_char(glyph, color, viewport),
+        }
+    }
+
+    #[inline(always)]
+    fn putc(&mut self, c: char, color: RGB, viewport: &mut Vec<u8>) {
+        let glyph = Self::raster(c);
+
+        if (self.x_pos + glyph.width()) > self.info.stride {
+            self.newline(viewport);
+        }
+
+        if (self.y_pos + glyph.height()) * self.info.stride * self.info.bytes_per_pixel
+            >= self.viewport_start + self.buffer.len()
+        {
+            self.scroll_down(true, viewport);
+        }
+
+        match c {
+            '\n' => self.newline(viewport),
+            '\x08' => self.backspace(viewport),
             _ => self.draw_char(glyph, color, viewport),
         }
     }
@@ -375,48 +383,148 @@ impl Terminal {
         self.draw_viewport(viewport)
     }
 
-    fn write_slice(&mut self, str: &str, attributes: Attributes, viewport: &mut Vec<u8>) {
+    fn parse_ansii_rgb(bytes: &[u8]) -> Result<RGB, ()> {
+        let mut rgb = 0u32;
+
+        let mut current_color = [48u8; 3];
+        let mut current_color_index = 0;
+
+        let mut current_rgb_index = 0;
+
+        for byte in bytes {
+            if *byte == b'm' {
+                break;
+            }
+
+            if current_rgb_index >= 3 {
+                return Err(());
+            }
+
+            if *byte == b';' {
+                let str = unsafe { str::from_utf8_unchecked(&current_color) };
+                let int = u8::from_str_radix(str, 10).unwrap();
+
+                rgb |= (int as u32) << ((3 - current_rgb_index) * 8);
+
+                current_rgb_index += 1;
+
+                current_color = *b"000";
+                current_color_index = 0;
+                continue;
+            }
+
+            if current_color_index >= current_color.len() {
+                return Err(());
+            }
+
+            current_color[current_color_index] = *byte;
+            current_color_index += 1;
+        }
+
+        let rgb = ((rgb >> 24) as u8, (rgb >> 16) as u8, (rgb >> 8) as u8);
+
+        Ok(rgb)
+    }
+
+    fn parse_ansi(&mut self, bytes: [u8; 14]) -> Result<(), ()> {
+        match &bytes[0..2] {
+            b"0m" => {
+                self.text_fg = WRITE_COLOR;
+                self.text_bg = BG_COLOR;
+            }
+
+            b"38" => {
+                if bytes[2] != b';' {
+                    return Err(());
+                }
+
+                match bytes[3] {
+                    b'2' => {
+                        if bytes[4] != b';' {
+                            return Err(());
+                        }
+
+                        let rgb = Self::parse_ansii_rgb(&bytes[5..])?;
+                        self.text_fg = rgb;
+                    }
+                    _ => (),
+                }
+            }
+
+            b"48" => {
+                if bytes[2] != b';' {
+                    return Err(());
+                }
+
+                match bytes[3] {
+                    b'2' => {
+                        if bytes[4] != b';' {
+                            return Err(());
+                        }
+
+                        let rgb = Self::parse_ansii_rgb(&bytes[5..])?;
+                        self.text_bg = rgb;
+                    }
+                    _ => (),
+                }
+            }
+            _ => (),
+        }
+
+        Ok(())
+    }
+
+    fn handle_ansii_escape(&mut self, chars: &mut Chars) -> Result<(), ()> {
+        if chars.next() != Some('[') {
+            return Err(());
+        }
+
+        let mut bytes = [0u8; 14];
+        let mut len = 0;
+        while let Some(c) = chars.next() {
+            len += 1;
+            bytes[len - 1] = c as u8;
+
+            if len == bytes.len() || c == 'm' {
+                break;
+            }
+        }
+
+        if bytes[len - 1] != b'm' {
+            return Err(());
+        }
+
+        self.parse_ansi(bytes)
+    }
+
+    fn write_slice(&mut self, str: &str, viewport: &mut Vec<u8>) {
         let old_mode = self.mode;
         self.mode = TerminalMode::Stdout;
         self.stdout_buffer.push_str(str);
 
-        for c in str.chars() {
-            self.putc(c, attributes.fg, viewport);
+        let mut chars = str.chars();
+
+        while let Some(c) = chars.next() {
+            match c {
+                '\x1B' => _ = self.handle_ansii_escape(&mut chars),
+                _ => self.putc(c, self.text_fg, viewport),
+            }
         }
 
         self.draw_viewport(viewport);
         self.mode = old_mode
     }
 
-    pub fn write_es(
-        &mut self,
-        escape_seq: NaviTTES,
-        default_attributes: Attributes,
-        viewport: &mut Vec<u8>,
-    ) {
-        match escape_seq {
-            NaviTTES::Slice(s) => self.write_slice(s, default_attributes, viewport),
-            NaviTTES::OwnedSlice(s) => self.write_slice(&s, default_attributes, viewport),
-
-            NaviTTES::NaviESS(escape_seqs) => {
-                for escape_seq in escape_seqs {
-                    self.write_es(escape_seq, default_attributes.clone(), viewport)
-                }
-            }
-            NaviTTES::NaviES(attributes, seq) => {
-                let attributes = Attributes::from_list(&attributes, default_attributes);
-
-                self.write_es(*seq, attributes, viewport)
-            }
-        }
-    }
-
     /// directly write to buffer
     pub fn dwrite(&mut self, str: &str) {
-        let (mut buffer, _) = crate::limine::get_framebuffer();
+        let (buffer, _) = crate::limine::get_framebuffer();
+        let mut chars = str.chars();
 
-        for c in str.chars() {
-            self.eputc(c, DWRITE_COLOR, &mut buffer);
+        while let Some(c) = chars.next() {
+            match c {
+                '\x1B' => _ = self.handle_ansii_escape(&mut chars),
+                _ => self.dputc(c, self.text_fg, buffer),
+            }
         }
     }
 
@@ -426,11 +534,7 @@ impl Terminal {
             _ => {
                 let viewport = &mut VIEWPORT.lock();
 
-                let parsed = NaviTTES::parse_str(str);
-                let mut default_attributes = Attributes::default();
-                default_attributes.fg = WRITE_COLOR;
-
-                self.write_es(parsed, default_attributes, viewport)
+                self.write_slice(str, viewport)
             }
         }
     }
@@ -442,6 +546,13 @@ impl Terminal {
         self.buffer.fill(0);
 
         self.mode = TerminalMode::Panic;
-        println!("PANIC MODE");
+        println!("\x1B[38;2;255;0;0mPANIC MODE");
+    }
+}
+
+impl Write for Terminal {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        self.write(s);
+        Ok(())
     }
 }

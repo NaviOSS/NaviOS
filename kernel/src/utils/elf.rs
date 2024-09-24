@@ -6,7 +6,8 @@ use macros::display_consts;
 
 use crate::{
     kernel,
-    memory::paging::{EntryFlags, Page, PageTable},
+    memory::paging::{EntryFlags, Page},
+    threading::processes::Process,
     VirtAddr,
 };
 
@@ -327,12 +328,15 @@ impl<'a> Elf<'a> {
         })
     }
 
-    /// loads an executable elf, map, and copies it to `page_table`
-    pub fn load_exec(&self, page_table: &mut PageTable) -> Result<(), ElfError> {
+    /// loads an executable elf, in `process`
+    /// changes `process` data break to elf program break
+    pub fn load_exec(&self, process: &mut Process) -> Result<(), ElfError> {
+        let page_table = unsafe { &mut *process.root_page_table };
         if self.header.kind != ElfType::EXE {
             return Err(ElfError::NotAnExecutable);
         }
 
+        let mut data_break = 0;
         for header in self.program_headers {
             if header.ptype != ProgramType::LOAD {
                 continue;
@@ -377,7 +381,11 @@ impl<'a> Elf<'a> {
                 let file = slice::from_raw_parts(file_start, header.filez);
                 mem[0..file.len()].copy_from_slice(file);
             }
+
+            data_break = header.vaddr + header.memz;
         }
+
+        process.data_break = data_break;
         Ok(())
     }
 

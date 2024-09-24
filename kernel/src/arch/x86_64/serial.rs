@@ -16,12 +16,20 @@ const SERIAL_LINE_STATUS_PORT: u16 = SERIAL_COM1_BASE + 5;
 const SERIAL_LINE_ENABLE_DLAB: u8 = 0x80;
 
 pub fn init_serial() {
-    outb(SERIAL_LINE_COMMAND_PORT, SERIAL_LINE_ENABLE_DLAB);
-    outb(SERIAL_DATA_PORT, 0x01);
     outb(SERIAL_DATA_PORT + 1, 0x00);
-    outb(SERIAL_LINE_COMMAND_PORT, 0x03);
+    outb(SERIAL_LINE_COMMAND_PORT, SERIAL_LINE_ENABLE_DLAB);
+    outb(SERIAL_DATA_PORT, 0x03);
+    outb(SERIAL_DATA_PORT + 1, 0x00);
+
+    outb(SERIAL_LINE_COMMAND_PORT, 0x3);
     outb(SERIAL_FIFO_COMMAND_PORT, 0xC7);
     outb(SERIAL_MODEM_COMMAND_PORT, 0x0B);
+    outb(SERIAL_MODEM_COMMAND_PORT, 0x1E);
+
+    outb(SERIAL_DATA_PORT, 0xAE);
+
+    outb(SERIAL_MODEM_COMMAND_PORT, 0x0F);
+    write_serial_string("\nSerial initialized\n");
 }
 
 pub fn serial_is_transmit_fifo_empty() -> bool {

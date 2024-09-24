@@ -90,7 +90,7 @@ macro_rules! debug {
     ($mod: path, $($arg:tt)*) => {
         // makes sure $mod is a vaild type
         let _ = core::marker::PhantomData::<$mod>;
-        crate::serial!("[DEBUG] {}: {}\n", stringify!($mod), format_args!($($arg)*));
+        crate::serial!("\x1B[38;2;0;155;200m[DEBUG]\x1B[38;2;255;155;0m {}: \x1B[0m{}\n", stringify!($mod), format_args!($($arg)*));
     };
 }
 
@@ -199,13 +199,6 @@ pub extern "C" fn kinit() {
 
 #[no_mangle]
 fn kstart() -> ! {
-    let rsp: u64;
-    unsafe {
-        asm!("cli");
-        asm!("mov {}, rsp", out(reg) rsp);
-    }
-    serial!("rsp: 0x{:x}\n", rsp);
-
     kinit();
     serial!("failed context switching to kmain! ...\n");
     khalt()
@@ -218,6 +211,7 @@ fn kmain() -> ! {
         terminal::shell as usize,
         "shell",
         &[],
+        0,
         ProcessFlags::empty(),
     );
 
@@ -228,7 +222,7 @@ fn kmain() -> ! {
 
     println!("finished running tests...");
     println!(
-        "\\[fg: (0, 255, 0) ||Boot success! press ctrl + shift + C to clear screen (and enter input mode)||]"
+        "\x1B[38;2;0;255;0mBoot success! press ctrl + shift + C to clear screen (and enter input mode)\x1B[0m"
     );
 
     serial!("finished initing...\n");

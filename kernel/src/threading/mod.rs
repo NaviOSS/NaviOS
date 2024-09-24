@@ -107,7 +107,7 @@ impl Scheduler {
         asm!("cli");
 
         let mut process =
-            Box::new(Process::new(function, 0, 0, name, &[], ProcessFlags::empty()).unwrap());
+            Box::new(Process::new(function, 0, 0, name, &[], 0, ProcessFlags::empty()).unwrap());
 
         let this = Self {
             current_process: &mut *process,
@@ -227,9 +227,10 @@ impl Scheduler {
         function: usize,
         name: &str,
         argv: &[&str],
+        data_start: usize,
         flags: ProcessFlags,
     ) {
-        self.add_process(Process::create(function, name, argv, flags).unwrap());
+        self.add_process(Process::create(function, name, argv, data_start, flags).unwrap());
     }
 
     #[inline]

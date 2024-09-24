@@ -1,6 +1,5 @@
 pub mod device;
 pub mod framebuffer;
-pub mod navitts;
 
 use core::{
     fmt::{self, Write},
@@ -29,10 +28,7 @@ use crate::{
 #[doc(hidden)]
 #[no_mangle]
 pub fn _print(args: fmt::Arguments) {
-    let mut combined = String::new();
-    combined.write_fmt(args).unwrap();
-
-    terminal().write(&combined);
+    _ = terminal().write_fmt(args);
 }
 
 /// TODO: replace with a normal read?
@@ -326,20 +322,25 @@ pub fn shell() {
     while terminal().mode != TerminalMode::Stdin {}
     serial!("entering stdin... {:?}\n", terminal().mode);
 
+    print!("\x1B[38;2;0;255;0m");
     print!(
-        r"\[fg: (0, 255, 0) ||
+        r"
  _   _             _  ____   _____
 | \ | |           (_)/ __ \ / ____|
 |  \| | __ ___   ___| |  | | (___
 | . ` |/ _` \ \ / / | |  | |\___ \
 | |\  | (_| |\ V /| | |__| |____) |
-|_| \_|\__,_| \_/ |_|\____/|_____/
-||]"
+|_| \_|\__,_| \_/ |_|\____/|_____/"
     );
-    print!("\\[fg: (255, 255, 255) ||\nwelcome to NaviOS!\ntype help or ? for a list of avalible commands\nyou are now in ram:/ a playground, sys: is also mounted it contains the init ramdisk\n||]");
+    print!("\x1B[0m\n");
+
+    println!("\nwelcome to NaviOS!\ntype help or ? for a list of avalible commands\nyou are now in ram:/ a playground, sys: is also mounted it contains the init ramdisk");
 
     loop {
-        print!(r"\[fg: (0, 255, 0) ||{}||] # ", threading::expose::getcwd());
+        print!(
+            "\x1B[38;2;0;255;0m{}\x1B[0m # ",
+            threading::expose::getcwd()
+        );
         process_command(readln());
     }
 }

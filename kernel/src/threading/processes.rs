@@ -1,10 +1,13 @@
+use core::slice;
+
 use super::{ARGV_START, STACK_END};
 
 use crate::drivers::vfs::expose::DirIter;
 use crate::drivers::vfs::{vfs, FileDescriptor, FS};
+use crate::memory::align_up;
 use crate::{arch, debug, kernel, scheduler, terminal, VirtAddr};
 
-use crate::memory::paging::{self, MapToError, Page};
+use crate::memory::paging::{self, EntryFlags, MapToError, Page, PAGE_SIZE};
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -66,6 +69,10 @@ pub struct Process {
     pub next_ri: usize,
 
     pub current_dir: String,
+
+    data_pages: usize,
+    pub data_break: usize,
+    data_start: usize,
     pub next: Option<Box<Self>>,
 }
 
@@ -101,6 +108,7 @@ impl Process {
         pid: u64,
         name: &str,
         argv: &[&str],
+        data_start: usize,
         flags: ProcessFlags,
     ) -> Result<Self, MapToError> {
         let name_bytes = name.as_bytes();
@@ -220,6 +228,8 @@ impl Process {
             write_pos: 0,
         }));
 
+        let data_start = align_up(data_start, PAGE_SIZE);
+
         Ok(Process {
             ppid,
             pid,
@@ -230,7 +240,11 @@ impl Process {
             root_page_table,
             resources,
             current_dir: String::from("ram:/"),
+
             next_ri: 0,
+            data_pages: 0,
+            data_break: data_start,
+            data_start,
             next: None,
         })
     }
@@ -239,6 +253,7 @@ impl Process {
         function: usize,
         name: &str,
         argv: &[&str],
+        data_break: usize,
         flags: ProcessFlags,
     ) -> Result<Self, MapToError> {
         let pid = scheduler().next_pid;
@@ -253,6 +268,7 @@ impl Process {
             pid,
             name,
             argv,
+            data_break,
             flags,
         )?;
         scheduler().next_pid += 1;
@@ -290,5 +306,45 @@ impl Process {
             name: self.name,
             status: self.status,
         }
+    }
+
+    #[inline(always)]
+    fn data_break_actual(&self) -> usize {
+        self.data_start + PAGE_SIZE * self.data_pages
+    }
+
+    fn page_extend_data(&mut self) -> Result<(), MapToError> {
+        let page_end = self.data_break_actual();
+        let new_page = Page::containing_address(page_end);
+
+        let frame = kernel()
+            .frame_allocator()
+            .allocate_frame()
+            .ok_or(MapToError::FrameAllocationFailed)?;
+
+        unsafe {
+            (*self.root_page_table).map_to(
+                new_page,
+                frame,
+                EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE | EntryFlags::PRESENT,
+            )?
+        };
+
+        let addr = frame.start_address | kernel().phy_offset;
+        let ptr = addr as *mut u8;
+        let slice = unsafe { slice::from_raw_parts_mut(ptr, PAGE_SIZE) };
+
+        slice.fill(0);
+        self.data_pages += 1;
+        Ok(())
+    }
+
+    pub fn extend_data_by(&mut self, amount: usize) -> Result<*mut u8, MapToError> {
+        if self.data_break_actual() < self.data_break + amount {
+            self.page_extend_data()?;
+        }
+
+        self.data_break += amount;
+        Ok(self.data_break as *mut u8)
     }
 }
