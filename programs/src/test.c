@@ -5,8 +5,13 @@
 #include <utils.h>
 
 int main(size_t argc, Str **argv) {
+  int *smth = sbrk(4096 * 2) - 4;
+  *smth = 0xdeadbeef;
   void *at = sbrk(0);
-  printf("got %d args! break at %p\n", argc, at);
+
+  printf("got %d args! break at %p after sbrk'ing 2 pages allocated an int "
+         "with value %x\n",
+         argc, at, *smth);
   for (int i = 0; i < argc; i++) {
     Str *arg = argv[i];
     printf("arg: %.*s\n", arg->len, arg->data);

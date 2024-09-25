@@ -349,7 +349,7 @@ impl Process {
     }
 
     pub fn extend_data_by(&mut self, amount: usize) -> Result<*mut u8, MapToError> {
-        if self.data_break_actual() < self.data_break + amount {
+        while self.data_break_actual() < self.data_break + amount {
             self.page_extend_data()?;
         }
 
