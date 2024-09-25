@@ -63,6 +63,7 @@ pub struct Entry(PhysAddr);
 impl Entry {
     pub fn frame(&self) -> Option<Frame> {
         if self.flags().contains(EntryFlags::PRESENT) {
+            // FIXME: real hardware problem here
             // TODO: figure out more info about the max physical address width
             return Some(Frame::containing_address(self.0 & 0x000FFFFF_FFFFF000));
         }

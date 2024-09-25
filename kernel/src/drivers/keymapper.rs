@@ -37,24 +37,26 @@ impl KeyMapping {
 
 // beatuiful macro to create Mappings
 macro_rules! create_mapping {
-    ($({ $keycode: path, { $($keyflag: path),* } } => $char: literal ),* $(,)?) => {
+    ($({ $keycode: path,  $({ $($keyflag: path),* })|* } => $char: literal ),* $(,)?) => {
         {
 
         let mut keymapping: KeyMapping = KeyMapping {keys: [[MappingEntry::default(); 16]; KeyCode::LastKey as usize]};
         $(
             let mappings = keymapping.get($keycode);
             let mut i = 0;
-            while i < mappings.len() {
-                if mappings[i].result == '\0' {
-                    break;
-                }
-                i+=1;
-            }
 
-            mappings[i] = MappingEntry {
-                flags: KeyFlags::from_bits_retain(0 $(| $keyflag.bits())*),
-                result: $char
-            };
+            $(
+                while i < mappings.len() {
+                    if mappings[i].result == '\0' {
+                        break;
+                    }
+                    i+=1;
+                }
+                mappings[i] = MappingEntry {
+                    flags: KeyFlags::from_bits_retain(0 $(| $keyflag.bits())*),
+                    result: $char
+                };
+            )*
         )*
 
         keymapping
@@ -66,7 +68,7 @@ macro_rules! create_mapping {
 pub const DEFAULT_MAPPING: KeyMapping = create_mapping!(
     // Key Q mappings
     { KeyCode::KeyQ, {} } => 'q',
-    { KeyCode::KeyQ, { KeyFlags::CAPS_LOCK } } => 'Q',
+    { KeyCode::KeyQ, { KeyFlags::CAPS_LOCK } | { KeyFlags::SHIFT } } => 'Q',
 
     // Key W mappings
     { KeyCode::KeyW, {} } => 'w',
@@ -278,19 +280,25 @@ extern "C" fn __navi_map_key(keycode: KeyCode, keyflags: KeyFlags) -> u32 {
 impl Key {
     pub fn map_key(&self) -> char {
         let mappings = DEFAULT_MAPPING.get_const(self.code);
-        let mut empty_mapping = None;
+        let mut best_mapping = None;
+        let mut most_flags = KeyFlags::empty().bits();
 
         for mapping in mappings {
             if mapping.flags == self.flags {
                 return mapping.result;
             }
 
-            if mapping.flags.is_empty() && mapping.result != '\0' && empty_mapping.is_none() {
-                empty_mapping = Some(mapping);
+            let flags_sim = (mapping.flags & self.flags).bits();
+
+            if mapping.result != '\0'
+                && ((mapping.flags.is_empty() && best_mapping.is_none()) || flags_sim > most_flags)
+            {
+                most_flags = flags_sim;
+                best_mapping = Some(mapping);
             }
         }
 
-        if let Some(mapping) = empty_mapping {
+        if let Some(mapping) = best_mapping {
             return mapping.result;
         }
 

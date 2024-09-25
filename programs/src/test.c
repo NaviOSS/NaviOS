@@ -9,7 +9,7 @@ int main(size_t argc, Str **argv) {
   *smth = 0xdeadbeef;
   void *at = sbrk(0);
 
-  printf("got %d args! break at %p after sbrk'ing 2 pages allocated an int "
+  printf("got %d args! break at %p after sbrk'ing 2 pages, allocated an int "
          "with value %x\n",
          argc, at, *smth);
   for (int i = 0; i < argc; i++) {

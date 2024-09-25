@@ -26,8 +26,6 @@ pub type Bitmap = &'static mut [u8];
 pub struct RegionAllocator {
     /// keeps track of which frame is used or not
     pub bitmap: Bitmap,
-    /// the index of the frame we start searching from in the bitmap
-    search_from: usize,
 }
 
 impl RegionAllocator {
@@ -100,13 +98,7 @@ impl RegionAllocator {
 
         debug_assert!(bitmap[0] == 0xFF);
 
-        let mut this = Self {
-            bitmap,
-            search_from: Self::bitmap_index_from_addr(align_up(
-                first_usable_entry.unwrap().base as usize,
-                PAGE_SIZE,
-            )),
-        };
+        let mut this = Self { bitmap };
 
         debug!(RegionAllocator, "bitmap allocation successful!");
         // sets all unusable frames as used
@@ -143,38 +135,24 @@ impl RegionAllocator {
     }
 
     /// takes a bitmap index(bitnumber) and turns it into (row, col)
-    #[inline]
+    #[inline(always)]
     fn bitmap_loc_from_index(index: usize) -> (usize, usize) {
         (index / 8, index % 8)
     }
 
     /// takes an addr and turns it into a bitmap (row, col)
-    #[inline]
+    #[inline(always)]
     fn bitmap_loc_from_addr(addr: PhysAddr) -> (usize, usize) {
         Self::bitmap_loc_from_index(align_down(addr, PAGE_SIZE) / PAGE_SIZE)
     }
 
-    #[inline]
-    fn bitmap_index_from_addr(addr: PhysAddr) -> usize {
-        let (row, col) = Self::bitmap_loc_from_addr(addr);
-        Self::bitmap_index_from_loc(row, col)
-    }
-
-    /// returns the bitmap index of row, col aka bitnumber
-    #[inline]
-    fn bitmap_index_from_loc(row: usize, col: usize) -> usize {
-        row * 8 + col
-    }
-
-    #[inline]
-    fn search_for_free_frame(&mut self) -> Option<Frame> {
-        let (srow, _) = Self::bitmap_loc_from_index(self.search_from);
-
-        for row in srow..self.bitmap.len() {
+    pub fn allocate_frame(&mut self) -> Option<Frame> {
+        for row in 0..self.bitmap.len() {
             for col in 0..8 {
                 if (self.bitmap[row] >> col) & 1 == 0 {
+                    self.bitmap[row] |= 1 << col;
                     return Some(Frame {
-                        start_address: Self::bitmap_index_from_loc(row, col) * PAGE_SIZE,
+                        start_address: (row * 8 + col) * PAGE_SIZE,
                     });
                 }
             }
@@ -183,21 +161,14 @@ impl RegionAllocator {
         None
     }
 
-    pub fn allocate_frame(&mut self) -> Option<Frame> {
-        let frame = self.search_for_free_frame()?;
-        self.set_used(frame.start_address);
-
-        Some(frame)
-    }
-
     fn set_unused(&mut self, addr: PhysAddr) {
         let (row, col) = Self::bitmap_loc_from_addr(addr);
-        self.bitmap[row] = self.bitmap[row] ^ (1 << col)
+        self.bitmap[row] ^= 1 << col
     }
 
     fn set_used(&mut self, addr: PhysAddr) {
         let (row, col) = Self::bitmap_loc_from_addr(addr);
-        self.bitmap[row] = self.bitmap[row] | (1 << col)
+        self.bitmap[row] |= 1 << col
     }
 
     pub fn deallocate_frame(&mut self, frame: Frame) {

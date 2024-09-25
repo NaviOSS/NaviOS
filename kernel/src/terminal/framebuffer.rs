@@ -5,7 +5,6 @@ use spin::Mutex;
 
 use core::{
     fmt::Write,
-    ptr,
     str::{self, Chars},
 };
 
@@ -267,6 +266,7 @@ impl Terminal {
         self.remove_char(char, viewport)
     }
 
+    #[inline]
     fn set_pixel(&self, x: usize, y: usize, intens: u32, color: (u8, u8, u8), viewport: &mut [u8]) {
         let color = (color.0 as u32, color.1 as u32, color.2 as u32);
 
@@ -287,12 +287,9 @@ impl Terminal {
 
         viewport[byte_offset..(byte_offset + bytes_per_pixel)]
             .copy_from_slice(&color[..bytes_per_pixel]);
-
-        unsafe {
-            ptr::read_volatile(self.buffer.as_ptr()); // ensure buffer is not optimized away
-        }
     }
 
+    #[inline]
     /// UNCHECKED doesn't do boundaries checks!
     /// will panic if the glyph is outside boundaries
     fn draw_char(&mut self, glyph: RasterizedChar, color: (u8, u8, u8), viewport: &mut [u8]) {
@@ -311,6 +308,7 @@ impl Terminal {
         self.x_pos += glyph.width();
     }
 
+    #[inline(always)]
     fn raster(c: char) -> RasterizedChar {
         let null =
             noto_sans_mono_bitmap::get_raster('N', FontWeight::Regular, RASTER_HEIGHT).unwrap();
