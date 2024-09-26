@@ -11,17 +11,17 @@ use crate::{
 
 /// boot info
 #[derive(Debug)]
-pub struct Kernel {
+pub struct Kernel<'a> {
     pub frame_allocator: Mutex<RegionAllocator>,
     pub phy_offset: usize,
     pub rsdp_addr: Option<u64>,
-    pub elf: Elf<'static>,
+    pub elf: Elf<'a>,
 
     pub terminal: MaybeUninit<Terminal>,
     pub scheduler: MaybeUninit<Scheduler>,
 }
 
-pub struct KernelWrapper(UnsafeCell<MaybeUninit<Kernel>>);
+pub struct KernelWrapper(UnsafeCell<MaybeUninit<Kernel<'static>>>);
 unsafe impl Sync for KernelWrapper {}
 
 impl KernelWrapper {
@@ -35,7 +35,7 @@ impl KernelWrapper {
 
 pub static KERNEL: KernelWrapper = KernelWrapper(UnsafeCell::new(MaybeUninit::zeroed()));
 
-impl Kernel {
+impl Kernel<'_> {
     // TODO: lock the frame_allocator!!!
     #[inline]
     pub fn frame_allocator(&'static mut self) -> spin::MutexGuard<'static, RegionAllocator> {
@@ -43,7 +43,7 @@ impl Kernel {
     }
 }
 
-pub fn kernel() -> &'static mut Kernel {
+pub fn kernel<'a>() -> &'a mut Kernel<'a> {
     KERNEL.get()
 }
 pub fn kernel_inited() -> bool {

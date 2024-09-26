@@ -348,12 +348,32 @@ impl Process {
         Ok(())
     }
 
-    pub fn extend_data_by(&mut self, amount: usize) -> Result<*mut u8, MapToError> {
-        while self.data_break_actual() < self.data_break + amount {
-            self.page_extend_data()?;
+    fn page_unextend_data(&mut self) {
+        let page_end = self.data_break_actual();
+        let new_page = Page::containing_address(page_end);
+
+        let frame = unsafe { (*self.root_page_table).get_frame(new_page).unwrap() };
+        kernel().frame_allocator().deallocate_frame(frame);
+
+        self.data_pages -= 1;
+    }
+    pub fn extend_data_by(&mut self, amount: isize) -> Result<*mut u8, MapToError> {
+        if amount >= 0 {
+            let amount = amount as usize;
+            while self.data_break_actual() < self.data_break + amount {
+                self.page_extend_data()?;
+            }
+
+            self.data_break += amount;
+        } else {
+            let amount = amount as usize;
+            while self.data_break_actual() > self.data_break - amount {
+                self.page_unextend_data();
+            }
+
+            self.data_break -= amount;
         }
 
-        self.data_break += amount;
         Ok(self.data_break as *mut u8)
     }
 }

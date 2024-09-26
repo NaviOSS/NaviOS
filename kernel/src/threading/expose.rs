@@ -182,7 +182,7 @@ pub fn pcollect(info: &mut [ProcessInfo]) -> Result<(), ()> {
 /// extends program break by `amount`
 /// returns the new program break ptr
 /// on fail returns null
-pub fn sbrk(amount: usize) -> *mut u8 {
+pub fn sbrk(amount: isize) -> *mut u8 {
     scheduler()
         .current_process()
         .extend_data_by(amount)
