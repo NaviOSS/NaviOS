@@ -1,3 +1,4 @@
+#![allow(static_mut_refs)]
 use spin::Mutex;
 
 use crate::{

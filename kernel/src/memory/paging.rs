@@ -65,7 +65,7 @@ impl Entry {
         if self.flags().contains(EntryFlags::PRESENT) {
             // FIXME: real hardware problem here
             // TODO: figure out more info about the max physical address width
-            return Some(Frame::containing_address(self.0 & 0x000FFFFF_FFFFF000));
+            return Some(Frame::containing_address(self.0 & 0x000FF_FFFF_FFFF000));
         }
         None
     }
@@ -198,7 +198,7 @@ impl Entry {
         if self.is_mapped() {
             let addr = self.frame().unwrap().start_address;
 
-            self.set(flags | self.flags(), addr);
+            self.set(flags, addr);
             let virt_addr = addr + kernel().phy_offset;
             let entry_ptr = virt_addr as *mut PageTable;
 
@@ -249,7 +249,7 @@ impl PageTable {
         frame: Frame,
         flags: EntryFlags,
     ) -> Result<(), MapToError> {
-        let (_, level_1_index, level_2_index, level_3_index, level_4_index) =
+        let (level_1_index, level_2_index, level_3_index, level_4_index) =
             translate(page.start_address);
         let frame_allocator = &mut kernel().frame_allocator();
         let level_3_table = self[level_4_index].map(flags, frame_allocator)?;
@@ -266,7 +266,7 @@ impl PageTable {
 
     /// gets the frame page points to
     pub fn get_frame(&mut self, page: Page) -> Option<Frame> {
-        let (_, level_1_index, level_2_index, level_3_index, level_4_index) =
+        let (level_1_index, level_2_index, level_3_index, level_4_index) =
             translate(page.start_address);
         let level_3_table = self[level_4_index].mapped_to()?;
         let level_2_table = level_3_table[level_3_index].mapped_to()?;

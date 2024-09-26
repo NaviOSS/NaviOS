@@ -23,9 +23,7 @@ fn main() {
             .arg("-m")
             .arg("512M")
             .arg("-smp")
-            .arg("2")
-            .arg("-cpu")
-            .arg("max");
+            .arg("2");
     }
 
     if args.next() != Some("no-kvm".to_string()) {

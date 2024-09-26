@@ -27,9 +27,8 @@ fn p1_index(addr: VirtAddr) -> usize {
     (addr >> 12) & 0x1FF
 }
 
-pub fn translate(addr: VirtAddr) -> (PhysAddr, usize, usize, usize, usize) {
+pub fn translate(addr: VirtAddr) -> (usize, usize, usize, usize) {
     (
-        addr & 0xFFF,
         p1_index(addr),
         p2_index(addr),
         p3_index(addr),
