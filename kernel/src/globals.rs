@@ -1,4 +1,5 @@
-#![allow(static_mut_refs)]
+use core::{cell::UnsafeCell, mem::MaybeUninit};
+
 use spin::Mutex;
 
 use crate::{
@@ -11,45 +12,57 @@ use crate::{
 /// boot info
 #[derive(Debug)]
 pub struct Kernel {
-    pub frame_allocator: RegionAllocator,
-
+    pub frame_allocator: Mutex<RegionAllocator>,
     pub phy_offset: usize,
     pub rsdp_addr: Option<u64>,
     pub elf: Elf<'static>,
+
+    pub terminal: MaybeUninit<Terminal>,
+    pub scheduler: MaybeUninit<Scheduler>,
 }
+
+pub struct KernelWrapper(UnsafeCell<MaybeUninit<Kernel>>);
+unsafe impl Sync for KernelWrapper {}
+
+impl KernelWrapper {
+    pub fn get(&self) -> &mut Kernel {
+        unsafe { &mut *self.0.get().cast::<Kernel>() }
+    }
+    pub fn inited(&self) -> bool {
+        self.get().phy_offset != 0
+    }
+}
+
+pub static KERNEL: KernelWrapper = KernelWrapper(UnsafeCell::new(MaybeUninit::zeroed()));
 
 impl Kernel {
     // TODO: lock the frame_allocator!!!
     #[inline]
-    pub fn frame_allocator(&'static mut self) -> &'static mut RegionAllocator {
-        &mut self.frame_allocator
+    pub fn frame_allocator(&'static mut self) -> spin::MutexGuard<'static, RegionAllocator> {
+        self.frame_allocator.lock()
     }
 }
-pub static mut KERNEL: Option<Kernel> = None;
 
 pub fn kernel() -> &'static mut Kernel {
-    unsafe { KERNEL.as_mut().unwrap() }
+    KERNEL.get()
 }
 pub fn kernel_inited() -> bool {
-    unsafe { KERNEL.is_some() }
+    KERNEL.inited()
 }
 
-pub static mut TERMINAL: Option<Terminal> = None;
 pub fn terminal_inited() -> bool {
-    unsafe { TERMINAL.is_some() }
+    unsafe { kernel().terminal.assume_init_ref().ready }
 }
-
 pub fn terminal() -> &'static mut Terminal {
-    unsafe { TERMINAL.as_mut().unwrap() }
+    unsafe { kernel().terminal.assume_init_mut() }
 }
 
-pub static mut SCHEDULER: Option<Scheduler> = None;
 pub fn scheduler_inited() -> bool {
-    unsafe { SCHEDULER.is_some() }
+    unsafe { kernel().scheduler.assume_init_ref().current_process != core::ptr::null_mut() }
 }
 
 pub fn scheduler() -> &'static mut Scheduler {
-    unsafe { SCHEDULER.as_mut().unwrap() }
+    unsafe { kernel().scheduler.assume_init_mut() }
 }
 
 #[global_allocator]

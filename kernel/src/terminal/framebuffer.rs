@@ -5,6 +5,7 @@ use spin::Mutex;
 
 use core::{
     fmt::Write,
+    mem::MaybeUninit,
     str::{self, Chars},
 };
 
@@ -13,8 +14,9 @@ use noto_sans_mono_bitmap::{FontWeight, RasterHeight, RasterizedChar};
 use crate::{
     debug,
     drivers::keyboard::{Key, KeyCode, KeyFlags},
+    kernel,
     memory::align_down,
-    println, serial, terminal, TERMINAL,
+    println, serial, terminal,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -73,6 +75,7 @@ pub struct Terminal {
     pub text_fg: (u8, u8, u8),
     /// currently only `\e[48;2;<r>;<g>;<b>m` is supported
     pub text_bg: (u8, u8, u8),
+    pub ready: bool,
 }
 
 lazy_static! {
@@ -107,13 +110,15 @@ impl Terminal {
             panicked: false,
             text_fg: WRITE_COLOR,
             text_bg: BG_COLOR,
+            ready: false,
         };
 
-        unsafe { TERMINAL = Some(this) };
+        kernel().terminal = MaybeUninit::new(this);
         debug!(Terminal, "done ...");
     }
 
     pub fn init_finish() {
+        terminal().ready = true;
         VIEWPORT.lock().resize(terminal().buffer.len(), 0);
     }
 
@@ -544,6 +549,7 @@ impl Terminal {
         self.buffer.fill(0);
 
         self.mode = TerminalMode::Panic;
+        self.ready = true;
         println!("\x1B[38;2;255;0;0mPANIC MODE");
     }
 }

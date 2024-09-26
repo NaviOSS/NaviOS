@@ -8,7 +8,7 @@ pub const ENVIROMENT_START: usize = 0x00007E0000000000;
 pub const ARGV_START: usize = ENVIROMENT_START + 0xA000000000;
 pub const ARGV_SIZE: usize = PAGE_SIZE * 4;
 
-use core::arch::asm;
+use core::{arch::asm, mem::MaybeUninit};
 use processes::{Process, ProcessFlags, ProcessStatus, Resource};
 
 use alloc::{boxed::Box, vec::Vec};
@@ -20,7 +20,7 @@ use crate::{
         frame_allocator::Frame,
         paging::{EntryFlags, MapToError, Page, PageTable, PAGE_SIZE},
     },
-    scheduler, SCHEDULER,
+    scheduler,
 };
 
 /// helper function to work with `name` in Process
@@ -88,7 +88,7 @@ pub fn alloc_argv(page_table: &mut PageTable) -> Result<(), MapToError> {
 pub struct Scheduler {
     pub head: Box<Process>,
     /// raw pointers for peformance, we are ring0 we need the lowest stuff
-    current_process: *mut Process,
+    pub current_process: *mut Process,
     pub next_pid: u64,
     pub processes_count: usize,
 }
@@ -116,7 +116,7 @@ impl Scheduler {
             processes_count: 1,
         };
 
-        SCHEDULER = Some(this);
+        kernel().scheduler = MaybeUninit::new(this);
 
         let context = scheduler().current_process().context;
         restore_cpu_status(&context)

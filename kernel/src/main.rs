@@ -28,6 +28,7 @@ use limine::MEMORY_SIZE;
 use memory::frame_allocator::RegionAllocator;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
+use spin::Mutex;
 use terminal::framebuffer::Terminal;
 use threading::processes::ProcessFlags;
 use threading::Scheduler;
@@ -74,7 +75,7 @@ macro_rules! cross_println {
         crate::serial!($($arg)*);
         crate::serial!("\n");
 
-        if crate::terminal_inited() && !crate::terminal().panicked {
+        if !crate::terminal().panicked {
             crate::terminal().panicked = true;
 
             crate::println!(r"{}", format_args!($($arg)*));
@@ -167,17 +168,14 @@ pub extern "C" fn kinit() {
     let kernel_img_bytes = unsafe { slice::from_raw_parts(kernel_img.0, kernel_img.1) };
     let elf = utils::elf::Elf::new(kernel_img_bytes).unwrap();
 
-    unsafe {
-        KERNEL = Some(Kernel {
-            phy_offset,
-            rsdp_addr: limine::rsdp_addr(),
-            frame_allocator: RegionAllocator::new(),
-            elf,
-        });
-        memory::init(get_phy_offset_end());
-        Terminal::init_finish();
-        println!("Terminal initialized successfuly");
-    }
+    kernel().phy_offset = phy_offset;
+    kernel().rsdp_addr = limine::rsdp_addr();
+    kernel().frame_allocator = Mutex::new(RegionAllocator::new());
+    kernel().elf = elf;
+
+    memory::init(get_phy_offset_end());
+    Terminal::init_finish();
+    println!("Terminal initialized successfuly");
 
     // initing the arch
     arch::init_phase2();
