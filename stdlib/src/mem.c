@@ -58,6 +58,45 @@ void *malloc(size_t size) {
   return block->data;
 }
 
+/// combines free block starting from head
+void anti_fragmentation() {
+  Chunk *current = head;
+  for (;;) {
+    Chunk *next = (Chunk *)((size_t)current + current->size + sizeof(Chunk));
+    if (next == sbrk(0))
+      break;
+
+    if (next->free && current->free)
+      current->size += next->size + sizeof(Chunk);
+    else if (!next->free)
+      break;
+    current = next;
+  }
+}
+
+void *calloc(size_t size) {
+  uint8_t *ptr = malloc(size);
+  for (size_t i = 0; i < size; i++) {
+    ptr[i] = 0;
+  }
+
+  return ptr;
+}
+
+void *realloc(void *ptr, size_t size) {
+  if (size == 0) {
+    free(ptr);
+    return NULL;
+  }
+  anti_fragmentation();
+
+  void *new = malloc(size);
+  memcpy(new, ptr, size);
+  free(ptr);
+
+  return new;
+}
+
 void free(void *ptr) {
   if (ptr == NULL)
     return;
@@ -66,8 +105,16 @@ void free(void *ptr) {
   chunk->free = true;
 
   // give the chunk back to the os if it is at the end
-  if (((size_t)chunk + chunk->size) == (size_t)sbrk(0)) {
+  if (((size_t)chunk + chunk->size) == (size_t)sbrk(0) && chunk != head) {
     sbrk(-(chunk->size + sizeof(Chunk)));
     return;
+  }
+
+  anti_fragmentation();
+}
+
+void memcpy(void *dest, const void *src, size_t size) {
+  for (size_t i = 0; i < size; i++) {
+    ((uint8_t *)dest)[i] = ((uint8_t *)src)[i];
   }
 }

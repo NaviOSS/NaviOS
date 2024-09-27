@@ -13,6 +13,10 @@ typedef struct Chunk {
 } Chunk;
 
 void* malloc(size_t size);
-void free(void* ptr);
+void free(void *ptr);
+void* calloc(size_t size);
+void* realloc(void *ptr, size_t size);
 
 void __malloc__init__();
+
+void memcpy(void *dest, const void *src, size_t size);
