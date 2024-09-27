@@ -1,13 +1,19 @@
 // build.rs
-
 use std::{
     env::current_dir,
     fs::{self, File},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Output},
 };
 
 use tar::Builder;
+
+// (dir relative from build.rs, dir in ramdisk)
+// or (file relative from build.rs, path in ramdisk)
+const RAMDISK_CONTENT: &[(&str, &str)] = &[
+    ("programs/build", "bin"),
+    ("stdlib/libstd.a", "lib/libstd.a"),
+];
 
 fn limine_make() -> Output {
     if !fs::exists("limine").unwrap() {
@@ -101,9 +107,29 @@ fn compile_programs() -> Output {
 fn make_ramdisk() {
     let file = File::create("iso_root/boot/ramdisk.tar").unwrap();
     let mut tar_builder = Builder::new(file);
-    tar_builder
-        .append_dir_all("programs", "programs/build")
-        .unwrap();
+    for (src, dest) in RAMDISK_CONTENT {
+        let (src, dest) = (Path::new(src), Path::new(dest));
+        if src.is_file() {
+            if let Some(parent) = src.parent() {
+                tar_builder
+                    .append_dir(dest.parent().unwrap_or(&Path::new("/")), parent)
+                    .unwrap();
+            }
+
+            tar_builder
+                .append_file(
+                    dest,
+                    &mut File::open(src)
+                        .expect("ramdisk contents corrupt file missing, edit RAMDISK_CONTENT"),
+                )
+                .unwrap();
+        } else if src.is_dir() {
+            tar_builder.append_dir_all(dest, src).unwrap();
+        } else {
+            panic!("ramdisk content is nethier a file nor directory (or doesn't exists), edit RAMDISK_CONTENT");
+        }
+    }
+
     tar_builder.finish().unwrap();
 }
 

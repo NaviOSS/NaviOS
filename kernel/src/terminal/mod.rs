@@ -60,7 +60,7 @@ fn help(args: Vec<&str>) {
         "info:
     scroll up using `page up` and scroll down using `page down`,
     this shell supports string slices starting with '\"'
-commands (additionally there may be some elfs in sys:/programs/ which were not listed here):
+commands (additionally there may be some elfs in sys:/bin/ which were not listed here):
     help, ?: displays this
     echo `text`: echoes back text
     clear: clears the screen
@@ -221,7 +221,7 @@ fn breakpoint(args: Vec<&str>) {
 /// lookups command in PATH and cwd and spwans and waits for it if it exists
 fn execute_command(args: Vec<&str>) -> FSResult<()> {
     let command = args[0];
-    let path_var = &[threading::expose::getcwd(), "sys:/programs/"];
+    let path_var = &[threading::expose::getcwd(), "sys:/bin/"];
 
     for cwd_path in path_var {
         let cwd_path = cwd_path.to_string();
