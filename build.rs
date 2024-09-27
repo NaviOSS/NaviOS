@@ -1,18 +1,21 @@
 // build.rs
 use std::{
+    collections::HashSet,
     env::current_dir,
     fs::{self, File},
+    io::empty,
     path::{Path, PathBuf},
     process::{Command, Output},
 };
 
-use tar::Builder;
+use tar::{Builder, Header};
 
 // (dir relative from build.rs, dir in ramdisk)
 // or (file relative from build.rs, path in ramdisk)
 const RAMDISK_CONTENT: &[(&str, &str)] = &[
     ("programs/build", "bin"),
     ("stdlib/libstd.a", "lib/libstd.a"),
+    ("shell/nash", "bin/nash"),
 ];
 
 fn limine_make() -> Output {
@@ -107,13 +110,23 @@ fn compile_programs() -> Output {
 fn make_ramdisk() {
     let file = File::create("iso_root/boot/ramdisk.tar").unwrap();
     let mut tar_builder = Builder::new(file);
+
+    let mut added_dirs = HashSet::<&Path>::new();
+
     for (src, dest) in RAMDISK_CONTENT {
         let (src, dest) = (Path::new(src), Path::new(dest));
         if src.is_file() {
-            if let Some(parent) = src.parent() {
-                tar_builder
-                    .append_dir(dest.parent().unwrap_or(&Path::new("/")), parent)
-                    .unwrap();
+            if let Some(parent) = dest.parent() {
+                if !added_dirs.contains(parent) {
+                    let mut empty_header = Header::new_ustar();
+                    empty_header.set_path(parent).unwrap();
+                    empty_header.set_entry_type(tar::EntryType::Directory);
+                    empty_header.set_size(0);
+                    empty_header.set_cksum();
+
+                    tar_builder.append(&empty_header, empty()).unwrap();
+                    added_dirs.insert(parent);
+                }
             }
 
             tar_builder
@@ -124,6 +137,7 @@ fn make_ramdisk() {
                 )
                 .unwrap();
         } else if src.is_dir() {
+            added_dirs.insert(dest);
             tar_builder.append_dir_all(dest, src).unwrap();
         } else {
             panic!("ramdisk content is nethier a file nor directory (or doesn't exists), edit RAMDISK_CONTENT");
@@ -149,7 +163,6 @@ fn main() {
     make_ramdisk();
     make_iso();
     cleanup();
-
     let iso_path = current_dir().unwrap().join("navios.iso");
     println!("cargo:rerun-if-changed={}", iso_path.display());
     println!("cargo:rerun-if-changed={}", "limine");
