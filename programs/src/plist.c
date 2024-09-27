@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <utils.h>
-int main(size_t argc, Str **argv) {
+int main(size_t argc, OsStr **argv) {
   SysInfo info = {};
   sysinfo(&info);
   ProcessInfo processes[info.processes_count];

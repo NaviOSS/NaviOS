@@ -1,7 +1,6 @@
 #include "mem.h"
 #include "sys.h"
 #include <stdint.h>
-#include <stdio.h>
 
 Chunk *head;
 #define INIT_SIZE 4096
@@ -88,13 +87,20 @@ void *realloc(void *ptr, size_t size) {
     free(ptr);
     return NULL;
   }
-  anti_fragmentation();
+  Chunk *chunk = ptr - sizeof(Chunk);
 
-  void *new = malloc(size);
-  memcpy(new, ptr, size);
-  free(ptr);
+  if (chunk->size < size) {
+    // TODO: improve this so it combines with the next block?
+    anti_fragmentation();
 
-  return new;
+    void *new = malloc(size);
+    memcpy(new, ptr, chunk->size);
+    free(ptr);
+
+    return new;
+  }
+
+  return ptr;
 }
 
 void free(void *ptr) {

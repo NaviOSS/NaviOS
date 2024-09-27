@@ -155,3 +155,13 @@ int64_t diriter_next(int64_t ri, DirEntry *direntry) {
 int64_t fstat(int64_t ri, DirEntry *direntry) {
   return syscall(12, ri, (uintptr_t)direntry, 0, 0);
 }
+
+Str readln() {
+  Str str = __str__new__();
+  char c;
+  while ((c = getchar()) && c != '\n') {
+    __str_push__(&str, c);
+  }
+
+  return str;
+}

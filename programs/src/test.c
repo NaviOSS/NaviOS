@@ -4,7 +4,7 @@
 #include <sys.h>
 #include <utils.h>
 
-int main(size_t argc, Str **argv) {
+int main(size_t argc, OsStr **argv) {
   int *smth = sbrk(4096 * 2) - 4;
   *smth = 0xdeadbeef;
   void *at = sbrk(0);
@@ -13,7 +13,7 @@ int main(size_t argc, Str **argv) {
          "with value %x\n",
          argc, at, *smth);
   for (int i = 0; i < argc; i++) {
-    Str *arg = argv[i];
+    OsStr *arg = argv[i];
     printf("arg: %.*s\n", arg->len, arg->data);
   }
 

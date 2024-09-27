@@ -1,5 +1,7 @@
+#pragma once
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 /// wries the textual version of `val` into ptr
 /// returns the start of the written text it will write from backwards
@@ -11,10 +13,15 @@ char* itoa(uint64_t val, char* str, int base);
 char* reverse(char* str, size_t length);
 
 /// the layout of NaviOS strings
-/// rust &str like
-typedef struct Str {
+typedef struct OsStr {
   size_t len;
   uint8_t data[];
+} OsStr;
+// like `OsStr` but instead of data being right next to len, it is a pointer
+// rust &str like
+typedef struct Str {
+  size_t len;
+  uint8_t *data;
 } Str;
 
 typedef struct SysInfo {
@@ -34,3 +41,23 @@ typedef struct ProcessInfo {
 } ProcessInfo;
 
 int64_t pcollect(ProcessInfo info[], size_t len);
+
+// some inline functions which peforms some operations on heap allocated `Str`
+/// creates a new heap allocated str
+static inline Str __str__new__() {
+  Str str = { .len = 0, .data = malloc(1) };
+  return str;
+}
+/// pushes `c` to str
+static inline void __str_push__(Str *str, char c) {
+  size_t len = str->len + 1;
+  uint8_t* data = realloc(str->data, len);
+
+  str->len = len;
+  str->data = data;
+  str->data[str->len - 1] = c;
+}
+/// destroies heap allocated str
+static inline void __str__destroy__(Str str) {
+  free(str.data);
+}

@@ -1,13 +1,13 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <utils.h>
-int main(size_t argc, Str **argv) {
+int main(size_t argc, OsStr **argv) {
   if (argc < 2) {
     printf("not enough arguments expected the filename");
     return -1;
   }
 
-  Str *file_name = argv[1];
+  OsStr *file_name = argv[1];
 
   int64_t attempt = create(file_name->data, file_name->len);
   if (attempt < 0) {

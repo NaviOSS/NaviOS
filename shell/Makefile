@@ -3,7 +3,7 @@ STDLIB_PATH = ../stdlib
 STDLIB = ${STDLIB_PATH}/libstd.a
 
 CC = gcc
-CFLAGS = -static -nostdlib -ffreestanding -I${STDLIB_PATH}/include -Iinclude
+CFLAGS = -static -nostdlib -ffreestanding -fno-stack-protector -I${STDLIB_PATH}/include -Iinclude
 
 SRC_DIR = src
 OBJ_DIR = obj
@@ -13,7 +13,7 @@ BIN = nash
 
 all: ${STDLIB} $(BIN)
 $(BIN): $(STDLIB) $(OBJ_FILES)
-	$(CC) $(CFLAGS) -fno-stack-protector $(OBJ_FILES) -Wl,-u _start -L${STDLIB_PATH} -lstd -o $@
+	$(CC) $(CFLAGS) $(OBJ_FILES) -Wl,-u _start -L${STDLIB_PATH} -lstd -o $@
 
 ${STDLIB}: ${STDLIB_PATH}
 	cd ${STDLIB_PATH} && make

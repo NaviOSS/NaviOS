@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
+#include "utils.h"
 // FS
 int64_t open(const void *path_ptr, size_t len) ;
 int64_t close(uint32_t fd);
@@ -29,6 +30,9 @@ char getchar();
 /// returns the length of the str
 /// if max is reached it will return -1 instead
 int getstr(char* ptr, int max);
+/// reads a new line from stdio and returns a heap allocated string of that line, excluding the newline
+/// shall be destroyed with `__str__destroy__` located in `utils.h`
+Str readln();
 
 int64_t diriter_open(int64_t ri);
 int64_t diriter_close(int64_t ri);

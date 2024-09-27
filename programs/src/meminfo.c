@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <utils.h>
-int main(size_t argc, Str **argv) {
+int main() {
   SysInfo info = {};
   sysinfo(&info);
   size_t mem_ava = info.mem_total - info.mem_used;

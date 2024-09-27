@@ -2,13 +2,13 @@
 #include <stdio.h>
 #include <utils.h>
 
-int main(size_t argc, Str **argv) {
+int main(size_t argc, OsStr **argv) {
   if (argc < 2) {
     printf("not enough arguments expected the filename to cat!\n");
     return -1;
   }
 
-  Str *filename = argv[1];
+  OsStr *filename = argv[1];
   int64_t fd = open(filename->data, filename->len);
   if (fd < 0) {
     printf("failed opening `%S`, err: %d\n", filename, fd);
