@@ -1,3 +1,4 @@
 libstd.a
 obj
 compile_commands.json
+.cache
