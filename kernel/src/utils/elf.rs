@@ -380,7 +380,7 @@ impl<'a> Elf<'a> {
 
                     let mem_start = (frame.start_address | kernel().phy_offset) as *mut u8;
 
-                    let size_to_copy = if index < pages_required - 1 {
+                    let mut size_to_copy = if index < pages_required - 1 {
                         PAGE_SIZE
                     } else {
                         header.memz % PAGE_SIZE
@@ -388,9 +388,14 @@ impl<'a> Elf<'a> {
 
                     let mem = slice::from_raw_parts_mut(mem_start, size_to_copy);
                     mem.fill(0);
-                    mem.copy_from_slice(
-                        &file[index * PAGE_SIZE..(index * PAGE_SIZE) + size_to_copy],
-                    );
+
+                    let start = index * PAGE_SIZE;
+                    if mem.len() > file.len() + start {
+                        let diff = mem.len() - (file.len() + start);
+                        size_to_copy -= diff;
+                    }
+
+                    mem[..size_to_copy].copy_from_slice(&file[start..start + size_to_copy]);
                 }
             }
             program_break = header.vaddr + header.memz;
