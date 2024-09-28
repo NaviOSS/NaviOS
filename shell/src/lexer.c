@@ -12,15 +12,13 @@ static inline char at(Tokenizer *self) {
 static inline char eat(Tokenizer *self) {
   char prev = at(self);
   self->pos += 1;
+  self->col += 1;
 
   return prev;
 }
 
 static inline bool is_skippable(char x) {
   return x == ' ' || x == '\n' || x == '\t';
-}
-static inline bool is_eof(Tokenizer *self) {
-  return self->pos >= self->code.len;
 }
 
 static inline Token make_token_with(Tokenizer *self, TokenType type,
@@ -37,7 +35,7 @@ static inline Token make_token_with(Tokenizer *self, TokenType type,
   return token;
 }
 static inline Token make_token(Tokenizer *self, TokenType type, size_t start) {
-  size_t len = self->pos - start - 1;
+  size_t len = self->pos - start;
   uint8_t *start_ptr = self->code.data + start;
 
   Str lexeme = {.len = len, .data = start_ptr};
@@ -53,18 +51,11 @@ Token next(Tokenizer *self) {
   }
 
   while (is_skippable(at(self))) {
-    switch (at(self)) {
-    case '0':
-    case '\t':
-      self->col += 1;
-      self->pos += 1;
-      break;
+    switch (eat(self)) {
     case '\n':
       self->col = 0;
       self->line += 1;
       self->pos += 1;
-      break;
-    default:
       break;
     }
   }
