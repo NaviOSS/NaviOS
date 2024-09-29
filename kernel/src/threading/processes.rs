@@ -86,7 +86,7 @@ pub struct ProcessInfo {
     pub status: ProcessStatus,
 }
 
-#[inline]
+#[inline(always)]
 fn copy_to_userspace(page_table: &mut PageTable, addr: VirtAddr, obj: &[u8]) {
     // FIXME: this assumes the next pages is mapped to the next frames
     // spilt obj into pages...
@@ -156,7 +156,9 @@ impl Process {
                     start_addr += USIZE_BYTES;
 
                     copy_to_userspace(page_table, start_addr, arg);
-                    start_addr += len;
+                    // null-terminate arg
+                    copy_to_userspace(page_table, start_addr + len, &[b'\0']);
+                    start_addr += len + 1;
                 }
 
                 let argv_addr = start_addr;
@@ -171,11 +173,11 @@ impl Process {
                     start_addr += USIZE_BYTES;
 
                     current_argv_ptr += USIZE_BYTES; // skip the len
-                    current_argv_ptr += arg.len(); // skip the data
+                    current_argv_ptr += arg.len() + 1; // skip the data
                 }
 
                 // set rdi and rsi to argc and argv
-                // _start looks like: extern "C" _start(argc: u64, argv: *const &str)
+                // _start looks like: extern "C" _start(argc: u64, argv: *const (len, str))
                 #[cfg(target_arch = "x86_64")]
                 {
                     context.rdi = argc as u64;
