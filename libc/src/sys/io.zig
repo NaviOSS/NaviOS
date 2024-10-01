@@ -1,7 +1,7 @@
 const syscalls = @import("syscalls.zig");
 const errors = @import("errno.zig");
 
-export fn open(path: *const u8, len: usize) isize {
+pub export fn open(path: *const u8, len: usize) isize {
     var fd: usize = undefined;
 
     const err = syscalls.open(path, len, &fd);
@@ -12,7 +12,7 @@ export fn open(path: *const u8, len: usize) isize {
     return @bitCast(fd);
 }
 
-export fn close(fd: isize) isize {
+pub export fn close(fd: isize) isize {
     const err = syscalls.close(fd);
     if (err != 0) {
         errors.errno = @truncate(err);
@@ -21,6 +21,6 @@ export fn close(fd: isize) isize {
     return 0;
 }
 
-inline fn zopen(path: []const u8) isize {
+pub inline fn zopen(path: []const u8) isize {
     return open(path.ptr, path.len);
 }

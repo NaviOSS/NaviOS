@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <unistd.h>
+#include <stdbool.h>
 
 size_t strlen(const uint8_t *arg0);
 const uint8_t *strerror(uint32_t arg0);

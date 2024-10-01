@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <unistd.h>
+#include <stdbool.h>
 
 typedef struct DirEntry {
   uint8_t kind;

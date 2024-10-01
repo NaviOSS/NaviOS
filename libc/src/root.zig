@@ -1,11 +1,10 @@
-pub const syscalls = @import("sys/syscalls.zig");
-pub const sys_root = @import("sys/root.zig");
+const syscalls = @import("sys/syscalls.zig");
+pub const sys = @import("sys/root.zig");
 pub const ctype = @import("ctype.zig");
 pub const string = @import("string.zig");
 
 comptime {
-    _ = syscalls;
-    _ = sys_root;
+    _ = sys;
     _ = ctype;
     _ = string;
 }

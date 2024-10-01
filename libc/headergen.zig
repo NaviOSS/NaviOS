@@ -11,6 +11,13 @@ const libname = "nlibc";
 /// an import to the lib root file
 /// the lib root must contain `pub const`s of `@import`s to all the sub headers which should be generated
 const libroot = @import("src/root.zig");
+/// headers to be included in every header
+const default_includes = [_][]const u8{
+    "stddef.h",
+    "stdint.h",
+    "unistd.h",
+    "stdbool.h",
+};
 
 pub fn main() !void {
     std.debug.print("generating headers ... \n", .{});
@@ -306,14 +313,24 @@ pub const Generator = struct {
         }
 
         try self.appendf("#ifndef __{s}__{s}_\n#define __{0s}__{1s}_\n\n", .{ libname, dup });
-        try self.append("#include <stddef.h>\n#include <stdint.h>\n\n");
+
+        for (default_includes) |header| {
+            try self.appendf("#include <{s}>\n", .{header});
+        }
+        try self.append("\n");
+
         self.allocator.free(dup);
     }
 
+    pub fn deinit(self: *@This()) void {
+        self.vaild_structs.deinit();
+        self.buffer.deinit();
+    }
     /// deinits and finishes generation returning the generated header
     pub fn finish_mod(self: *@This()) ![]const u8 {
+        defer self.deinit();
+
         try self.append("\n#endif");
-        self.vaild_structs.deinit();
         return self.buffer.toOwnedSlice();
     }
 };
@@ -393,6 +410,9 @@ pub const Creator = struct {
     }
 
     pub fn create_mod(self: *@This(), comptime ty: type) ![]const u8 {
+        // wether or not we generated anything
+        var empty = true;
+
         var generator = Generator.init(self.allocator);
 
         const info = @typeInfo(ty).Struct;
@@ -408,6 +428,7 @@ pub const Creator = struct {
 
             if (@typeInfo(field_ty) == .Fn) {
                 try generator.generate_function(@TypeOf(field), decl.name);
+                empty = false;
             } else if (field_ty == type) {
                 const field_info = @typeInfo(field);
 
@@ -415,22 +436,32 @@ pub const Creator = struct {
                     .Struct => |s| {
                         const field_name = @typeName(field);
 
-                        if (s.layout == ContainerLayout.auto)
+                        if (s.layout == ContainerLayout.auto) {
                             if (self.is_vaild_header(field_name))
                                 try generator.generate_include(field_name)
                             else if (try self.get_header_path(field_name)) |path| {
                                 try self.create_mod_to(field, path);
                                 try generator.generate_include(path[0 .. path.len - 2]);
-                            };
+                            }
+
+                            continue;
+                        }
                     },
                     else => {},
                 }
 
                 try generator.generate_type(field);
+                empty = false;
             }
         }
 
+        if (empty) {
+            generator.deinit();
+            return &[_]u8{};
+        }
+
         try self.generated.put(name, try generator.vaild_structs.toOwnedSlice());
+
         return generator.finish_mod();
     }
 
