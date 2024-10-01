@@ -1,5 +1,4 @@
-pub const errno_t = u32;
-pub const Errno = enum(errno_t) {
+pub const Errno = enum(u32) {
     None,
     // use when no ErrorStatus is avalible for xyz and you cannot add a new one
     Generic,
@@ -37,4 +36,4 @@ pub const Errno = enum(errno_t) {
     Last,
 };
 
-pub export var errno: errno_t = 0;
+pub export var errno: u32 = 0;

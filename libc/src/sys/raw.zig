@@ -1,6 +1,6 @@
 //! raw system structs
 pub fn Slice(comptime T: type) type {
-    return struct {
+    return extern struct {
         ptr: *const T,
         len: usize,
     };
