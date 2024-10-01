@@ -7,6 +7,7 @@ use macros::display_consts;
 use crate::{
     kernel,
     memory::paging::{EntryFlags, IterPage, Page, PageTable, PAGE_SIZE},
+    threading::expose::ErrorStatus,
     VirtAddr,
 };
 
@@ -87,6 +88,18 @@ pub enum ElfError {
     NotAnExecutable,
     MapToError,
     SupportedElfCorrupted,
+}
+
+impl Into<ErrorStatus> for ElfError {
+    fn into(self) -> ErrorStatus {
+        match self {
+            Self::NotAnExecutable | Self::NotAnElf => ErrorStatus::NotExecutable,
+            Self::MapToError => ErrorStatus::MMapError,
+            Self::SupportedElfCorrupted => ErrorStatus::Corrupted,
+
+            _ => ErrorStatus::NotSupported,
+        }
+    }
 }
 
 impl ElfHeader {

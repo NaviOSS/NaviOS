@@ -188,3 +188,37 @@ pub fn sbrk(amount: isize) -> *mut u8 {
         .extend_data_by(amount)
         .unwrap_or(core::ptr::null_mut())
 }
+
+#[derive(Debug, Clone, Copy)]
+#[repr(u32)]
+pub enum ErrorStatus {
+    None,
+    // use when no ErrorStatus is avalible for xyz and you cannot add a new one
+    Generic,
+    OperationNotSupported,
+    // for example an elf class is not supported, there is a difference between NotSupported and
+    // OperationNotSupported
+    NotSupported,
+    // for example a magic value is invaild
+    Corrupted,
+    InvaildSyscall,
+    InvaildResource,
+    InvaildPid,
+    // instead of panicking syscalls will return this on null and unaligned pointers
+    InvaildPtr,
+    // for operations that requires a vaild utf8 str...
+    InvaildStr,
+    InvaildPath,
+    InvaildDrive,
+    NoSuchAFileOrDirectory,
+    NotAFile,
+    NotADirectory,
+    AlreadyExists,
+    NotExecutable,
+    // would be useful when i add remove related operations to the vfs
+    DirectoryNotEmpty,
+    // Generic premissions(protection) related error
+    MissingPermissions,
+    // memory allocations and mapping error, most likely that memory is full
+    MMapError,
+}

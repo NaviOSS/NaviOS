@@ -6,11 +6,13 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-int64_t open(const void *path_ptr, size_t len) {
-  return syscall(2, (uint64_t)path_ptr, len, 0, 0);
+ssize_t open(const void *path_ptr, size_t len) {
+  size_t fd;
+  int err = syscall(2, (uint64_t)path_ptr, len, (uintptr_t)&fd, 0);
+  return err == 0 ? fd : -1;
 }
 
-int64_t close(uint32_t fd) { return syscall(5, fd, 0, 0, 0); }
+ssize_t close(uint32_t fd) { return syscall(5, fd, 0, 0, 0) == 0 ? 0 : -1; }
 
 int64_t write(uint32_t fd, const void *ptr, size_t len) {
   return syscall(3, fd, (uint64_t)ptr, len, 0);

@@ -4,7 +4,7 @@ use core::usize;
 
 use crate::{
     debug,
-    threading::expose::getcwd,
+    threading::expose::{getcwd, ErrorStatus},
     utils::{
         ustar::{self, TarArchiveIter},
         Locked,
@@ -72,7 +72,21 @@ pub enum FSError {
     AlreadyExists,
     NotExecuteable,
 }
-
+impl Into<ErrorStatus> for FSError {
+    fn into(self) -> ErrorStatus {
+        match self {
+            Self::OperationNotSupported => ErrorStatus::OperationNotSupported,
+            Self::NotAFile => ErrorStatus::NotAFile,
+            Self::NotADirectory => ErrorStatus::NotADirectory,
+            Self::NoSuchAFileOrDirectory => ErrorStatus::NoSuchAFileOrDirectory,
+            Self::InvaildPath => ErrorStatus::InvaildPath,
+            Self::InvaildDrive => ErrorStatus::InvaildDrive,
+            Self::InvaildFileDescriptorOrRes => ErrorStatus::InvaildResource,
+            Self::AlreadyExists => ErrorStatus::AlreadyExists,
+            Self::NotExecuteable => ErrorStatus::NotExecutable,
+        }
+    }
+}
 pub type FSResult<T> = Result<T, FSError>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
