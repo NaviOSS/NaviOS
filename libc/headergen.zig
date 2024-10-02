@@ -77,12 +77,13 @@ fn list_directory_recursive(base_path: []const u8, current_path: []const u8, all
 pub const Generator = struct {
     buffer: std.ArrayList(u8),
     vaild_structs: std.ArrayList([]const u8),
+    external_structs: std.StringHashMap([][]const u8).ValueIterator,
     ident: usize = 0,
 
     allocator: std.mem.Allocator,
 
-    fn init(allocator: std.mem.Allocator) @This() {
-        return .{ .buffer = std.ArrayList(u8).init(allocator), .vaild_structs = std.ArrayList([]const u8).init(allocator), .allocator = allocator };
+    fn init(allocator: std.mem.Allocator, external_structs: std.StringHashMap([][]const u8).ValueIterator) @This() {
+        return .{ .buffer = std.ArrayList(u8).init(allocator), .vaild_structs = std.ArrayList([]const u8).init(allocator), .allocator = allocator, .external_structs = external_structs };
     }
 
     fn is_vaild(self: *@This(), name: []const u8) bool {
@@ -91,6 +92,12 @@ pub const Generator = struct {
                 return true;
         }
 
+        while (self.external_structs.next()) |structs| {
+            for (structs.*) |item| {
+                if (std.mem.eql(u8, item, name))
+                    return true;
+            }
+        }
         return false;
     }
 
@@ -416,10 +423,12 @@ pub const Creator = struct {
     }
 
     pub fn create_mod(self: *@This(), comptime ty: type) ![]const u8 {
+        // getting the avalible structs
+        const it = self.generated.valueIterator();
         // wether or not we generated anything
         var empty = true;
 
-        var generator = Generator.init(self.allocator);
+        var generator = Generator.init(self.allocator, it);
 
         const info = @typeInfo(ty).Struct;
         const name = @typeName(ty);
