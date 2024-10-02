@@ -77,12 +77,12 @@ fn list_directory_recursive(base_path: []const u8, current_path: []const u8, all
 pub const Generator = struct {
     buffer: std.ArrayList(u8),
     vaild_structs: std.ArrayList([]const u8),
-    external_structs: std.StringHashMap([][]const u8).ValueIterator,
+    external_structs: *std.StringHashMap([][]const u8).ValueIterator,
     ident: usize = 0,
 
     allocator: std.mem.Allocator,
 
-    fn init(allocator: std.mem.Allocator, external_structs: std.StringHashMap([][]const u8).ValueIterator) @This() {
+    fn init(allocator: std.mem.Allocator, external_structs: *std.StringHashMap([][]const u8).ValueIterator) @This() {
         return .{ .buffer = std.ArrayList(u8).init(allocator), .vaild_structs = std.ArrayList([]const u8).init(allocator), .allocator = allocator, .external_structs = external_structs };
     }
 
@@ -364,7 +364,15 @@ pub const Creator = struct {
         }
         return dup[0 .. header.len - 2];
     }
-
+    /// returns the actual `path` start where it's relative to `mod_path`
+    fn header_path_relative(path: []const u8, mod_path: []const u8) usize {
+        var last_slash: usize = 0;
+        for (path, 0..) |c, i| {
+            if (c == '/') last_slash = i + 1;
+            if (c != mod_path[i]) break;
+        }
+        return last_slash;
+    }
     /// gets a header from type name
     fn get_header_path(self: *@This(), name: []const u8) !?[]const u8 {
         var name_search = name;
@@ -382,6 +390,14 @@ pub const Creator = struct {
         }
 
         return null;
+    }
+
+    fn get_header_path_relative(self: *@This(), name: []const u8, mod_name: []const u8) !?[]const u8 {
+        const path = try self.get_header_path(name) orelse return null;
+        const mod_path = try self.get_header_path(mod_name) orelse return null;
+
+        const path_start = header_path_relative(path, mod_path);
+        return path[path_start..];
     }
 
     fn is_vaild_header(self: *@This(), name: []const u8) bool {
@@ -424,11 +440,11 @@ pub const Creator = struct {
 
     pub fn create_mod(self: *@This(), comptime ty: type) ![]const u8 {
         // getting the avalible structs
-        const it = self.generated.valueIterator();
+        var it = self.generated.valueIterator();
         // wether or not we generated anything
         var empty = true;
 
-        var generator = Generator.init(self.allocator, it);
+        var generator = Generator.init(self.allocator, &it);
 
         const info = @typeInfo(ty).Struct;
         const name = @typeName(ty);
@@ -456,8 +472,10 @@ pub const Creator = struct {
                             if (s.layout == ContainerLayout.auto) {
                                 if (self.is_vaild_header(field_name))
                                     try generator.generate_include(field_name)
-                                else if (try self.get_header_path(field_name)) |path| {
-                                    try self.create_mod_to(field, path);
+                                else if (try self.get_header_path_relative(field_name, name)) |path| {
+                                    const path_abs = try self.get_header_path(field_name);
+
+                                    try self.create_mod_to(field, path_abs.?);
                                     try generator.generate_include(path[0 .. path.len - 2]);
                                 }
 
