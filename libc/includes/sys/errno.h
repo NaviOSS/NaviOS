@@ -33,5 +33,5 @@ typedef enum Errno: uint32_t {
   Last, 
 } Errno;
 
-
+extern uint32_t errno;
 #endif

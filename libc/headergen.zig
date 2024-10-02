@@ -300,6 +300,12 @@ pub const Generator = struct {
         self.allocator.free(path_copy);
     }
 
+    pub fn generate_var(self: *@This(), name: []const u8, ty: type) !void {
+        try self.append("extern ");
+        try self.append_type(ty, name, false);
+        try self.append(";");
+    }
+
     pub fn generate_needed(self: *@This(), type_name: []const u8) !void {
         const dup = try self.allocator.dupe(u8, type_name);
 
@@ -425,33 +431,46 @@ pub const Creator = struct {
             const field = @field(ty, decl.name);
 
             const field_ty = @TypeOf(field);
+            const field_info = @typeInfo(field_ty);
 
-            if (@typeInfo(field_ty) == .Fn) {
-                try generator.generate_function(@TypeOf(field), decl.name);
-                empty = false;
-            } else if (field_ty == type) {
-                const field_info = @typeInfo(field);
+            switch (field_info) {
+                .Fn => {
+                    try generator.generate_function(@TypeOf(field), decl.name);
+                    empty = false;
+                },
+                .Type => {
+                    const child_info = @typeInfo(field);
+                    switch (child_info) {
+                        .Struct => |s| {
+                            const field_name = @typeName(field);
 
-                switch (field_info) {
-                    .Struct => |s| {
-                        const field_name = @typeName(field);
+                            if (s.layout == ContainerLayout.auto) {
+                                if (self.is_vaild_header(field_name))
+                                    try generator.generate_include(field_name)
+                                else if (try self.get_header_path(field_name)) |path| {
+                                    try self.create_mod_to(field, path);
+                                    try generator.generate_include(path[0 .. path.len - 2]);
+                                }
 
-                        if (s.layout == ContainerLayout.auto) {
-                            if (self.is_vaild_header(field_name))
-                                try generator.generate_include(field_name)
-                            else if (try self.get_header_path(field_name)) |path| {
-                                try self.create_mod_to(field, path);
-                                try generator.generate_include(path[0 .. path.len - 2]);
+                                continue;
                             }
+                        },
+                        else => {},
+                    }
 
-                            continue;
-                        }
-                    },
-                    else => {},
-                }
+                    try generator.generate_type(field);
+                    empty = false;
+                },
+                inline else => {
+                    var err: bool = false;
+                    generator.generate_var(decl.name, field_ty) catch {
+                        err = true;
+                    };
 
-                try generator.generate_type(field);
-                empty = false;
+                    if (!err) {
+                        empty = false;
+                    }
+                },
             }
         }
 
