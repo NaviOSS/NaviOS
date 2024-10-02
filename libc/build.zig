@@ -4,10 +4,6 @@ const std = @import("std");
 // declaratively construct a build graph that will be executed by an external
 // runner.
 pub fn build(b: *std.Build) void {
-    // Standard target options allows the person running `zig build` to choose
-    // what target to build for. Here we do not override the defaults, which
-    // means any target is allowed, and the default is native. Other options
-    // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{
         .default_target = .{
             .abi = .none,
@@ -44,8 +40,18 @@ pub fn build(b: *std.Build) void {
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
     b.installArtifact(lib);
-    _ = lib.getEmittedH();
 
+    const headergen = b.addExecutable(.{ .root_source_file = b.path("headergen.zig"), .name = "headergen", .link_libc = true, .target = b.host, .optimize = optimize });
+    const headergen_check = b.addExecutable(.{ .root_source_file = b.path("headergen.zig"), .name = "headergen", .link_libc = true, .target = b.host, .optimize = optimize });
+
+    b.installArtifact(headergen);
     const check = b.step("check", "checks if libc compiles");
     check.dependOn(&lib_check.step);
+    check.dependOn(&headergen_check.step);
+
+    const headergen_run_cwd = b.addRunArtifact(headergen);
+    headergen_run_cwd.step.dependOn(b.getInstallStep());
+
+    const headergen_step = b.step("headergen", "generates the headers");
+    headergen_step.dependOn(&headergen_run_cwd.step);
 }
