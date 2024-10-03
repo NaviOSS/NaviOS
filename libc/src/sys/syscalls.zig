@@ -73,8 +73,8 @@ pub inline fn read(fd: usize, ptr: *u8, len: usize, num_read: *usize) usize {
     return syscall4(4, fd, @intFromPtr(ptr), len, @intFromPtr(num_read));
 }
 
-pub inline fn close(fd: isize) usize {
-    return syscall1(5, @bitCast(fd));
+pub inline fn close(fd: usize) usize {
+    return syscall1(5, fd);
 }
 
 pub inline fn create(path_ptr: *const u8, path_len: usize) usize {

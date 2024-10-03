@@ -25,6 +25,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = false,
     });
 
     const lib_check = b.addStaticLibrary(.{
@@ -41,7 +42,14 @@ pub fn build(b: *std.Build) void {
     // running `zig build`).
     b.installArtifact(lib);
 
-    const headergen = b.addExecutable(.{ .root_source_file = b.path("headergen.zig"), .name = "headergen", .link_libc = true, .target = b.host, .optimize = optimize });
+    const headergen = b.addExecutable(.{
+        .root_source_file = b.path("headergen.zig"),
+        .name = "headergen",
+        .link_libc = true,
+        .target = b.host,
+        .optimize = optimize,
+    });
+
     const headergen_check = b.addExecutable(.{ .root_source_file = b.path("headergen.zig"), .name = "headergen", .link_libc = true, .target = b.host, .optimize = optimize });
 
     b.installArtifact(headergen);

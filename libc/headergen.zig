@@ -77,12 +77,20 @@ fn list_directory_recursive(base_path: []const u8, current_path: []const u8, all
 pub const Generator = struct {
     buffer: std.ArrayList(u8),
     vaild_structs: std.ArrayList([]const u8),
-    external_structs: *std.StringHashMap([][]const u8).ValueIterator,
+    external_structs: std.ArrayList([]const u8),
     ident: usize = 0,
 
     allocator: std.mem.Allocator,
 
-    fn init(allocator: std.mem.Allocator, external_structs: *std.StringHashMap([][]const u8).ValueIterator) @This() {
+    pub fn append_structs(self: *@This(), structs: [][]const u8) !void {
+        for (structs) |item| {
+            try self.external_structs.append(item);
+        }
+    }
+
+    fn init(allocator: std.mem.Allocator) !@This() {
+        const external_structs = std.ArrayList([]const u8).init(allocator);
+
         return .{ .buffer = std.ArrayList(u8).init(allocator), .vaild_structs = std.ArrayList([]const u8).init(allocator), .allocator = allocator, .external_structs = external_structs };
     }
 
@@ -92,11 +100,9 @@ pub const Generator = struct {
                 return true;
         }
 
-        while (self.external_structs.next()) |structs| {
-            for (structs.*) |item| {
-                if (std.mem.eql(u8, item, name))
-                    return true;
-            }
+        for (self.external_structs.items) |item| {
+            if (std.mem.eql(u8, item, name))
+                return true;
         }
         return false;
     }
@@ -194,8 +200,7 @@ pub const Generator = struct {
                         },
 
                         .Optional => |optional| {
-                            self.append_type(optional.child, "", true) catch try self.append("void ");
-                            return self.appendf("*{s}", .{name});
+                            return self.append_type(optional.child, name, append_ident);
                         },
 
                         .Array => |array| {
@@ -336,6 +341,7 @@ pub const Generator = struct {
     }
 
     pub fn deinit(self: *@This()) void {
+        self.external_structs.deinit();
         self.vaild_structs.deinit();
         self.buffer.deinit();
     }
@@ -439,12 +445,10 @@ pub const Creator = struct {
     }
 
     pub fn create_mod(self: *@This(), comptime ty: type) ![]const u8 {
-        // getting the avalible structs
-        var it = self.generated.valueIterator();
         // wether or not we generated anything
         var empty = true;
 
-        var generator = Generator.init(self.allocator, &it);
+        var generator = try Generator.init(self.allocator);
 
         const info = @typeInfo(ty).Struct;
         const name = @typeName(ty);
@@ -477,6 +481,9 @@ pub const Creator = struct {
 
                                     try self.create_mod_to(field, path_abs.?);
                                     try generator.generate_include(path[0 .. path.len - 2]);
+                                    if (self.generated.get(field_name)) |structs| {
+                                        try generator.append_structs(structs);
+                                    }
                                 }
 
                                 continue;
