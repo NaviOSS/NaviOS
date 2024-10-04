@@ -44,7 +44,7 @@ pub export fn diriter_close(diriter: isize) isize {
     return 0;
 }
 
-pub export fn diriter_next(diriter: isize) ?*const raw.DirEntry {
+pub export fn diriter_next(diriter: isize) ?*raw.DirEntry {
     var entry: raw.DirEntry = undefined;
     const err = syscalls.diriter_next(@bitCast(diriter), &entry);
 
@@ -56,7 +56,7 @@ pub export fn diriter_next(diriter: isize) ?*const raw.DirEntry {
     return &entry;
 }
 
-pub export fn fstat(ri: isize) ?*const raw.DirEntry {
+pub export fn fstat(ri: isize) ?*raw.DirEntry {
     var entry: raw.DirEntry = undefined;
     const err = syscalls.fstat(@bitCast(ri), &entry);
 
