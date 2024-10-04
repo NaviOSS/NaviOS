@@ -20,3 +20,14 @@ pub export fn strerror(errnum: u32) [*:0]const u8 {
 pub export fn strerrorlen_s(errnum: u32) usize {
     return strlen(strerror(errnum));
 }
+
+pub export fn memset(str: [*]void, c: c_int, n: usize) [*]void {
+    const char_str: [*]u8 = @ptrCast(str);
+    const char: u8 = @intCast(c);
+
+    for (0..n) |i| {
+        char_str[i] = char;
+    }
+
+    return @ptrCast(char_str);
+}

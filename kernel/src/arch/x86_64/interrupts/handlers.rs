@@ -1,3 +1,5 @@
+use core::arch::asm;
+
 use super::super::syscalls::syscall_base;
 use lazy_static::lazy_static;
 
@@ -82,7 +84,10 @@ extern "x86-interrupt" fn general_protection_fault_handler(frame: TrapFrame) {
 
 #[no_mangle]
 extern "x86-interrupt" fn page_fault_handler(frame: TrapFrame) {
-    panic!("---- Page Fault ----\n{}", frame)
+    let cr2: u64;
+    unsafe { asm!("mov cr2, {}", out(reg) cr2) }
+
+    panic!("---- Page Fault ----\naddress: {:#x}\n{}", cr2, frame)
 }
 
 #[inline]

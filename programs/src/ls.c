@@ -1,9 +1,9 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <sys.h>
+#include <sys/io.h>
 
 int main() {
-  int64_t fd = open_n(".");
+  int64_t fd = open((uint8_t *)".", 1);
   if (fd < 0) {
     printf("ls: failed opening current work dir\n");
     return -1;
@@ -16,13 +16,12 @@ int main() {
   }
 
   for (;;) {
-    DirEntry entry = {};
-    diriter_next(diriter, &entry);
+    const DirEntry *entry = diriter_next(diriter);
 
-    if (entry.name_length == 0)
+    if (entry->name_length == 0)
       break;
 
-    printf("%.*s\n", entry.name_length, entry.name);
+    printf("%.*s\n", entry->name_length, entry->name);
   }
 
   diriter_close(diriter);

@@ -68,7 +68,7 @@ pub export fn fstat(ri: isize) ?*const raw.DirEntry {
     return &entry;
 }
 
-pub export fn io_read(fd: isize, ptr: *u8, size: usize) isize {
+pub export fn read(fd: isize, ptr: *u8, size: usize) isize {
     var bytes_read: usize = undefined;
 
     const err = syscalls.read(@bitCast(fd), ptr, size, &bytes_read);
@@ -79,7 +79,7 @@ pub export fn io_read(fd: isize, ptr: *u8, size: usize) isize {
     return @bitCast(bytes_read);
 }
 
-pub export fn io_write(fd: isize, ptr: *const u8, size: usize) isize {
+pub export fn write(fd: isize, ptr: *const u8, size: usize) isize {
     const err = syscalls.write(@bitCast(fd), ptr, size);
     if (err != 0) {
         errors.errno = @truncate(err);

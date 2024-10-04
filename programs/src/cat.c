@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <utils.h>
+#include <sys/io.h>
+#include <sys/raw.h>
 
 int main(size_t argc, OsStr **argv) {
   if (argc < 2) {
@@ -9,29 +10,28 @@ int main(size_t argc, OsStr **argv) {
   }
 
   OsStr *filename = argv[1];
-  int64_t fd = open(filename->data, filename->len);
+  ssize_t fd = open(filename->data, filename->len);
   if (fd < 0) {
     printf("failed opening `%S`, err: %d\n", filename, fd);
     return -2;
   }
 
-  DirEntry entry = {};
-  int64_t attempt = fstat(fd, &entry);
-  if (attempt < 0) {
+  const DirEntry *entry = fstat(fd);
+  if (entry == NULL) {
     printf("failed getting direntry of `%S`\n", filename);
     return -3;
   }
 
-  uint8_t buffer[entry.size];
-  attempt = read(fd, buffer, entry.size);
+  uint8_t buffer[entry->size];
+  int err = read(fd, buffer, entry->size);
 
-  if (attempt < 0) {
+  if (err < 0) {
     printf("failed reading file `%S`\n", filename);
     return -4;
   }
 
   // cat!
-  printf("%.*s\n", entry.size, buffer);
+  printf("%.*s\n", entry->size, buffer);
 
   close(fd);
   return 0;

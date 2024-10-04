@@ -3,8 +3,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <unistd.h>
 #include <stdbool.h>
+#include <sys/types.h>
 
 bool isalpha(uint32_t arg0);
 

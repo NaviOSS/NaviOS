@@ -3,8 +3,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <unistd.h>
 #include <stdbool.h>
+#include <sys/types.h>
 
 typedef enum Errno: uint32_t {
   None, 
@@ -34,4 +34,5 @@ typedef enum Errno: uint32_t {
 } Errno;
 
 extern uint32_t errno;
+
 #endif

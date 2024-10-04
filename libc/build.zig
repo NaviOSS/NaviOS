@@ -4,26 +4,26 @@ const std = @import("std");
 // declaratively construct a build graph that will be executed by an external
 // runner.
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{
-        .default_target = .{
-            .abi = .none,
-            .os_tag = .freestanding,
-            .ofmt = .elf,
-            .cpu_arch = .x86_64,
-        },
-    });
+    const target = b.standardTargetOptions(.{});
 
     // Standard optimization options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    const freetarget = b.resolveTargetQuery(std.Target.Query{
+        .abi = .none,
+        .os_tag = .freestanding,
+        .ofmt = .elf,
+        .cpu_arch = .x86_64,
+    });
+
     const lib = b.addStaticLibrary(.{
         .name = "libc",
         // In this case the main source file is merely a path, however, in more
         // complicated build scripts, this could be a generated file.
         .root_source_file = b.path("src/root.zig"),
-        .target = target,
+        .target = freetarget,
         .optimize = optimize,
         .link_libc = false,
     });
@@ -33,7 +33,7 @@ pub fn build(b: *std.Build) void {
         // In this case the main source file is merely a path, however, in more
         // complicated build scripts, this could be a generated file.
         .root_source_file = b.path("src/root.zig"),
-        .target = target,
+        .target = freetarget,
         .optimize = optimize,
     });
 
@@ -45,8 +45,8 @@ pub fn build(b: *std.Build) void {
     const headergen = b.addExecutable(.{
         .root_source_file = b.path("headergen.zig"),
         .name = "headergen",
-        .link_libc = true,
-        .target = b.host,
+        .link_libc = false,
+        .target = target,
         .optimize = optimize,
     });
 

@@ -125,6 +125,6 @@ pub inline fn pcollect(ptr: *raw.ProcessInfo, len: usize) usize {
     return syscall3(17, @intFromPtr(ptr), len, 0);
 }
 
-pub inline fn sbrk(amount: usize) *u8 {
+pub inline fn sbrk(amount: isize) ?*u8 {
     return @ptrFromInt(syscall1(18, @bitCast(amount)));
 }

@@ -15,17 +15,20 @@ const libroot = @import("src/root.zig");
 const default_includes = [_][]const u8{
     "stddef.h",
     "stdint.h",
-    "unistd.h",
     "stdbool.h",
+    "sys/types.h",
 };
 
 pub fn main() !void {
     std.debug.print("generating headers ... \n", .{});
     std.fs.cwd().deleteDir(outdir) catch {};
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
 
-    var creator = try Creator.init(std.heap.c_allocator, srcdir);
+    var creator = try Creator.init(arena.allocator(), srcdir);
     try creator.create_headers_from_root(libroot);
-    try creator.deinit();
+
+    try creator.finish();
 }
 
 const std = @import("std");
@@ -81,6 +84,7 @@ pub const Generator = struct {
     ident: usize = 0,
 
     allocator: std.mem.Allocator,
+    empty: bool = true,
 
     pub fn append_structs(self: *@This(), structs: [][]const u8) !void {
         for (structs) |item| {
@@ -248,6 +252,8 @@ pub const Generator = struct {
 
         if (!anonymous)
             try self.vaild_structs.append(name);
+
+        self.empty = false;
     }
 
     pub fn generate_enum(self: *@This(), s: type) !void {
@@ -265,6 +271,8 @@ pub const Generator = struct {
         try self.appendfs("}} {s};\n\n", .{name});
 
         try self.vaild_structs.append(name);
+
+        self.empty = false;
     }
 
     pub fn generate_function(self: *@This(), f: type, name: []const u8) !void {
@@ -288,6 +296,8 @@ pub const Generator = struct {
 
         if (info.is_var_args) try self.append(", ...");
         try self.append(");\n");
+
+        self.empty = false;
     }
     pub fn generate_type(self: *@This(), ty: type) !void {
         switch (@typeInfo(ty)) {
@@ -315,7 +325,9 @@ pub const Generator = struct {
     pub fn generate_var(self: *@This(), name: []const u8, ty: type) !void {
         try self.append("extern ");
         try self.append_type(ty, name, false);
-        try self.append(";");
+        try self.append(";\n");
+
+        self.empty = false;
     }
 
     pub fn generate_needed(self: *@This(), type_name: []const u8) !void {
@@ -421,12 +433,27 @@ pub const Creator = struct {
         std.fs.cwd().makeDir(outdir) catch |err|
             if (err != error.PathAlreadyExists) return err;
 
+        var src = try std.fs.cwd().openDir(directory, .{});
         var includes = try std.fs.cwd().openDir(outdir, .{});
 
         for (making, 0..) |make, i| {
             if (!std.mem.containsAtLeast(u8, make, 1, &[_]u8{'.'})) {
                 includes.makeDir(make) catch |err|
                     if (err != error.PathAlreadyExists) return err;
+                continue;
+            }
+
+            // if a header copy it to includes
+            if (std.mem.endsWith(u8, make, ".h")) {
+                const file = try includes.createFile(make, .{});
+                const src_file = try src.openFile(make, .{ .mode = .read_only });
+
+                const buffer = try src_file.readToEndAlloc(allocator, std.math.maxInt(usize));
+                try file.writeAll(buffer);
+
+                allocator.free(buffer);
+                src_file.close();
+                file.close();
                 continue;
             }
 
@@ -441,13 +468,11 @@ pub const Creator = struct {
         }
 
         includes.close();
+        src.close();
         return .{ .generated = std.StringHashMap([][]const u8).init(allocator), .allocator = allocator, .making = making };
     }
 
     pub fn create_mod(self: *@This(), comptime ty: type) ![]const u8 {
-        // wether or not we generated anything
-        var empty = true;
-
         var generator = try Generator.init(self.allocator);
 
         const info = @typeInfo(ty).Struct;
@@ -465,7 +490,6 @@ pub const Creator = struct {
             switch (field_info) {
                 .Fn => {
                     try generator.generate_function(@TypeOf(field), decl.name);
-                    empty = false;
                 },
                 .Type => {
                     const child_info = @typeInfo(field);
@@ -493,22 +517,17 @@ pub const Creator = struct {
                     }
 
                     try generator.generate_type(field);
-                    empty = false;
                 },
                 inline else => {
                     var err: bool = false;
                     generator.generate_var(decl.name, field_ty) catch {
                         err = true;
                     };
-
-                    if (!err) {
-                        empty = false;
-                    }
                 },
             }
         }
 
-        if (empty) {
+        if (generator.empty) {
             generator.deinit();
             return &[_]u8{};
         }
@@ -536,8 +555,12 @@ pub const Creator = struct {
         try self.create_mod_to(root, path);
     }
 
-    pub fn deinit(self: *@This()) !void {
+    pub fn deinit(self: *@This()) void {
         self.generated.deinit();
+    }
+
+    pub fn finish(self: *@This()) !void {
+        self.deinit();
         var dir = try std.fs.cwd().openDir(outdir, .{ .iterate = true });
 
         // deleting empty files

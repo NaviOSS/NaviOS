@@ -30,3 +30,11 @@ pub const ProcessStatus = enum(u8) {
 };
 
 pub const ProcessInfo = extern struct { ppid: u64, pid: u64, name: [64]u8, status: ProcessStatus };
+
+pub const OsStr = extern struct {
+    len: usize,
+    data: [0]u8,
+    pub fn data(self: *@This()) [*]u8 {
+        return @ptrCast(&self.data);
+    }
+};

@@ -3,8 +3,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <unistd.h>
 #include <stdbool.h>
+#include <sys/types.h>
 
 typedef struct DirEntry {
   uint8_t kind;
@@ -44,6 +44,11 @@ typedef struct ProcessInfo {
   uint8_t name[64];
   ProcessStatus status;
 } ProcessInfo;
+
+typedef struct OsStr {
+  size_t len;
+  uint8_t data[0];
+} OsStr;
 
 
 #endif
