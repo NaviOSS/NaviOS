@@ -7,7 +7,7 @@ pub mod paging;
 pub type VirtAddr = usize;
 pub type PhysAddr = usize;
 
-use paging::{current_root_table, EntryFlags, MapToError, Page};
+use paging::{current_root_table, EntryFlags, MapToError, Page, PageTable, PAGE_SIZE};
 
 use crate::{
     globals::{global_allocator, kernel},
@@ -92,5 +92,37 @@ pub fn init(heap_start: usize) {
                 panic!("frame allocation failure while attempting to init the heap")
             }
         }
+    }
+}
+
+#[inline(always)]
+pub fn copy_to_userspace(page_table: &mut PageTable, addr: VirtAddr, obj: &[u8]) {
+    let pages_required = ((obj.len() + PAGE_SIZE - 1) / PAGE_SIZE) + 1;
+    let mut copied = 0;
+    let mut to_copy = obj.len();
+
+    for i in 0..pages_required {
+        let page = Page::containing_address(addr + copied);
+        let diff = if i == 0 { addr - page.start_address } else { 0 };
+        let will_copy = if to_copy > PAGE_SIZE {
+            PAGE_SIZE - diff
+        } else {
+            to_copy
+        };
+
+        let frame = page_table.get_frame(page).unwrap();
+
+        let phys_addr = frame.start_address + diff;
+        let virt_addr = phys_addr | kernel().phy_offset;
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                obj.as_ptr().byte_add(copied),
+                virt_addr as *mut u8,
+                will_copy,
+            );
+        }
+
+        copied += will_copy;
+        to_copy -= will_copy;
     }
 }

@@ -4,9 +4,9 @@ use super::{ARGV_START, STACK_END};
 
 use crate::drivers::vfs::expose::DirIter;
 use crate::drivers::vfs::{vfs, FileDescriptor, FS};
-use crate::memory::align_up;
+use crate::memory::{align_up, copy_to_userspace};
 use crate::utils::elf::{Elf, ElfError};
-use crate::{arch, debug, kernel, scheduler, terminal, VirtAddr};
+use crate::{arch, debug, kernel, scheduler, terminal};
 
 use crate::memory::paging::{self, EntryFlags, MapToError, Page, PAGE_SIZE};
 use alloc::boxed::Box;
@@ -86,21 +86,6 @@ pub struct ProcessInfo {
     pub status: ProcessStatus,
 }
 
-#[inline(always)]
-fn copy_to_userspace(page_table: &mut PageTable, addr: VirtAddr, obj: &[u8]) {
-    // FIXME: this assumes the next pages is mapped to the next frames
-    // spilt obj into pages...
-    let page = Page::containing_address(addr);
-    let diff = addr - page.start_address;
-
-    let frame = page_table.get_frame(page).unwrap();
-
-    let phys_addr = frame.start_address + diff;
-    let virt_addr = phys_addr | kernel().phy_offset;
-    unsafe {
-        core::ptr::copy_nonoverlapping(obj.as_ptr(), virt_addr as *mut u8, obj.len());
-    }
-}
 impl Process {
     #[inline(always)]
     pub fn new(

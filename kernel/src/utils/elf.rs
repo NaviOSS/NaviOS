@@ -6,7 +6,10 @@ use macros::display_consts;
 
 use crate::{
     kernel,
-    memory::paging::{EntryFlags, IterPage, Page, PageTable, PAGE_SIZE},
+    memory::{
+        copy_to_userspace,
+        paging::{EntryFlags, IterPage, Page, PageTable, PAGE_SIZE},
+    },
     threading::expose::ErrorStatus,
     VirtAddr,
 };
@@ -364,7 +367,7 @@ impl<'a> Elf<'a> {
             }
 
             if header.flags.contains(ProgramFlags::EXEC) {
-                entry_flags |= EntryFlags::empty();
+                entry_flags |= EntryFlags::WRITABLE;
             }
 
             let start_page = Page::containing_address(header.vaddr);
@@ -374,13 +377,8 @@ impl<'a> Elf<'a> {
                 end: end_page,
             };
 
-            let pages_required = (header.memz + (PAGE_SIZE - 1)) / PAGE_SIZE;
-
             unsafe {
-                let file_start = (self.header as *const ElfHeader as *const u8).add(header.offset);
-                let file = slice::from_raw_parts(file_start, header.filez);
-
-                for (index, page) in iter.enumerate() {
+                for page in iter {
                     let frame = kernel()
                         .frame_allocator()
                         .allocate_frame()
@@ -391,25 +389,38 @@ impl<'a> Elf<'a> {
                         .ok()
                         .ok_or(ElfError::MapToError)?;
 
-                    let mem_start = (frame.start_address | kernel().phy_offset) as *mut u8;
-
-                    let mut size_to_copy = if index < pages_required - 1 {
-                        PAGE_SIZE
-                    } else {
-                        header.memz % PAGE_SIZE
-                    };
-
-                    let mem = slice::from_raw_parts_mut(mem_start, size_to_copy);
-                    mem.fill(0);
-
-                    let start = index * PAGE_SIZE;
-                    if mem.len() > file.len() + start {
-                        let diff = mem.len() - (file.len() + start);
-                        size_to_copy -= diff;
-                    }
-
-                    mem[..size_to_copy].copy_from_slice(&file[start..start + size_to_copy]);
+                    let slice = slice::from_raw_parts_mut(
+                        (frame.start_address | kernel().phy_offset) as *mut u8,
+                        PAGE_SIZE,
+                    );
+                    slice.fill(0);
                 }
+                let file_start = (self.header as *const ElfHeader as *const u8).add(header.offset);
+                let file = slice::from_raw_parts(file_start, header.filez);
+
+                copy_to_userspace(page_table, header.vaddr, file);
+                // let mut size_to_copy = if index < pages_required - 1 {
+                //     PAGE_SIZE
+                // } else {
+                //     header.memz % PAGE_SIZE
+                // };
+                //
+                // let mem = slice::from_raw_parts_mut(mem_start, size_to_copy);
+                // mem.fill(0);
+                //
+                // let start = index * PAGE_SIZE;
+                // if mem.len() > file.len() + start {
+                //     let diff = mem.len() - (file.len() + start);
+                //     size_to_copy -= diff;
+                // }
+                // serial!(
+                //     "copying {}, start {}, end {}, page {:#x}\n",
+                //     size_to_copy,
+                //     start,
+                //     start + size_to_copy,
+                //     page.start_address
+                // );
+                // mem[..size_to_copy].copy_from_slice(&file[start..size_to_copy + start]);
             }
             program_break = header.vaddr + header.memz;
         }
