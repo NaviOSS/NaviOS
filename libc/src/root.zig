@@ -48,9 +48,10 @@ extern fn main(argc: usize, argv: [*]*c_char) i32;
 fn __libc_c_start() callconv(.Naked) i32 {
     // converting argv to **char
     asm volatile (
-        \\ # rax = size
+        \\ # rax = size + 8 (first argument copying)
         \\ mov %rdi, %rax
         \\ shl $3, %rax
+        \\ add $8, %rax
         \\ # we are going to reuse rsi
         \\ mov %rsi, %rdx
         \\ # allocating on the stack
@@ -59,9 +60,10 @@ fn __libc_c_start() callconv(.Naked) i32 {
         \\ mov %rsp, %rsi
         \\ # pushing the return value
         \\ push (%rcx)
-        \\ jmp loop
+        \\ jmp $loop
         \\ # reverse looping
-        \\ loop:
+        \\ $loop:
+        \\  sub $8, %rax
         \\  # rsi + rax = rdx + rax
         \\  add %rax, %rsi
         \\  add %rax, %rdx
@@ -73,11 +75,9 @@ fn __libc_c_start() callconv(.Naked) i32 {
         \\  # restore
         \\  sub %rax, %rsi
         \\  sub %rax, %rdx
-        \\  # back by 8
-        \\  sub $8, %rax
         \\  # if rax == 0 jmp loop else jmp finish
         \\  test %rax, %rax
-        \\  jnz loop
+        \\  jnz $loop
         \\  call main
         \\  ret
     );

@@ -1,4 +1,4 @@
-const sbrk = @import("sys/syscalls.zig").sbrk;
+const sbrk = @import("sys/mem.zig").sbrk;
 const memcpy = @import("string.zig").memcpy;
 
 const INIT_SIZE = 4096;
@@ -21,9 +21,7 @@ fn align_up(value: usize, alignment: usize) usize {
 /// increases heap size and adds a free Chunk with size `size` at the end
 fn add_free(size: usize) ?*Chunk {
     const ptr: *Chunk = @ptrCast(@alignCast(sbrk(0)));
-    const end = sbrk(@intCast(size + @sizeOf(Chunk)));
-    if (end == null)
-        return null;
+    _ = sbrk(@intCast(size + @sizeOf(Chunk))) orelse return null;
 
     ptr.size = size;
     ptr.free = true;
