@@ -75,6 +75,10 @@ pub fn zmalloc(comptime T: type) ?*T {
     return @ptrCast(@alignCast(malloc(@sizeOf(T))));
 }
 
+pub fn zalloc(comptime T: type, n: usize) ?[]T {
+    const ptr: [*]T = @ptrCast(@alignCast(malloc(@sizeOf(T) * n)));
+    return ptr[0..n];
+}
 /// combines free block starting from head
 fn anti_fragmentation() void {
     var current = head orelse return;
