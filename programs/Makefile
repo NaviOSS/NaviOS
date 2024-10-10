@@ -23,5 +23,4 @@ ${BUILD_DIR}/%: ${SRC_DIR}/%.c
 
 clean:
 	rm -rf ${LIB_DIR}
-	rm ${EXE_FILES}
 	rm -rf ${BUILD_DIR}

@@ -13,7 +13,8 @@ use tar::{Builder, Header};
 // (dir relative from build.rs, dir in ramdisk)
 // or (file relative from build.rs, path in ramdisk)
 const RAMDISK_CONTENT: &[(&str, &str)] = &[
-    ("programs/build", "bin"),
+    ("bin/zig-out/bin/", "bin"),
+    ("programs/build/", "bin2"),
     ("stdlib/libstd.a", "lib/libstd.a"),
     ("shell/nash", "bin/nash"),
 ];
@@ -103,6 +104,11 @@ fn compile_programs() -> Output {
     Command::new("make")
         .arg("-C")
         .arg("programs")
+        .output()
+        .unwrap();
+    Command::new("bash")
+        .arg("-c")
+        .arg("cd bin && zig build")
         .output()
         .unwrap()
 }
