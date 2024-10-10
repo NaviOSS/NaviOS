@@ -60,9 +60,9 @@ fn __libc_c_start() callconv(.Naked) i32 {
         \\ mov %rsp, %rsi
         \\ # pushing the return value
         \\ push (%rcx)
-        \\ jmp $loop
+        \\ jmp __libc_OsStr_to_cstr
         \\ # reverse looping
-        \\ $loop:
+        \\ __libc_OsStr_to_cstr:
         \\  sub $8, %rax
         \\  # rsi + rax = rdx + rax
         \\  add %rax, %rsi
@@ -77,7 +77,7 @@ fn __libc_c_start() callconv(.Naked) i32 {
         \\  sub %rax, %rdx
         \\  # if rax == 0 jmp loop else jmp finish
         \\  test %rax, %rax
-        \\  jnz $loop
+        \\  jnz __libc_OsStr_to_cstr
         \\  call main
         \\  ret
     );

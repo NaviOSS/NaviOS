@@ -19,6 +19,7 @@ int getc(FILE *arg0);
 char *fgets(char *arg0, int arg1, FILE *arg2);
 char *gets_s(char *arg0, size_t arg1);
 int getchar();
+char *fgetline(FILE *arg0, size_t *arg1);
 int zprintf(const uint8_t *arg0, ...);
 int printf(const char *arg0, ...);
 
