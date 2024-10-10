@@ -172,7 +172,7 @@ pub const Generator = struct {
                 c_int => "int",
                 c_uint => "unsigned int",
                 bool => "bool",
-                void => "void",
+                void, anyopaque => "void",
                 inline else => |other| {
                     const info = @typeInfo(other);
                     switch (info) {
@@ -498,9 +498,13 @@ pub const Creator = struct {
                             const field_name = @typeName(field);
 
                             if (s.layout == ContainerLayout.auto) {
-                                if (self.is_vaild_header(field_name))
-                                    try generator.generate_include(field_name)
-                                else if (try self.get_header_path_relative(field_name, name)) |path| {
+                                if (self.is_vaild_header(field_name)) {
+                                    const path = (self.get_header_path_relative(field_name, name) catch unreachable).?;
+                                    try generator.generate_include(path[0 .. path.len - 2]);
+                                    if (self.generated.get(field_name)) |structs| {
+                                        try generator.append_structs(structs);
+                                    }
+                                } else if (try self.get_header_path_relative(field_name, name)) |path| {
                                     const path_abs = try self.get_header_path(field_name);
 
                                     try self.create_mod_to(field, path_abs.?);

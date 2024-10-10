@@ -137,7 +137,7 @@ pub export fn printf(fmt: [*:0]const c_char, ...) c_int {
             },
 
             's' => {
-                const str = @cVaArg(&arg, [*:0]const u8);
+                const str = @cVaArg(&arg, [*:0]const c_char);
                 const strlen = string.strlen(str);
                 if (zprintf("%.*s", strlen, str) < 0) return -1;
             },

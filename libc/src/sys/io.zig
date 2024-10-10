@@ -1,5 +1,6 @@
 const syscalls = @import("syscalls.zig");
 const errors = @import("errno.zig");
+const stdio = @import("../stdio.zig");
 pub const raw = @import("raw.zig");
 
 pub export fn open(path: *const u8, len: usize) isize {
@@ -47,12 +48,14 @@ pub export fn diriter_close(diriter: isize) isize {
 pub export fn diriter_next(diriter: isize) ?*raw.DirEntry {
     var entry: raw.DirEntry = undefined;
     const err = syscalls.diriter_next(@bitCast(diriter), &entry);
-
     if (err != 0) {
         errors.errno = @truncate(err);
         return null;
     }
 
+    if (entry.name_length == 0 and entry.size == 0 and entry.kind == 0) {
+        return null;
+    }
     return &entry;
 }
 
