@@ -3,6 +3,9 @@ const string = @import("string.zig");
 const extra = @import("extra.zig");
 const panic = @import("root.zig").panic;
 const stdlib = @import("stdlib.zig");
+const syscalls = @import("sys/syscalls.zig");
+const errno = @import("sys/errno.zig");
+const Errno = @import("sys/errno.zig").Errno;
 
 // TODO: EOF
 pub const FILE = extern struct {
@@ -13,10 +16,19 @@ pub export var stdout: FILE = .{ .fd = 1 };
 
 // TODO: work on mode
 pub export fn fopen(filename: [*:0]const c_char, mode: [*:0]const c_char) ?*FILE {
-    _ = mode;
+    const mode_bytes: [*:0]const u8 = @ptrCast(mode);
+    const path: *const u8 = @ptrCast(filename);
+    const len = string.strlen(filename);
 
-    const fd = io.open(@ptrCast(filename), string.strlen(@ptrCast(filename)));
-    if (fd == -1) return null;
+    var fd = io.open(path, len);
+    if (fd == -1) {
+        if (mode_bytes[0] == 'w' and errno.errno == @intFromEnum(Errno.NoSuchAFileOrDirectory)) {
+            const err = syscalls.create(path, len);
+            if (err != 0) return null;
+
+            fd = io.open(path, len);
+        } else return null;
+    }
 
     const file = stdlib.zmalloc(FILE).?;
     file.fd = @bitCast(fd);
