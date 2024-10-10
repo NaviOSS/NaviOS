@@ -3,10 +3,11 @@ badly written open-source generic operating system made for fun written in rust!
 i am attempting to make something like ChromeOS with native wasm support
 this is my first OS!
 
+**this project is written in rust and zig** which is inconvenience and expensive i know, but this was made for fun and learning purposes, even so our primary goal is the runtime results.
 **star the repo!**
 
 # building and running
-you need a linux system with `bash`, `git`, `xorriso`, `make`, `cargo` and `qemu-system-x86_64` (you need kvm otherwise run with `no-kvm` argument) to run do
+you need a linux system with `bash`, `git`, `xorriso`, `make`, `cargo`, `zig` and `qemu-system-x86_64` (you need kvm otherwise run with `no-kvm` argument) to run do
 
 ```
 cargo run
@@ -34,9 +35,10 @@ cargo run -- no-kvm
     - resources
     - userspace elf executing
     - argc && argv
-    - C stdlib
+    - C libc written in zig (find it in libc/)
     - alot of syscalls (TODO: make a list)
-    - program break and (sbrk (untested))
+    - program break and sbrk
+    - init ramdisk with some programs written in zig (find it in bin/)
 
 currently using the [limine](https://limine-bootloader.org/) bootloader
 
@@ -46,6 +48,8 @@ note: i dont know much about osdev (this is my first OS), stuff prefixed with ? 
 - [ ] sync
     - [ ] improve the peformance of the frame_allocator it takes 5 seconds to map 7*4 mbs without kvm?
 - [ ] replace the current linked list allocator with a good buddy allocator
+- [ ] remove the bash requirement
+- [ ] update README.md
 
 ## roadmap
 - [X] x86_64 basics
