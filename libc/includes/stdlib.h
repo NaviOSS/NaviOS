@@ -9,7 +9,7 @@
 extern struct {
   size_t size;
   bool free;
-  uint8_t data_off[1];
+  uint8_t data_off[8];
 } *head;
 void __malloc__init__();
 void *malloc(size_t arg0);

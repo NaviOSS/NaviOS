@@ -35,9 +35,9 @@ inline fn syscall4(number: usize, arg1: usize, arg2: usize, arg3: usize, arg4: u
         : [number] "{rax}" (number),
           [arg1] "{rdi}" (arg1),
           [arg2] "{rsi}" (arg2),
-          [arg3] "rdx" (arg3),
-          [arg4] "rcx" (arg4),
-        : "rcx", "r11"
+          [arg3] "{rdx}" (arg3),
+          [arg4] "{rcx}" (arg4),
+        : "r8", "r11"
     );
 }
 inline fn syscall6(number: usize, arg1: usize, arg2: usize, arg3: usize, arg4: usize, arg5: usize, arg6: usize) usize {
@@ -46,11 +46,11 @@ inline fn syscall6(number: usize, arg1: usize, arg2: usize, arg3: usize, arg4: u
         : [number] "{rax}" (number),
           [arg1] "{rdi}" (arg1),
           [arg2] "{rsi}" (arg2),
-          [arg3] "rdx" (arg3),
-          [arg4] "rcx" (arg4),
-          [arg5] "r8" (arg5),
-          [arg6] "r9" (arg6),
-        : "rcx", "r11"
+          [arg3] "{rdx}" (arg3),
+          [arg4] "{rcx}" (arg4),
+          [arg5] "{r8}" (arg5),
+          [arg6] "{r9}" (arg6),
+        : "r10", "r11"
     );
 }
 pub inline fn exit() void {

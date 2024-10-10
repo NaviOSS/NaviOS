@@ -1,6 +1,9 @@
 const io = @import("sys/io.zig");
 const string = @import("string.zig");
 const extra = @import("extra.zig");
+const panic = @import("root.zig").panic;
+const stdlib = @import("stdlib.zig");
+
 // TODO: EOF
 pub const FILE = extern struct {
     fd: usize,
@@ -15,11 +18,17 @@ pub export fn fopen(filename: [*:0]const c_char, mode: [*:0]const c_char) ?*FILE
     const fd = io.open(@ptrCast(filename), string.strlen(@ptrCast(filename)));
     if (fd == -1) return null;
 
-    var file: FILE = .{ .fd = @bitCast(fd) };
-    return &file;
+    const file = stdlib.zmalloc(FILE).?;
+    file.fd = @bitCast(fd);
+    return file;
+}
+
+pub fn zfopen(filename: [*:0]const u8, mode: [*:0]const u8) ?*FILE {
+    return fopen(@ptrCast(filename), @ptrCast(mode));
 }
 
 pub export fn fclose(file: *FILE) c_int {
+    defer stdlib.free(file);
     if (io.close(@bitCast(file.fd)) < 0) return -1 else return 0;
 }
 
@@ -74,6 +83,18 @@ pub export fn gets_s(str: [*]c_char, count: usize) ?[*:0]c_char {
 
 pub export fn getchar() c_int {
     return fgetc(&stdin);
+}
+
+pub export fn fgetline(file: *FILE, len: *usize) ?[*]c_char {
+    const ri: isize = @bitCast(file.fd);
+
+    const stat = io.fstat(ri);
+    const size = stat.?.size;
+
+    const ptr: ?*u8 = @ptrCast(stdlib.malloc(size));
+    if (io.read(ri, ptr orelse return null, size) < 0) return null;
+    len.* = size;
+    return @ptrCast(ptr);
 }
 
 fn wc(c: u8) isize {
