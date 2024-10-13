@@ -1,22 +1,23 @@
 const libc = @import("libc");
 const printf = libc.stdio.zprintf;
-
-export fn main(argc: usize, argv: [*]const [*:0]const u8) i32 {
-    if (argc < 2) {
-        _ = printf("expected filename to cat\n");
-        return -1;
+pub const panic = libc.panic;
+pub fn main() !void {
+    const args = libc.sys.args();
+    if (args.count() < 2) {
+        try printf("expected filename to cat\n", .{});
+        return error.NotEnoughArguments;
     }
 
-    const filename = argv[1];
-    const file = libc.stdio.zfopen(filename, "") orelse {
-        _ = printf("cat couldn't open file '%s'!\n", filename);
-        return -1;
-    };
+    const filename = args.nth(1).?;
+    const file = try libc.stdio.zfopen(filename, .{ .read = true });
 
     var len: usize = 0;
     const data = libc.stdio.fgetline(file, &len);
-    _ = printf("%.*s\n", len, data);
+    try printf("%.*s\n", .{ len, data });
 
-    _ = libc.stdio.fclose(file);
-    return 0;
+    try libc.stdio.zfclose(file);
+}
+
+comptime {
+    _ = libc;
 }

@@ -1,4 +1,5 @@
 const builtin = @import("std").builtin;
+const builtin_info = @import("builtin");
 pub const syscalls = @import("sys/syscalls.zig");
 pub const sys = @import("sys/root.zig");
 pub const ctype = @import("ctype.zig");
@@ -7,15 +8,20 @@ pub const stdio = @import("stdio.zig");
 pub const stdlib = @import("stdlib.zig");
 pub const extra = @import("extra.zig");
 pub const dirent = @import("dirent.zig");
+pub const private = @import("private.zig");
 
 comptime {
-    _ = sys;
-    _ = ctype;
-    _ = string;
-    _ = stdio;
-    _ = stdlib;
-    _ = extra;
-    _ = dirent;
+    // TODO: figure out a method to not export unused stuff
+    if (builtin_info.output_mode == .Lib) {
+        _ = sys;
+        _ = ctype;
+        _ = string;
+        _ = stdio;
+        _ = stdlib;
+        _ = extra;
+        _ = dirent;
+    }
+    _ = private;
 }
 
 export fn exit() noreturn {
@@ -28,22 +34,41 @@ export fn exit() noreturn {
 pub fn panic(msg: []const u8, error_return_trace: ?*builtin.StackTrace, return_addr: ?usize) noreturn {
     @setCold(true);
     const at = return_addr orelse @returnAddress();
-    _ = stdio.zprintf("libc panic: %.*s at %p <??>\n", msg.len, msg.ptr, at);
+    stdio.zprintf("libc panic: %.*s at %p <??>\n", .{ msg.len, msg.ptr, at }) catch {};
 
+    stdio.zprintf("trace:\n", .{}) catch {};
     if (error_return_trace) |trace| {
-        _ = stdio.zprintf("trace:\n");
         const addresses = trace.instruction_addresses;
 
         for (addresses) |address| {
-            _ = stdio.zprintf("  <%p>\n", address);
+            stdio.zprintf("  <%p>\n", .{address}) catch {};
+        }
+    } else {
+        var rbp: ?[*]usize = @ptrFromInt(@frameAddress());
+        while (rbp != null) : (rbp = @ptrFromInt(rbp.?[0])) {
+            stdio.zprintf("  %p <??>\n", .{rbp.?[1]}) catch {};
         }
     }
 
     exit();
 }
 
-extern fn main(argc: usize, argv: [*]*c_char) i32;
+/// sets to c main
+extern fn main(argc: usize, argv: [*]const [*:0]const c_char) i32;
+const root = @import("root");
 
+fn zmain() callconv(.C) i32 {
+    root.main() catch |err| return @intFromError(err);
+    return 0;
+}
+
+comptime {
+    if (@hasDecl(root, "main") and builtin_info.os.tag == .freestanding) {
+        const info = @typeInfo(@TypeOf(root.main));
+        if (info.Fn.calling_convention == .Unspecified)
+            @export(zmain, .{ .name = "main" });
+    }
+}
 /// starts as C
 fn __libc_c_start() callconv(.Naked) i32 {
     // converting argv to **char
@@ -82,6 +107,12 @@ fn __libc_c_start() callconv(.Naked) i32 {
         \\  ret
     );
 }
+
+fn _redirect_start() callconv(.Naked) i32 {
+    asm volatile (
+        \\ jmp __libc_c_start
+    );
+}
 fn _start() callconv(.Naked) noreturn {
     asm volatile (
         \\ movq $0, %rbp
@@ -89,9 +120,10 @@ fn _start() callconv(.Naked) noreturn {
         \\ push %rbp
         \\ push %rdi
         \\ push %rsi
+        \\ call __lib__init__        
         \\ pop %rsi
         \\ pop %rdi
-        \\ call __libc_c_start
+        \\ call _redirect_start
         \\ call exit
         \\ hlt
     );
@@ -99,8 +131,10 @@ fn _start() callconv(.Naked) noreturn {
 
 // we cannot export start directly to avoid problems with headergen
 comptime {
-    if (@import("builtin").os.tag == .freestanding) {
+    if (builtin_info.os.tag == .freestanding) {
         @export(_start, .{ .name = "_start" });
+
         @export(__libc_c_start, .{ .name = "__libc_c_start" });
+        @export(_redirect_start, .{ .name = "_redirect_start" });
     }
 }

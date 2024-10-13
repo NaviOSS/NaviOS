@@ -1,18 +1,19 @@
 const libc = @import("libc");
-const syscalls = libc.syscalls;
+const io = libc.sys.io;
 const strlen = libc.string.strlen;
 const printf = libc.stdio.zprintf;
 
-export fn main(argc: usize, argv: [*]const [*:0]const c_char) i32 {
-    if (argc < 2) {
-        _ = printf("expected at least the name of the directory to make\n");
-        return -1;
+pub fn main() !void {
+    var args = libc.sys.args();
+    if (args.count() < 2) {
+        try printf("expected at least the name of the directory to make\n", .{});
+        return error.NotEnoughArguments;
     }
 
-    const path = argv[1];
-    const len = strlen(path);
+    const path = args.nth(1).?;
+    try io.zcreatedir(path);
+}
 
-    const path_ptr: *const u8 = @ptrCast(path);
-    if (syscalls.createdir(path_ptr, len) != 0) return -1;
-    return 0;
+comptime {
+    _ = libc;
 }

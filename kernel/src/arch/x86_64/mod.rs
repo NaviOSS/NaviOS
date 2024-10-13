@@ -60,6 +60,29 @@ pub fn enable_sse() {
     }
 }
 
+#[inline]
+fn _enable_avx() {
+    unsafe {
+        asm!(
+            "
+    push rax
+    push rcx
+    push rdx
+
+    xor rcx, rcx
+    xgetbv // Load XCR0 register
+    or eax, 7 // Set AVX, SSE, X87 bits
+    xsetbv // Save back to XCR0
+
+    pop rdx
+    pop rcx
+    pop rax
+    ret",
+            options(noreturn)
+        )
+    }
+}
+
 /// simple init less likely to panic
 /// highly required
 #[inline]

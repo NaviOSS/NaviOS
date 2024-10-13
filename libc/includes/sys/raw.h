@@ -47,7 +47,7 @@ typedef struct ProcessInfo {
 
 typedef struct OsStr {
   size_t len;
-  uint8_t data[0];
+  uint8_t data_off[1];
 } OsStr;
 
 

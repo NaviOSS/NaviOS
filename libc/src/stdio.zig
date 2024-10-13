@@ -4,44 +4,95 @@ const extra = @import("extra.zig");
 const panic = @import("root.zig").panic;
 const stdlib = @import("stdlib.zig");
 const syscalls = @import("sys/syscalls.zig");
-const errno = @import("sys/errno.zig");
-const Errno = @import("sys/errno.zig").Errno;
+const errors = @import("sys/errno.zig");
+const geterr = errors.geterr;
+const seterr = errors.seterr;
+
+pub const ModeFlags = packed struct {
+    read: bool = false,
+    write: bool = false,
+    append: bool = false,
+    extended: bool = false,
+    access_flag: bool = false,
+
+    _padding: u3 = 0,
+    pub fn from_cstr(cstr: [*:0]const c_char) ?@This() {
+        var bytes: [*:0]const u8 = @ptrCast(cstr);
+        var self: ModeFlags = .{};
+
+        while (bytes[0] != 0) : (bytes += 1) {
+            const byte = bytes[0];
+            switch (byte) {
+                'w' => self.write = true,
+                'a' => self.append = true,
+                'r' => self.read = true,
+                '+' => self.extended = true,
+                'x' => self.access_flag = true,
+                else => return null,
+            }
+        }
+
+        return self;
+    }
+};
 
 // TODO: EOF
 pub const FILE = extern struct {
-    fd: usize,
+    fd: isize,
+    mode: ModeFlags,
 };
-pub export var stdin: FILE = .{ .fd = 0 };
-pub export var stdout: FILE = .{ .fd = 1 };
+pub export var stdin: FILE = .{ .fd = 0, .mode = .{ .read = true } };
+pub export var stdout: FILE = .{ .fd = 1, .mode = .{ .write = true } };
 
-// TODO: work on mode
-pub export fn fopen(filename: [*:0]const c_char, mode: [*:0]const c_char) ?*FILE {
-    const mode_bytes: [*:0]const u8 = @ptrCast(mode);
-    const path: *const u8 = @ptrCast(filename);
-    const len = string.strlen(filename);
+pub fn zfopen(filename: []const u8, mode: ModeFlags) errors.Error!*FILE {
+    const fd = io.zopen(filename) catch |err| blk: {
+        switch (err) {
+            error.NoSuchAFileOrDirectory => if (mode.write or mode.append) {
+                try io.zcreate(filename);
+                break :blk try io.zopen(filename);
+            } else return err,
+            else => return err,
+        }
+    };
 
-    var fd = io.open(path, len);
-    if (fd == -1) {
-        if (mode_bytes[0] == 'w' and errno.errno == @intFromEnum(Errno.NoSuchAFileOrDirectory)) {
-            const err = syscalls.create(path, len);
-            if (err != 0) return null;
-
-            fd = io.open(path, len);
-        } else return null;
+    if (mode.write) {
+        if (mode.access_flag) {
+            return error.AlreadyExists;
+        }
+        _ = try io.zwrite(fd, "");
     }
 
     const file = stdlib.zmalloc(FILE).?;
-    file.fd = @bitCast(fd);
+    file.fd = fd;
+    file.mode = mode;
     return file;
 }
 
-pub fn zfopen(filename: [*:0]const u8, mode: [*:0]const u8) ?*FILE {
-    return fopen(@ptrCast(filename), @ptrCast(mode));
+pub export fn fopen(filename: [*:0]const c_char, mode: [*:0]const c_char) ?*FILE {
+    const path: [*:0]const u8 = @ptrCast(filename);
+    const len = string.strlen(filename);
+    const modeflags = ModeFlags.from_cstr(mode) orelse {
+        seterr(error.InvaildStr);
+        return null;
+    };
+
+    return zfopen(path[0..len], modeflags) catch |err| {
+        seterr(err);
+        return null;
+    };
+}
+
+pub fn zfclose(file: *FILE) !void {
+    defer stdlib.free(file);
+    try io.zclose(file.fd);
 }
 
 pub export fn fclose(file: *FILE) c_int {
-    defer stdlib.free(file);
-    if (io.close(@bitCast(file.fd)) < 0) return -1 else return 0;
+    zfclose(file) catch |err| {
+        seterr(err);
+        return -1;
+    };
+    return 0;
 }
 
 pub export fn fgetc(stream: *FILE) c_int {
@@ -113,7 +164,11 @@ fn wc(c: u8) isize {
     return io.write(1, &c, 1);
 }
 
-pub fn zprintf(fmt: [*:0]const u8, ...) callconv(.C) c_int {
+pub fn zprintf(fmt: [*:0]const u8, args: anytype) !void {
+    if (@call(.auto, uprintf, .{fmt} ++ args) == -1) return geterr();
+}
+
+pub fn uprintf(fmt: [*:0]const u8, ...) callconv(.C) c_int {
     return printf(@ptrCast(fmt));
 }
 
@@ -145,7 +200,7 @@ pub export fn printf(fmt: [*:0]const c_char, ...) c_int {
 
                 var buffer: [10]u8 = [1]u8{0} ** 10;
                 _ = extra.itoa(@intCast(i), &buffer, 10);
-                if (zprintf("%s", &buffer) < 0) return -1;
+                if (uprintf("%s", &buffer) < 0) return -1;
             },
 
             'l' => {
@@ -158,7 +213,7 @@ pub export fn printf(fmt: [*:0]const c_char, ...) c_int {
 
                 var buffer: [10]u8 = [1]u8{0} ** 10;
                 _ = extra.itoa(@intCast(i), &buffer, 10);
-                if (zprintf("%s", &buffer) < 0) return -1;
+                if (uprintf("%s", &buffer) < 0) return -1;
             },
 
             'p', 'x' => {
@@ -166,13 +221,13 @@ pub export fn printf(fmt: [*:0]const c_char, ...) c_int {
                 var buffer: [10]u8 = [1]u8{0} ** 10;
                 _ = extra.itoa(@intCast(i), &buffer, 16);
 
-                if (zprintf("0x%s", &buffer) < 0) return -1;
+                if (uprintf("0x%s", &buffer) < 0) return -1;
             },
 
             's' => {
                 const str = @cVaArg(&arg, [*:0]const c_char);
                 const strlen = string.strlen(str);
-                if (zprintf("%.*s", strlen, str) < 0) return -1;
+                if (uprintf("%.*s", strlen, str) == -1) return -1;
             },
 
             '.' => {

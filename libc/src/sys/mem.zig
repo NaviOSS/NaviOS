@@ -1,10 +1,18 @@
 const syscalls = @import("syscalls.zig");
-const errno = @import("errno.zig");
+const errors = @import("errno.zig");
+const seterr = errors.seterr;
 
-pub export fn sbrk(amount: isize) ?*void {
+pub fn zsbrk(amount: isize) errors.Error!*anyopaque {
     const brea = syscalls.sbrk(amount);
     if (brea == null)
-        errno.errno = @intFromEnum(errno.Errno.MMapError);
+        return error.MMapError;
 
     return @ptrCast(brea);
+}
+
+pub export fn sbrk(amount: isize) ?*anyopaque {
+    return zsbrk(amount) catch |err| {
+        seterr(err);
+        return null;
+    };
 }

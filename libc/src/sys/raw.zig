@@ -33,8 +33,8 @@ pub const ProcessInfo = extern struct { ppid: u64, pid: u64, name: [64]u8, statu
 
 pub const OsStr = extern struct {
     len: usize,
-    data: [0]u8,
+    data_off: [1]u8,
     pub fn data(self: *@This()) [*]u8 {
-        return @ptrCast(&self.data);
+        return @ptrCast(&self.data_off[self.data_off.len - 1]);
     }
 };

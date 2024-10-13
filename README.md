@@ -6,21 +6,34 @@ this is my first OS!
 **this project is written in rust and zig** which is inconvenience and expensive i know, but this was made for fun and learning purposes, even so our primary goal is the runtime results.
 **star the repo!**
 
-# building and running
-you need a linux system with `bash`, `git`, `xorriso`, `make`, `cargo`, `zig` and `qemu-system-x86_64` (you need kvm otherwise run with `no-kvm` argument) to run do
-
-```
-cargo run
-```
-to build do
+# building
+you need: 
+- bash
+- git
+- xorriso
+- make
+- cargo
+- zig
+simply run
 ```
 cargo build
 ```
-this will make an iso `navios.iso`
-to run without kvm do
+
+this should make an iso with path: `navios.iso` if successful
+# running
+to use the builtin cargo run feature you'll need:
+- qemu-system-x86_64
+
+and simply do
+```
+cargo run
+```
+or to run without kvm do
 ```
 cargo run -- no-kvm
 ```
+otherwise you have the iso feel free to do whatever you want with it
+
 # current features:
 - basics (x86_64: IDT, GDT, interrupts, ACPI, APIC, APIC keyboard, APIC timer, ...)
 - pmm (bitmap allocator)
@@ -41,6 +54,15 @@ cargo run -- no-kvm
     - init ramdisk with some programs written in zig (find it in bin/)
 
 currently using the [limine](https://limine-bootloader.org/) bootloader
+
+# structure
+- `/build.rs` contains code that builds the final iso
+- `/src` contains code that is executed on `cargo run` only runs the built iso using qemu for now
+- `/kernel` contains the kernel code, written in rust
+- `/kernel/src/arch/x86_64` x86_64 specific code such as syscalls, interrupts, x86_64 initing...
+- `/libc` contains libc code written in zig
+- `/bin` contains init ramdisk programs that is compiled on your os then copied to the init ramdisk in the final iso, written in zig
+- `/macros` contains some additional rust proc macros to automatic some stuff...
 
 # roadmap
 note: i dont know much about osdev (this is my first OS), stuff prefixed with ? is missing info and more stuff may be added in the feature

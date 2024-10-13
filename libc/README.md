@@ -10,3 +10,5 @@ to generate the headers run
 ```
 zig build headergen
 ```
+# Philosophy
+TODO: write some design philosophy

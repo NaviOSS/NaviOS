@@ -1,17 +1,26 @@
 const libc = @import("libc");
 const printf = libc.stdio.zprintf;
 
-export fn main(argc: usize, argv: [*]const [*:0]const u8) i32 {
-    if (argc < 2) {
-        _ = printf("expected at least the file name to touch!\n");
-        return -1;
+pub fn main() !void {
+    var args = libc.sys.args();
+    if (args.count() < 2) {
+        try printf("expected at least the file name to touch!\n", .{});
+        return error.NotEnoughArguments;
     }
 
-    const filename = argv[1];
-    if (libc.stdio.zfopen(filename, "") != null) {
-        return 0;
-    }
+    const filename = args.nth(1).?;
+    const file = libc.stdio.zfopen(filename, .{ .read = true }) catch |err|
+        switch (err) {
+        error.NoSuchAFileOrDirectory => try libc.stdio.zfopen(filename, .{ .write = true }),
+        else => {
+            try printf("got error %s\n", .{@errorName(err).ptr});
+            return;
+        },
+    };
 
-    _ = libc.stdio.zfopen(filename, "w");
-    return 0;
+    try libc.stdio.zfclose(file);
+}
+
+comptime {
+    _ = libc;
 }

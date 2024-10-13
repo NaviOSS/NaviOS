@@ -221,4 +221,6 @@ pub enum ErrorStatus {
     MissingPermissions,
     // memory allocations and mapping error, most likely that memory is full
     MMapError,
+    // errors sent by processes
+    NotEnoughArguments,
 }

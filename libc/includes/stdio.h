@@ -7,7 +7,8 @@
 #include <sys/types.h>
 
 typedef struct FILE {
-  size_t fd;
+  ssize_t fd;
+  uint8_t mode;
 } FILE;
 
 extern FILE stdin;

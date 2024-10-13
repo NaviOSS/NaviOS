@@ -2,6 +2,8 @@ const io = @import("sys/io.zig");
 const string = @import("string.zig");
 const stdio = @import("stdio.zig");
 const stdlib = @import("stdlib.zig");
+const errors = @import("sys/errno.zig");
+const seterr = errors.seterr;
 
 pub const raw = @import("sys/raw.zig");
 pub const DIR = extern struct {
@@ -11,11 +13,16 @@ pub const DIR = extern struct {
 };
 
 pub export fn opendir(path: [*:0]const c_char) ?*DIR {
-    const dir_ri = io.open(@ptrCast(path), string.strlen(path));
-    if (dir_ri < 0) return null;
+    return zopendir(@ptrCast(path)) catch |err| {
+        seterr(err);
+        return null;
+    };
+}
 
-    const ri = io.diriter_open(dir_ri);
-    if (ri < 0) return null;
+pub fn zopendir(path: [*:0]const u8) !*DIR {
+    const dir_ri = try io.zopen(path[0..string.strlen(@ptrCast(path))]);
+
+    const ri = try io.zdiriter_open(dir_ri);
 
     const dir = stdlib.zmalloc(DIR).?;
     dir.ri = ri;
@@ -24,26 +31,30 @@ pub export fn opendir(path: [*:0]const c_char) ?*DIR {
     return dir;
 }
 
-pub fn zopendir(path: [*:0]const u8) ?*DIR {
-    return opendir(@ptrCast(path));
-}
-
-pub export fn readdir(dir: *DIR) ?*raw.DirEntry {
+pub fn zreaddir(dir: *DIR) ?raw.DirEntry {
     defer dir.current_index += 1;
-    return io.diriter_next(dir.ri);
+    return io.zdiriter_next(dir.ri);
+}
+// FIXME: this is very unhealthy
+pub export fn readdir(dir: *DIR) ?*raw.DirEntry {
+    var entry = zreaddir(dir) orelse return null;
+    return &entry;
 }
 
 pub export fn telldir(dir: *DIR) c_int {
     return @intCast(dir.current_index);
 }
 
-pub export fn closedir(dir: *DIR) c_int {
-    const err = io.diriter_close(dir.ri);
-    if (err < 0) return -1;
-
-    const err1 = io.close(dir.dir_ri);
-    if (err1 < 0) return -1;
+pub fn zclosedir(dir: *DIR) !void {
+    try io.zdiriter_close(dir.ri);
+    try io.zclose(dir.dir_ri);
 
     stdlib.free(dir);
+}
+pub export fn closedir(dir: *DIR) c_int {
+    zclosedir(dir) catch |err| {
+        seterr(err);
+        return -1;
+    };
     return 0;
 }

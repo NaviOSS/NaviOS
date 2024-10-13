@@ -1,18 +1,21 @@
 const libc = @import("libc");
-const sysinfo = libc.sys.utils.sysinfo;
+const sysinfo = libc.sys.utils.zsysinfo;
 const zalloc = libc.stdlib.zalloc;
-const pcollect = libc.syscalls.pcollect;
+const pcollect = libc.sys.utils.zpcollect;
 const printf = libc.stdio.zprintf;
 
-export fn main() i32 {
-    const info = sysinfo().?.*;
+pub fn main() !void {
+    const info = try sysinfo();
     const processes = zalloc(libc.sys.raw.ProcessInfo, info.processes_count).?;
 
-    if (libc.syscalls.pcollect(@ptrCast(processes.ptr), info.processes_count) != 0) return -1;
+    _ = try pcollect(processes);
 
-    _ = printf("name:  pid  ppid\n");
+    try printf("name:  pid  ppid\n", .{});
     for (processes) |process| {
-        _ = printf("\x1B[38;2;0;255;0m%s\x1B[0m:  %d  %d\n", &process.name, process.pid, process.ppid);
+        try printf("\x1B[38;2;0;255;0m%s\x1B[0m:  %d  %d\n", .{ &process.name, process.pid, process.ppid });
     }
-    return 0;
+}
+
+comptime {
+    _ = libc;
 }

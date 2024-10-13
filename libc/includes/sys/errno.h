@@ -6,33 +6,6 @@
 #include <stdbool.h>
 #include <sys/types.h>
 
-typedef enum Errno: uint32_t {
-  None, 
-  Generic, 
-  OperationNotSupported, 
-  NotSupported, 
-  Corrupted, 
-  InvaildSyscall, 
-  InvaildResource, 
-  InvaildPid, 
-  InvaildPtr, 
-  InvaildStr, 
-  InvaildPath, 
-  InvaildDrive, 
-  NoSuchAFileOrDirectory, 
-  NotAFile, 
-  NotADirectory, 
-  AlreadyExists, 
-  NotExecutable, 
-  DirectoryNotEmpty, 
-  MissingPermissions, 
-  MMapError, 
-  ArgumentOutOfDomain, 
-  IllegalByteSequence, 
-  ResultOutOfRange, 
-  Last, 
-} Errno;
-
 extern uint32_t errno;
 
 #endif

@@ -1,5 +1,5 @@
 const errors = @import("sys/errno.zig");
-const Errno = errors.Errno;
+const Error = errors.Error;
 
 pub export fn strlen(cstr: [*:0]const c_char) usize {
     var i: usize = 0;
@@ -8,11 +8,12 @@ pub export fn strlen(cstr: [*:0]const c_char) usize {
     return i;
 }
 pub export fn strerror(errnum: u32) [*:0]const c_char {
-    if (errnum >= @intFromEnum(Errno.Last)) {
+    if (errnum >= @intFromError(Error.Last)) {
         return @ptrCast("UNKNOWN");
     }
-    const err: Errno = @enumFromInt(errnum);
-    return @ptrCast(@tagName(err));
+    const errnum_short: u16 = @truncate(errnum);
+    const err: Error = @errorCast(@errorFromInt(errnum_short));
+    return @ptrCast(@errorName(err));
 }
 
 pub export fn strerrorlen_s(errnum: u32) usize {

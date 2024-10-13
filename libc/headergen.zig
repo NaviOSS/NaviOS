@@ -303,7 +303,7 @@ pub const Generator = struct {
         switch (@typeInfo(ty)) {
             .Struct => try self.generate_struct(ty, false),
             .Enum => try self.generate_enum(ty),
-            else => return error.UnGeneratableType,
+            else => return,
         }
     }
 

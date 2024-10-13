@@ -3,7 +3,7 @@ const errors = @import("errno.zig");
 const stdio = @import("../stdio.zig");
 pub const raw = @import("raw.zig");
 
-pub export fn open(path: *const u8, len: usize) isize {
+pub fn open(path: *const u8, len: usize) isize {
     var fd: usize = undefined;
 
     const err = syscalls.open(path, len, &fd);
@@ -90,6 +90,76 @@ pub export fn write(fd: isize, ptr: *const u8, size: usize) isize {
     }
     return 0;
 }
-pub inline fn zopen(path: []const u8) isize {
-    return open(path.ptr, path.len);
+
+pub export fn create(path: *const u8, len: usize) isize {
+    const err = syscalls.create(path, len);
+    if (err != 0) {
+        errors.errno = @truncate(err);
+        return -1;
+    }
+
+    return 0;
+}
+
+pub export fn createdir(path: *const u8, len: usize) isize {
+    const err = syscalls.createdir(path, len);
+    if (err != 0) {
+        errors.errno = @truncate(err);
+        return -1;
+    }
+
+    return 0;
+}
+pub fn zopen(path: []const u8) errors.Error!isize {
+    const fd = open(@ptrCast(path.ptr), path.len);
+    if (fd == -1) return errors.geterr();
+    return fd;
+}
+
+pub fn zclose(fd: isize) errors.Error!void {
+    const err = close(fd);
+    if (err == -1) return errors.geterr();
+}
+
+pub fn zdiriter_open(dir: isize) errors.Error!isize {
+    const ri = diriter_open(dir);
+    if (ri == -1) return errors.geterr();
+    return ri;
+}
+
+pub fn zdiriter_close(diriter: isize) errors.Error!void {
+    const err = diriter_close(diriter);
+    if (err == -1) return errors.geterr();
+}
+
+pub fn zdiriter_next(diriter: isize) ?raw.DirEntry {
+    const entry = diriter_next(diriter) orelse return null;
+    return entry.*;
+}
+
+pub fn zfstat(ri: isize) errors.Error!raw.DirEntry {
+    const stat = fstat(ri) orelse return errors.geterr();
+    return stat.*;
+}
+
+pub fn zread(fd: isize, buffer: []u8) errors.Error!usize {
+    const bytes_read = read(fd, @ptrCast(buffer.ptr), buffer.len);
+    if (bytes_read == -1) return errors.geterr();
+    return @bitCast(bytes_read);
+}
+
+pub fn zwrite(fd: isize, buffer: []const u8) errors.Error!usize {
+    const bytes_wrote = write(fd, @ptrCast(buffer.ptr), buffer.len);
+    if (bytes_wrote == -1) return errors.geterr();
+    return @bitCast(bytes_wrote);
+}
+
+pub fn zcreate(path: []const u8) errors.Error!void {
+    const err = create(@ptrCast(path.ptr), path.len);
+    if (err == -1) return errors.geterr();
+}
+
+pub fn zcreatedir(path: []const u8) errors.Error!void {
+    const err = createdir(@ptrCast(path.ptr), path.len);
+    if (err == -1) return errors.geterr();
 }

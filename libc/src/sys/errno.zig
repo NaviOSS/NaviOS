@@ -1,5 +1,4 @@
-pub const Errno = enum(u32) {
-    None,
+pub const Error = error{
     // use when no ErrorStatus is avalible for xyz and you cannot add a new one
     Generic,
     OperationNotSupported,
@@ -28,6 +27,7 @@ pub const Errno = enum(u32) {
     MissingPermissions,
     // memory allocations and mapping error, most likely that memory is full
     MMapError,
+    NotEnoughArguments,
     // iso
     ArgumentOutOfDomain,
     IllegalByteSequence,
@@ -37,3 +37,11 @@ pub const Errno = enum(u32) {
 };
 
 pub export var errno: u32 = 0;
+pub fn geterr() Error {
+    const err: u16 = @truncate(errno);
+    return @errorCast(@errorFromInt(err));
+}
+
+pub fn seterr(errnum: Error) void {
+    errno = @intFromError(errnum);
+}
