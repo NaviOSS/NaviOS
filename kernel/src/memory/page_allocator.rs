@@ -5,20 +5,25 @@ use core::{
     mem::MaybeUninit,
 };
 
+use alloc::collections::linked_list::LinkedList;
+
 use crate::{debug, kernel, utils::Locked};
 
 use super::{
     align_up,
-    paging::{current_root_table, EntryFlags, IterPage, Page, PAGE_SIZE},
+    paging::{current_root_table, EntryFlags, IterPage, MapToError, Page, PAGE_SIZE},
     sorcery::ROOT_BINDINGS,
 };
-
-/// Allocator for large kernel memory allocations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MemoryMapping {
+    start: usize,
+    end: usize,
+}
+// TODO: make own LinkedList type because this is abanoded by rust
 pub struct PageAllocator {
     heap_start: usize,
     heap_end: usize,
-    current_page: Page,
-    allocations: usize,
+    mappings: LinkedList<MemoryMapping>,
 }
 
 impl PageAllocator {
@@ -29,115 +34,65 @@ impl PageAllocator {
         debug!(PageAllocator, "initialized allocator");
         self.heap_start = start as usize;
         self.heap_end = self.heap_start + size;
-        self.current_page = Page::containing_address(self.heap_start);
-        self.allocations = 0;
-    }
-    #[inline(always)]
-    pub fn bump(&mut self) -> Option<Page> {
-        if self.current_page.start_address >= self.heap_end {
-            return None;
-        }
-
-        let results = self.current_page;
-        self.current_page = Page::containing_address(self.current_page.start_address + PAGE_SIZE);
-        Some(results)
-    }
-
-    pub fn shrink(&mut self) {
-        self.current_page = Page::containing_address(self.current_page.start_address - PAGE_SIZE);
-        unsafe {
-            current_root_table().unmap(self.current_page);
-        }
     }
 
     /// allocates `page_count` number of contiguous pages
     /// returns a pointer to the start of the allocated memory, or an error if allocation fails.
-    pub fn allocmut(&mut self, page_count: usize) -> Option<*mut u8> {
-        let mut results = None;
+    pub fn allocmut(&mut self, page_count: usize) -> Result<*mut u8, MapToError> {
+        let start = self
+            .mappings
+            .back()
+            .map(|mapping| mapping.end)
+            .unwrap_or(self.heap_start);
 
-        if page_count == 1 {
-            let start_page = Page::containing_address(self.heap_start);
-            let end_page = Page::containing_address(self.heap_end);
+        let end = start + page_count * PAGE_SIZE;
+        let start_page = Page::containing_address(start);
 
-            let mut iter = IterPage {
-                start: start_page,
-                end: end_page,
-            };
+        let iter = IterPage {
+            start: start_page,
+            end: Page::containing_address(end),
+        };
 
-            while let Some(page) = iter.next() {
-                unsafe {
-                    if current_root_table().get_frame(page).is_none() {
-                        current_root_table()
-                            .map_to(
-                                page,
-                                kernel().frame_allocator().allocate_frame()?,
-                                EntryFlags::PRESENT | EntryFlags::WRITABLE,
-                            )
-                            .ok()?;
-
-                        results = Some(page.start_address as *mut u8);
-                    }
-                }
-            }
-        } else {
-            let page = self.bump()?;
+        for page in iter {
+            let frame = kernel()
+                .frame_allocator()
+                .allocate_frame()
+                .ok_or(MapToError::FrameAllocationFailed)?;
             unsafe {
-                let frame = kernel().frame_allocator().allocate_frame()?;
-                current_root_table()
-                    .map_to(page, frame, EntryFlags::PRESENT | EntryFlags::WRITABLE)
-                    .ok()?;
-
-                results = Some(page.start_address as *mut u8);
-            }
-
-            for i in 1..page_count {
-                let page = self.bump();
-
-                if page.is_none() {
-                    for _ in 0..i + 1 {
-                        self.shrink();
-                        return None;
-                    }
-                }
-                unsafe {
-                    let frame = kernel().frame_allocator().allocate_frame()?;
-                    current_root_table()
-                        .map_to(
-                            page.unwrap_unchecked(),
-                            frame,
-                            EntryFlags::PRESENT | EntryFlags::WRITABLE,
-                        )
-                        .ok()?;
-                }
+                current_root_table().map_to(
+                    page,
+                    frame,
+                    EntryFlags::PRESENT | EntryFlags::WRITABLE,
+                )?;
             }
         }
-        if results.is_some() {
-            self.allocations += 1;
-        }
-        results
+
+        self.mappings.push_back(MemoryMapping { start, end });
+
+        Ok(start_page.start_address as *mut u8)
     }
 
     unsafe fn deallocmut(&mut self, ptr: *mut u8, size: usize) {
-        let start = Page::containing_address(ptr as usize);
-        let end = Page::containing_address(start.start_address + size);
+        let start = ptr as usize;
+        let end = start + size;
+        let this_mappings = MemoryMapping { start, end };
+        for (i, mappings) in self.mappings.iter().enumerate() {
+            if *mappings == this_mappings {
+                let start = Page::containing_address(start);
+                let end = Page::containing_address(end);
 
-        let iter = IterPage { start, end };
-
-        for page in iter {
-            if page == Page::containing_address(self.current_page.start_address - PAGE_SIZE) {
-                self.shrink();
-                continue;
-            }
-
-            unsafe {
-                current_root_table().unmap(page);
+                let iter = IterPage { start, end };
+                for page in iter {
+                    unsafe {
+                        current_root_table().unmap(page);
+                    }
+                }
+                self.mappings.remove(i);
+                return;
             }
         }
 
-        self.allocations -= 1;
-        if self.allocations == 0 {
-            self.current_page = Page::containing_address(self.heap_start);
-        }
+        panic!("PageAllocator: couldn't dealloc {:#x}!", ptr as usize);
     }
 }
 

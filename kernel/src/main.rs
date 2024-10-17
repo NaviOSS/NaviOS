@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 #![feature(allocator_api)]
+#![feature(linked_list_remove)]
 #[cfg(feature = "test")]
 mod test;
 
