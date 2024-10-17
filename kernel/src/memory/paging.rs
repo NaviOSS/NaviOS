@@ -115,6 +115,7 @@ bitflags! {
 }
 
 #[derive(Debug, Clone)]
+#[repr(C)]
 pub struct PageTable {
     pub entries: [Entry; ENTRY_COUNT],
 }
@@ -226,7 +227,7 @@ impl Entry {
     pub fn mapped_to(&self) -> Option<&'static mut PageTable> {
         if self.is_mapped() {
             let addr = self.frame().unwrap().start_address;
-            let virt_addr = addr + kernel().phy_offset;
+            let virt_addr = addr | kernel().phy_offset;
             let entry_ptr = virt_addr as *mut PageTable;
 
             return Some(unsafe { &mut *entry_ptr });

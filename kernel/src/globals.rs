@@ -3,7 +3,7 @@ use core::{cell::UnsafeCell, mem::MaybeUninit};
 use spin::Mutex;
 
 use crate::{
-    memory::{allocator::LinkedListAllocator, frame_allocator::RegionAllocator},
+    memory::{buddy_allocator::BuddyAllocator, frame_allocator::RegionAllocator},
     terminal::framebuffer::Terminal,
     threading::Scheduler,
     utils::{elf::Elf, Locked},
@@ -66,8 +66,9 @@ pub fn scheduler() -> &'static mut Scheduler {
 }
 
 #[global_allocator]
-static GLOBAL_ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new());
+static GLOBAL_ALLOCATOR: Locked<MaybeUninit<BuddyAllocator>> =
+    unsafe { Locked::new(BuddyAllocator::new()) };
 
-pub fn global_allocator() -> &'static Mutex<LinkedListAllocator> {
+pub fn global_allocator() -> &'static Mutex<MaybeUninit<BuddyAllocator<'static>>> {
     &GLOBAL_ALLOCATOR.inner
 }

@@ -92,7 +92,12 @@ impl Terminal {
             buffer[i] = 0;
         }
 
-        serial!("{} {:#?}\n", buffer.len(), info);
+        serial!(
+            "{} {:#?} at {:#x}\n",
+            buffer.len(),
+            info,
+            buffer.as_ptr() as usize
+        );
 
         let this = Self {
             buffer,

@@ -2,6 +2,7 @@ pub mod allocator;
 pub mod buddy_allocator;
 pub mod frame_allocator;
 pub mod paging;
+pub mod sorcery;
 
 // types for better code reability
 pub type VirtAddr = usize;
@@ -44,11 +45,9 @@ pub const fn align_down(x: usize, alignment: usize) -> usize {
     x & !(alignment - 1)
 }
 
-pub const INIT_HEAP_SIZE: usize = (4 * 9) * (1024 * 1024);
+pub const INIT_HEAP_SIZE: usize = 64 * (1024 * 1024);
 
 // TODO: make the memory module more generic for different architectures; for now we can only support x86_64 because of the bootloader crate so take into account making our own bootloader for aarch64
-// TODO: maybe make the heap live in physical space instead?
-// TODO: add a heap MAX_SIZE
 /// unsafe because `heap_start`..`INIT_HEAP_SIZE` must be unmapped
 unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
     serial!(
@@ -79,7 +78,10 @@ unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
         };
     }
 
-    global_allocator().lock().init(heap_start, INIT_HEAP_SIZE);
+    global_allocator()
+        .lock()
+        .assume_init_mut()
+        .init(heap_start, INIT_HEAP_SIZE);
     serial!("init done\n");
     Ok(())
 }

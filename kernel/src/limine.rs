@@ -135,7 +135,7 @@ pub fn get_framebuffer() -> (&'static mut [u8], FrameBufferInfo) {
     (buffer, info)
 }
 
-fn get_ramdisk_file() -> &'static File {
+pub fn get_ramdisk_file() -> &'static File {
     MODULES_REQUEST
         .get_response()
         .expect("failed getting modules!")

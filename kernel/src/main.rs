@@ -173,6 +173,7 @@ pub extern "C" fn kinit() {
     kernel().frame_allocator = Mutex::new(RegionAllocator::new());
     kernel().elf = elf;
 
+    memory::sorcery::init_page_table();
     memory::init(get_phy_offset_end());
     Terminal::init_finish();
     println!("Terminal initialized successfuly");
@@ -184,6 +185,10 @@ pub extern "C" fn kinit() {
         vfs::init();
 
         let mut ramdisk = limine::get_ramdisk();
+        serial!(
+            "ramdisk at {:#x}\n",
+            limine::get_ramdisk_file().addr() as usize
+        );
         let mut ramfs = Box::new(vfs::ramfs::RamFS::new());
 
         VFS::unpack_tar(&mut *ramfs, &mut ramdisk).expect("failed unpacking archive");
