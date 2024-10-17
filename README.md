@@ -37,7 +37,7 @@ otherwise you have the iso feel free to do whatever you want with it
 # current features:
 - basics (x86_64: IDT, GDT, interrupts, ACPI, APIC, APIC keyboard, APIC timer, ...)
 - pmm (bitmap allocator)
-- linked-list heap allocator
+- buddy allocator
 - generic keyboard driver
     - ps/2 scancode set 1 support
 - basic ring0 framebuffer terminal
@@ -67,9 +67,10 @@ currently using the [limine](https://limine-bootloader.org/) bootloader
 # roadmap
 note: i dont know much about osdev (this is my first OS), stuff prefixed with ? is missing info and more stuff may be added in the feature
 ## next:
+- [ ] Devices
+- [ ] Terminal re-work again
 - [ ] sync
     - [ ] improve the peformance of the frame_allocator it takes 5 seconds to map 7*4 mbs without kvm?
-- [ ] replace the current linked list allocator with a good buddy allocator
 - [ ] remove the bash requirement
 - [ ] update README.md
 
