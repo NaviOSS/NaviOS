@@ -20,7 +20,7 @@ use super::{align_down, frame_allocator::RegionAllocator, VirtAddr};
 pub struct Page {
     pub start_address: VirtAddr,
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IterPage {
     pub start: Page,
     pub end: Page,
@@ -276,6 +276,12 @@ impl PageTable {
         let entry = &level_1_table[level_1_index];
 
         entry.frame()
+    }
+
+    /// unmap page and all of it's entries
+    pub fn unmap(&mut self, page: Page) {
+        self.get_frame(page)
+            .inspect(|x| kernel().frame_allocator().deallocate_frame(*x));
     }
 }
 

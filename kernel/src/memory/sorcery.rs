@@ -59,6 +59,20 @@ impl<const N: usize> PageTableBindings<N> {
         for binding in &self.bindings {
             binding.apply_binding(from_page_table, to_page_table);
         }
+        debug!(PageTableBindings<N>, "done");
+    }
+
+    /// gets a PageTableBinding named `name`, returns it's start address as a pointer and it's
+    /// size, pointer is vaild only if that binding is applied on the current page table, and it's
+    /// pages is mapped
+    pub fn get(&self, name: &'static str) -> Option<(*mut u8, usize)> {
+        for binding in &self.bindings {
+            if binding.name == name {
+                return Some((binding.to.0 as *mut u8, binding.to.1 - binding.to.0));
+            }
+        }
+
+        None
     }
     /// creates a page table from bindings applied from current root pagetable
     pub fn create_page_table(&self) -> Result<&'static mut PageTable, MapToError> {
@@ -104,7 +118,7 @@ macro_rules! create_page_table_bindings {
 }
 
 lazy_static! {
-    pub static ref ROOT_BINDINGS: PageTableBindings<3> = {
+    pub static ref ROOT_BINDINGS: PageTableBindings<4> = {
         let heap_start = limine::get_phy_offset_end();
         let heap_end = heap_start + *MEMORY_END;
         // we only want to keep the phys mem mapping and the TOP_MOST_2GB
@@ -113,6 +127,7 @@ lazy_static! {
         create_page_table_bindings!(
             "PHYS_MEM" => { limine::get_phy_offset(), limine::get_phy_offset_end() },
             "HEAP" => { 0, 0 => heap_start, heap_end },
+            "LARGE_HEAP" => { 0, 0 => heap_end, heap_end + *MEMORY_END },
             "TOP_MOST_2GB" => { 0xffffffff80000000, 0xffffffffffffffff }
         )
     };

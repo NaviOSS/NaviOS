@@ -1,6 +1,6 @@
-pub mod allocator;
 pub mod buddy_allocator;
 pub mod frame_allocator;
+pub mod page_allocator;
 pub mod paging;
 pub mod sorcery;
 
@@ -45,11 +45,16 @@ pub const fn align_down(x: usize, alignment: usize) -> usize {
     x & !(alignment - 1)
 }
 
-pub const INIT_HEAP_SIZE: usize = 64 * (1024 * 1024);
+pub const INIT_HEAP_SIZE: usize = 16 * (1024 * 1024);
 
 // TODO: make the memory module more generic for different architectures; for now we can only support x86_64 because of the bootloader crate so take into account making our own bootloader for aarch64
 /// unsafe because `heap_start`..`INIT_HEAP_SIZE` must be unmapped
 unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
+    page_allocator::GLOBAL_PAGE_ALLOCATOR
+        .assume_init_ref()
+        .inner
+        .lock()
+        .init();
     serial!(
         "initing the heap... 0x{:x}..0x{:x}\n",
         heap_start,

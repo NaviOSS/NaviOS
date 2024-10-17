@@ -15,10 +15,15 @@ use crate::{
     debug,
     drivers::keyboard::{Key, KeyCode, KeyFlags},
     kernel,
-    memory::align_down,
+    memory::{
+        align_down,
+        page_allocator::{PageAllocator, GLOBAL_PAGE_ALLOCATOR},
+    },
     println, serial, terminal,
+    utils::Locked,
 };
 
+type PageAlloc = &'static Locked<PageAllocator>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalMode {
     Init,
@@ -79,7 +84,8 @@ pub struct Terminal {
 }
 
 lazy_static! {
-    pub static ref VIEWPORT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
+    pub static ref VIEWPORT: Mutex<Vec<u8, PageAlloc>> =
+        unsafe { Mutex::new(Vec::new_in(GLOBAL_PAGE_ALLOCATOR.assume_init_ref())) };
 }
 
 impl Terminal {
@@ -124,6 +130,7 @@ impl Terminal {
 
     pub fn init_finish() {
         terminal().ready = true;
+        VIEWPORT.lock().reserve(terminal().buffer.len() * 4);
         VIEWPORT.lock().resize(terminal().buffer.len(), 0);
     }
 
@@ -198,7 +205,7 @@ impl Terminal {
     }
 
     #[inline]
-    fn scroll_up(&mut self, viewport: &mut Vec<u8>) {
+    fn scroll_up(&mut self, viewport: &mut Vec<u8, PageAlloc>) {
         let scroll_amount = self.scroll_amount();
         if self.viewport_start >= scroll_amount {
             self.viewport_start -= scroll_amount;
@@ -221,7 +228,7 @@ impl Terminal {
     #[inline]
     /// if make_space it resizes viewport if possible if not removes the first line from buffer
     /// (shifts the buffer up by 1 line)
-    fn scroll_down(&mut self, make_space: bool, viewport: &mut Vec<u8>) {
+    fn scroll_down(&mut self, make_space: bool, viewport: &mut Vec<u8, PageAlloc>) {
         let scroll_amount = self.scroll_amount();
         let len = viewport.len();
 
@@ -239,7 +246,7 @@ impl Terminal {
         self.draw_viewport(viewport);
     }
 
-    fn newline(&mut self, viewport: &mut Vec<u8>) {
+    fn newline(&mut self, viewport: &mut Vec<u8, PageAlloc>) {
         self.y_pos += RASTER_HEIGHT.val();
         self.x_pos = 0;
 
@@ -352,7 +359,7 @@ impl Terminal {
     }
 
     #[inline(always)]
-    fn putc(&mut self, c: char, color: RGB, viewport: &mut Vec<u8>) {
+    fn putc(&mut self, c: char, color: RGB, viewport: &mut Vec<u8, PageAlloc>) {
         let glyph = Self::raster(c);
 
         if (self.x_pos + glyph.width()) > self.info.stride {
@@ -373,7 +380,7 @@ impl Terminal {
     }
 
     const INPUT_CHAR: (u8, u8, u8) = (170, 200, 30);
-    pub fn stdin_putc(&mut self, c: char, viewport: &mut Vec<u8>) {
+    pub fn stdin_putc(&mut self, c: char, viewport: &mut Vec<u8, PageAlloc>) {
         // removing the _ if we are in stdin mode
         if self.mode == TerminalMode::Stdin && !self.stdin_buffer.is_empty() {
             self.remove_char('_', viewport)
@@ -505,7 +512,7 @@ impl Terminal {
         self.parse_ansi(bytes)
     }
 
-    fn write_slice(&mut self, str: &str, viewport: &mut Vec<u8>) {
+    fn write_slice(&mut self, str: &str, viewport: &mut Vec<u8, PageAlloc>) {
         let old_mode = self.mode;
         self.mode = TerminalMode::Stdout;
         self.stdout_buffer.push_str(str);
