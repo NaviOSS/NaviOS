@@ -1,5 +1,5 @@
+use super::paging::PAGE_SIZE;
 use core::{arch::asm, fmt::Display};
-
 use lazy_static::lazy_static;
 
 use crate::{
@@ -127,7 +127,7 @@ lazy_static! {
         create_page_table_bindings!(
             "PHYS_MEM" => { limine::get_phy_offset(), limine::get_phy_offset_end() },
             "HEAP" => { 0, 0 => heap_start, heap_end },
-            "LARGE_HEAP" => { 0, 0 => heap_end, 0xffffffff80000000 },
+            "LARGE_HEAP" => { 0, 0 => super::align_up(heap_end, PAGE_SIZE), 0xffffffff80000000 },
             "TOP_MOST_2GB" => { 0xffffffff80000000, 0xffffffffffffffff }
         )
     };

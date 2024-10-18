@@ -73,6 +73,8 @@ note: i dont know much about osdev (this is my first OS), stuff prefixed with ? 
     - [ ] improve the peformance of the frame_allocator it takes 5 seconds to map 7*4 mbs without kvm?
 - [ ] remove the bash requirement
 - [ ] update README.md
+- [ ] some bechmarking tools
+    - [ ] PIT timer?
 
 ## roadmap
 - [X] x86_64 basics

@@ -1,11 +1,12 @@
 //! bump allocator for large kernel allocations
+//! it is still kinda slow for really large allocations it takes about 1 second to allocate 4 mbs
+//! makes use of memmory mapping and `FrameAllocator` (TODO: check if these are possible reasons it
+//! is slow)
 
 use core::{
     alloc::{AllocError, Allocator, GlobalAlloc},
     mem::MaybeUninit,
 };
-
-use alloc::collections::linked_list::LinkedList;
 
 use crate::{debug, kernel, utils::Locked};
 
@@ -14,16 +15,12 @@ use super::{
     paging::{current_root_table, EntryFlags, IterPage, MapToError, Page, PAGE_SIZE},
     sorcery::ROOT_BINDINGS,
 };
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct MemoryMapping {
-    start: usize,
-    end: usize,
-}
-// TODO: make own LinkedList type because this is abanoded by rust
+
 pub struct PageAllocator {
     heap_start: usize,
     heap_end: usize,
-    mappings: LinkedList<MemoryMapping>,
+    last_allocation: (usize, usize),
+    allocations: usize,
 }
 
 impl PageAllocator {
@@ -34,16 +31,13 @@ impl PageAllocator {
         debug!(PageAllocator, "initialized allocator");
         self.heap_start = start as usize;
         self.heap_end = self.heap_start + size;
+        self.last_allocation = (self.heap_start, self.heap_start);
     }
 
     /// allocates `page_count` number of contiguous pages
     /// returns a pointer to the start of the allocated memory, or an error if allocation fails.
     pub fn allocmut(&mut self, page_count: usize) -> Result<*mut u8, MapToError> {
-        let start = self
-            .mappings
-            .back()
-            .map(|mapping| mapping.end)
-            .unwrap_or(self.heap_start);
+        let start = self.last_allocation.1;
 
         let end = start + page_count * PAGE_SIZE;
         let start_page = Page::containing_address(start);
@@ -67,32 +61,28 @@ impl PageAllocator {
             }
         }
 
-        self.mappings.push_back(MemoryMapping { start, end });
-
+        self.last_allocation = (start, end);
+        self.allocations += 1;
         Ok(start_page.start_address as *mut u8)
     }
 
     unsafe fn deallocmut(&mut self, ptr: *mut u8, size: usize) {
         let start = ptr as usize;
         let end = start + size;
-        let this_mappings = MemoryMapping { start, end };
-        for (i, mappings) in self.mappings.iter().enumerate() {
-            if *mappings == this_mappings {
-                let start = Page::containing_address(start);
-                let end = Page::containing_address(end);
-
-                let iter = IterPage { start, end };
-                for page in iter {
-                    unsafe {
-                        current_root_table().unmap(page);
-                    }
-                }
-                self.mappings.remove(i);
-                return;
+        let iter = IterPage {
+            start: Page::containing_address(start),
+            end: Page::containing_address(end),
+        };
+        for page in iter {
+            unsafe {
+                current_root_table().unmap(page);
             }
         }
 
-        panic!("PageAllocator: couldn't dealloc {:#x}!", ptr as usize);
+        self.allocations -= 1;
+        if self.allocations == 0 {
+            self.last_allocation = (self.heap_start, self.heap_start);
+        }
     }
 }
 
