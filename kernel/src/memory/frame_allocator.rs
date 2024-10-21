@@ -2,6 +2,9 @@
 
 use core::slice;
 
+use lazy_static::lazy_static;
+use spin::Mutex;
+
 use crate::debug;
 
 use super::{align_down, align_up, paging::PAGE_SIZE, PhysAddr};
@@ -174,4 +177,28 @@ impl RegionAllocator {
     pub fn deallocate_frame(&mut self, frame: Frame) {
         self.set_unused(frame.start_address);
     }
+
+    pub fn memoy_mapped(&self) -> usize {
+        self.bitmap
+            .iter()
+            .fold(0, |acc, x| acc + x.count_ones() as usize)
+    }
+}
+lazy_static! {
+    pub static ref REGION_ALLOCATOR: Mutex<RegionAllocator> = Mutex::new(RegionAllocator::new());
+}
+#[inline(always)]
+pub fn allocate_frame() -> Option<Frame> {
+    REGION_ALLOCATOR.lock().allocate_frame()
+}
+
+#[inline(always)]
+pub fn deallocate_frame(frame: Frame) {
+    REGION_ALLOCATOR.lock().deallocate_frame(frame)
+}
+
+/// returns the number of mapped frames
+#[inline(always)]
+pub fn memory_mapped() -> usize {
+    REGION_ALLOCATOR.lock().memoy_mapped()
 }

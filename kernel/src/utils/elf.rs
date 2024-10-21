@@ -7,7 +7,7 @@ use macros::display_consts;
 use crate::{
     kernel,
     memory::{
-        copy_to_userspace,
+        copy_to_userspace, frame_allocator,
         paging::{EntryFlags, IterPage, Page, PageTable, PAGE_SIZE},
     },
     threading::expose::ErrorStatus,
@@ -379,10 +379,7 @@ impl<'a> Elf<'a> {
 
             unsafe {
                 for page in iter {
-                    let frame = kernel()
-                        .frame_allocator()
-                        .allocate_frame()
-                        .ok_or(ElfError::MapToError)?;
+                    let frame = frame_allocator::allocate_frame().ok_or(ElfError::MapToError)?;
 
                     page_table
                         .map_to(page, frame, entry_flags)

@@ -45,9 +45,7 @@ macro_rules! alloc_map {
         let mut frames: [Frame; PAGES] = [Frame::containing_address(0); PAGES];
 
         for i in 0..frames.len() {
-            frames[i] = kernel()
-                .frame_allocator()
-                .allocate_frame()
+            frames[i] = $crate::memory::frame_allocator::allocate_frame()
                 .ok_or(MapToError::FrameAllocationFailed)?;
         }
 

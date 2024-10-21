@@ -67,10 +67,6 @@ currently using the [limine](https://limine-bootloader.org/) bootloader
 # roadmap
 note: i dont know much about osdev (this is my first OS), stuff prefixed with ? is missing info and more stuff may be added in the feature
 ## next:
-- [ ] Devices
-- [ ] Terminal re-work again
-- [ ] sync
-    - [ ] improve the peformance of the frame_allocator it takes 5 seconds to map 7*4 mbs without kvm?
 - [ ] remove the bash requirement
 - [ ] update README.md
 - [ ] some bechmarking tools

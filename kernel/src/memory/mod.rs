@@ -68,10 +68,7 @@ unsafe fn init_heap(heap_start: usize) -> Result<(), MapToError> {
     let flags = EntryFlags::PRESENT | EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE;
 
     for page in page_range {
-        let frame = kernel()
-            .frame_allocator()
-            .allocate_frame()
-            .ok_or(MapToError::FrameAllocationFailed)?;
+        let frame = frame_allocator::allocate_frame().ok_or(MapToError::FrameAllocationFailed)?;
 
         unsafe {
             current_root_table().map_to(page, frame, flags)?;

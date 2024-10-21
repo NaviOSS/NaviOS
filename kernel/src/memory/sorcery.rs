@@ -5,7 +5,7 @@ use lazy_static::lazy_static;
 use crate::{
     debug, kernel,
     limine::{self, MEMORY_END},
-    memory::frame_allocator::Frame,
+    memory::frame_allocator::{self, Frame},
 };
 
 use super::paging::{IterPage, MapToError, Page, PageTable};
@@ -77,10 +77,8 @@ impl<const N: usize> PageTableBindings<N> {
     /// creates a page table from bindings applied from current root pagetable
     pub fn create_page_table(&self) -> Result<&'static mut PageTable, MapToError> {
         let table = {
-            let frame = kernel()
-                .frame_allocator()
-                .allocate_frame()
-                .ok_or(MapToError::FrameAllocationFailed)?;
+            let frame =
+                frame_allocator::allocate_frame().ok_or(MapToError::FrameAllocationFailed)?;
 
             let virt_start_addr = frame.start_address | kernel().phy_offset;
             let table = unsafe { &mut *(virt_start_addr as *mut PageTable) };
@@ -152,5 +150,5 @@ pub fn init_page_table() {
     // de-allocating the previous root table
     let virt_addr = previous_table as *mut _ as usize;
     let frame = Frame::containing_address(virt_addr - limine::get_phy_offset());
-    kernel().frame_allocator().deallocate_frame(frame)
+    frame_allocator::deallocate_frame(frame)
 }

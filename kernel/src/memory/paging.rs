@@ -14,7 +14,7 @@ use core::{
 
 use crate::memory::frame_allocator::Frame;
 
-use super::{align_down, frame_allocator::RegionAllocator, VirtAddr};
+use super::{align_down, frame_allocator, VirtAddr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Page {
@@ -89,7 +89,7 @@ impl Entry {
         let frame = self.frame().unwrap();
 
         if level == 0 {
-            kernel().frame_allocator().deallocate_frame(frame);
+            frame_allocator::deallocate_frame(frame);
             return;
         }
         let table = &mut *((frame.start_address + kernel().phy_offset) as *mut PageTable);
@@ -146,7 +146,7 @@ impl PageTable {
         let table_addr = self as *mut PageTable as VirtAddr;
 
         let frame = Frame::containing_address(table_addr - kernel().phy_offset);
-        kernel().frame_allocator().deallocate_frame(frame)
+        frame_allocator::deallocate_frame(frame)
     }
 }
 
@@ -189,11 +189,7 @@ impl Entry {
     /// if the entry is not present it allocates a new frame and uses it's address as entry's
     /// then returns the entry address as a pagetable
     #[cfg(target_arch = "x86_64")]
-    fn map(
-        &mut self,
-        flags: EntryFlags,
-        frame_allocator: &mut RegionAllocator,
-    ) -> Result<&'static mut PageTable, MapToError> {
+    fn map(&mut self, flags: EntryFlags) -> Result<&'static mut PageTable, MapToError> {
         use crate::kernel;
 
         if self.is_mapped() {
@@ -205,9 +201,8 @@ impl Entry {
 
             Ok(unsafe { &mut *(entry_ptr) })
         } else {
-            let frame = frame_allocator
-                .allocate_frame()
-                .ok_or(MapToError::FrameAllocationFailed)?;
+            let frame =
+                frame_allocator::allocate_frame().ok_or(MapToError::FrameAllocationFailed)?;
 
             let addr = frame.start_address;
             self.set(flags, addr);
@@ -252,12 +247,11 @@ impl PageTable {
     ) -> Result<(), MapToError> {
         let (level_1_index, level_2_index, level_3_index, level_4_index) =
             translate(page.start_address);
-        let frame_allocator = &mut kernel().frame_allocator();
-        let level_3_table = self[level_4_index].map(flags, frame_allocator)?;
+        let level_3_table = self[level_4_index].map(flags)?;
 
-        let level_2_table = level_3_table[level_3_index].map(flags, frame_allocator)?;
+        let level_2_table = level_3_table[level_3_index].map(flags)?;
 
-        let level_1_table = level_2_table[level_2_index].map(flags, frame_allocator)?;
+        let level_1_table = level_2_table[level_2_index].map(flags)?;
 
         let entry = &mut level_1_table[level_1_index];
 
@@ -281,16 +275,13 @@ impl PageTable {
     /// unmap page and all of it's entries
     pub fn unmap(&mut self, page: Page) {
         self.get_frame(page)
-            .inspect(|x| kernel().frame_allocator().deallocate_frame(*x));
+            .inspect(|x| frame_allocator::deallocate_frame(*x));
     }
 }
 
 /// allocates a pml4 and returns its physical address
 pub fn allocate_pml4() -> Result<PhysAddr, MapToError> {
-    let frame = kernel()
-        .frame_allocator()
-        .allocate_frame()
-        .ok_or(MapToError::FrameAllocationFailed)?;
+    let frame = frame_allocator::allocate_frame().ok_or(MapToError::FrameAllocationFailed)?;
 
     let virt_start_addr = frame.start_address | kernel().phy_offset;
     let table = unsafe { &mut *(virt_start_addr as *mut PageTable) };

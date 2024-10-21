@@ -7,10 +7,10 @@ use core::alloc::{AllocError, Allocator, GlobalAlloc};
 
 use lazy_static::lazy_static;
 
-use crate::{debug, kernel, utils::Locked};
+use crate::{debug, utils::Locked};
 
 use super::{
-    align_up,
+    align_up, frame_allocator,
     paging::{current_root_table, EntryFlags, IterPage, MapToError, Page, PAGE_SIZE},
     sorcery::ROOT_BINDINGS,
 };
@@ -54,10 +54,8 @@ impl PageAllocator {
         };
 
         for page in iter {
-            let frame = kernel()
-                .frame_allocator()
-                .allocate_frame()
-                .ok_or(MapToError::FrameAllocationFailed)?;
+            let frame =
+                frame_allocator::allocate_frame().ok_or(MapToError::FrameAllocationFailed)?;
             unsafe {
                 current_root_table().map_to(
                     page,

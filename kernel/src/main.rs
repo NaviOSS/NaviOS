@@ -29,10 +29,8 @@ use globals::*;
 use limine::get_phy_offset;
 use limine::get_phy_offset_end;
 use limine::MEMORY_SIZE;
-use memory::frame_allocator::RegionAllocator;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
-use spin::Mutex;
 use terminal::FRAMEBUFFER_TERMINAL;
 use threading::Scheduler;
 
@@ -169,7 +167,6 @@ pub extern "C" fn kinit() {
 
     kernel().phy_offset = phy_offset;
     kernel().rsdp_addr = limine::rsdp_addr();
-    kernel().frame_allocator = Mutex::new(RegionAllocator::new());
     kernel().elf = elf;
 
     memory::sorcery::init_page_table();

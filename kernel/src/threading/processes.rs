@@ -4,7 +4,7 @@ use super::{ARGV_START, STACK_END};
 
 use crate::drivers::vfs::expose::DirIter;
 use crate::drivers::vfs::{vfs, FileDescriptor, FS};
-use crate::memory::{align_up, copy_to_userspace};
+use crate::memory::{align_up, copy_to_userspace, frame_allocator};
 use crate::utils::elf::{Elf, ElfError};
 use crate::{arch, debug, kernel, scheduler};
 
@@ -296,10 +296,7 @@ impl Process {
         let page_end = self.data_break_actual();
         let new_page = Page::containing_address(page_end);
 
-        let frame = kernel()
-            .frame_allocator()
-            .allocate_frame()
-            .ok_or(MapToError::FrameAllocationFailed)?;
+        let frame = frame_allocator::allocate_frame().ok_or(MapToError::FrameAllocationFailed)?;
 
         unsafe {
             (*self.root_page_table).map_to(
@@ -323,7 +320,7 @@ impl Process {
         let new_page = Page::containing_address(page_end);
 
         let frame = unsafe { (*self.root_page_table).get_frame(new_page).unwrap() };
-        kernel().frame_allocator().deallocate_frame(frame);
+        frame_allocator::deallocate_frame(frame);
 
         self.data_pages -= 1;
     }

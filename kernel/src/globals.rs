@@ -3,7 +3,7 @@ use core::{cell::UnsafeCell, mem::MaybeUninit};
 use spin::Mutex;
 
 use crate::{
-    memory::{buddy_allocator::BuddyAllocator, frame_allocator::RegionAllocator},
+    memory::buddy_allocator::BuddyAllocator,
     threading::Scheduler,
     utils::{elf::Elf, Locked},
 };
@@ -11,7 +11,6 @@ use crate::{
 /// boot info
 #[derive(Debug)]
 pub struct Kernel<'a> {
-    pub frame_allocator: Mutex<RegionAllocator>,
     pub phy_offset: usize,
     pub rsdp_addr: Option<u64>,
     pub elf: Elf<'a>,
@@ -32,14 +31,6 @@ impl KernelWrapper {
 }
 
 pub static KERNEL: KernelWrapper = KernelWrapper(UnsafeCell::new(MaybeUninit::zeroed()));
-
-impl Kernel<'_> {
-    // TODO: lock the frame_allocator!!!
-    #[inline]
-    pub fn frame_allocator(&'static mut self) -> spin::MutexGuard<'static, RegionAllocator> {
-        self.frame_allocator.lock()
-    }
-}
 
 pub fn kernel<'a>() -> &'a mut Kernel<'a> {
     KERNEL.get()

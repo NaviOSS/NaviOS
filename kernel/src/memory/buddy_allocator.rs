@@ -3,7 +3,7 @@ use core::{
     mem::MaybeUninit,
 };
 
-use crate::{debug, kernel, utils::Locked};
+use crate::{debug, memory::frame_allocator, utils::Locked};
 
 use super::{
     align_up,
@@ -123,7 +123,7 @@ impl BuddyAllocator<'_> {
         for page in iter {
             unsafe {
                 if current_root_table().get_frame(page).is_none() {
-                    let frame = kernel().frame_allocator().allocate_frame()?;
+                    let frame = frame_allocator::allocate_frame()?;
                     current_root_table()
                         .map_to(page, frame, EntryFlags::PRESENT | EntryFlags::WRITABLE)
                         .ok()?;

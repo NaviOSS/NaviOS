@@ -1,4 +1,8 @@
-use crate::{kernel, limine::MEMORY_SIZE, memory::paging::PAGE_SIZE, scheduler};
+use crate::{
+    limine::MEMORY_SIZE,
+    memory::{frame_allocator, paging::PAGE_SIZE},
+    scheduler,
+};
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -10,15 +14,7 @@ pub struct SysInfo {
 
 #[no_mangle]
 pub fn info(sysinfo: &mut SysInfo) {
-    let mut used_mem = 0;
-
-    for byte in &*kernel().frame_allocator().bitmap {
-        for i in 0..8 {
-            if (*byte >> i) & 1 == 1 {
-                used_mem += PAGE_SIZE;
-            }
-        }
-    }
+    let used_mem = frame_allocator::memory_mapped() * PAGE_SIZE;
 
     *sysinfo = SysInfo {
         total_mem: *MEMORY_SIZE,
