@@ -417,3 +417,7 @@ pub fn encode_ps2_set_1(code: u8) {
 
     reset_unencoded_buffer()
 }
+
+pub trait HandleKey {
+    fn handle_key(&mut self, key: Key);
+}

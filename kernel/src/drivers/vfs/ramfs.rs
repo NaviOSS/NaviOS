@@ -1,84 +1,101 @@
 use core::{fmt::Debug, usize};
 
 use alloc::string::ToString;
+use alloc::sync::Arc;
 use alloc::vec;
 use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String, vec::Vec};
+use spin::Mutex;
 
+use super::InodeOf;
 use super::{
     expose::{DirEntry, DirIter},
     FSError, FSResult, FileDescriptor, Inode, InodeOps, InodeType, Path, FS,
 };
 
-pub enum RamInode {
+pub enum RamInodeData {
     Data(Vec<u8>),
     Children(BTreeMap<String, usize>),
 }
 
+pub struct RamInode {
+    name: String,
+    data: RamInodeData,
+    inodeid: usize,
+}
 impl RamInode {
-    fn new_file(name: String, data: &[u8], inodeid: usize) -> Inode {
-        Inode {
+    fn new(name: String, data: RamInodeData, inodeid: usize) -> Mutex<Self> {
+        Mutex::new(Self {
             name,
-            inode_type: InodeType::File,
+            data,
             inodeid,
-            ops: Box::new(RamInode::Data(data.to_vec())),
-        }
+        })
     }
 
-    fn new_dir(name: String, inodeid: usize) -> Inode {
-        Inode {
+    fn new_file(name: String, data: &[u8], inodeid: usize) -> InodeOf<Mutex<Self>> {
+        Arc::new(RamInode::new(
             name,
-            inode_type: InodeType::Directory,
+            RamInodeData::Data(data.to_vec()),
             inodeid,
-            ops: Box::new(RamInode::Children(BTreeMap::new())),
-        }
+        ))
+    }
+
+    fn new_dir(name: String, inodeid: usize) -> InodeOf<Mutex<Self>> {
+        Arc::new(RamInode::new(
+            name,
+            RamInodeData::Children(BTreeMap::new()),
+            inodeid,
+        ))
     }
 }
 
-impl InodeOps for RamInode {
+impl InodeOps for Mutex<RamInode> {
     fn size(&self) -> FSResult<usize> {
-        match self {
-            Self::Data(data) => Ok(data.len()),
-            Self::Children(_) => Err(FSError::NotAFile),
+        match self.lock().data {
+            RamInodeData::Data(ref data) => Ok(data.len()),
+            RamInodeData::Children(_) => Err(FSError::NotAFile),
         }
     }
     fn get(&self, name: Path) -> FSResult<Option<usize>> {
-        match self {
-            Self::Children(tree) => Ok(tree.get(name).copied()),
+        match self.lock().data {
+            RamInodeData::Children(ref tree) => Ok(tree.get(name).copied()),
             _ => Err(FSError::NotADirectory),
         }
     }
 
     fn contains(&self, name: Path) -> bool {
-        match self {
-            Self::Children(tree) => tree.contains_key(name),
+        match self.lock().data {
+            RamInodeData::Children(ref tree) => tree.contains_key(name),
             _ => false,
         }
     }
 
-    fn read(&self, buffer: &mut [u8], offset: usize, count: usize) -> FSResult<()> {
-        match self {
-            Self::Data(data) => Ok(buffer[..count].copy_from_slice(&data[offset..offset + count])),
-            _ => Err(FSError::NotAFile),
-        }
-    }
-
-    fn write(&mut self, buffer: &[u8], offset: usize) -> FSResult<()> {
-        match self {
-            Self::Data(data) => {
-                if data.len() < buffer.len() + offset {
-                    data.resize(buffer.len() + offset, 0);
-                }
-
-                data[offset..buffer.len()].copy_from_slice(buffer);
-                Ok(())
+    fn read(&self, buffer: &mut [u8], offset: usize, count: usize) -> FSResult<usize> {
+        match self.lock().data {
+            RamInodeData::Data(ref data) => {
+                buffer[..count].copy_from_slice(&data[offset..offset + count]);
+                Ok(count)
             }
             _ => Err(FSError::NotAFile),
         }
     }
 
-    fn insert(&mut self, name: &str, node: usize) -> FSResult<()> {
-        match self {
-            Self::Children(tree) => {
+    fn write(&self, buffer: &[u8], offset: usize) -> FSResult<usize> {
+        match self.lock().data {
+            RamInodeData::Data(ref mut data) => {
+                if data.len() < buffer.len() + offset {
+                    data.resize(buffer.len() + offset, 0);
+                }
+
+                data[offset..buffer.len()].copy_from_slice(buffer);
+                Ok(buffer.len() - offset)
+            }
+            _ => Err(FSError::NotAFile),
+        }
+    }
+
+    fn insert(&self, name: &str, node: usize) -> FSResult<()> {
+        match self.lock().data {
+            RamInodeData::Children(ref mut tree) => {
                 if tree.contains_key(name) {
                     return Err(FSError::AlreadyExists);
                 }
@@ -88,6 +105,21 @@ impl InodeOps for RamInode {
             }
             _ => Err(FSError::NotADirectory),
         }
+    }
+
+    fn kind(&self) -> InodeType {
+        match self.lock().data {
+            RamInodeData::Children(_) => InodeType::Directory,
+            RamInodeData::Data(_) => InodeType::File,
+        }
+    }
+
+    fn name(&self) -> String {
+        self.lock().name.clone()
+    }
+
+    fn inodeid(&self) -> usize {
+        self.lock().inodeid
     }
 }
 
@@ -104,11 +136,11 @@ impl Debug for RamDirIter {
 }
 
 impl DirIter for RamDirIter {
-    fn next(&mut self) -> Option<&DirEntry> {
+    fn next(&mut self) -> Option<DirEntry> {
         let index = self.index;
         self.index += 1;
 
-        self.dir.get(index)
+        self.dir.get(index).cloned()
     }
 
     fn clone(&self) -> Box<dyn DirIter> {
@@ -134,30 +166,21 @@ impl FS for RamFS {
     }
 
     #[inline]
-    fn get_inode(&self, inode_id: usize) -> FSResult<Option<&Inode>> {
-        Ok(self.inodes.get(inode_id))
-    }
-    #[inline]
-    fn get_inode_mut(&mut self, inode_id: usize) -> FSResult<Option<&mut Inode>> {
-        Ok(self.inodes.get_mut(inode_id))
+    fn get_inode(&self, inode_id: usize) -> FSResult<Option<Inode>> {
+        let node = self.inodes.get(inode_id);
+        Ok(node.map(|node| node.clone()))
     }
 
     fn open(&mut self, path: Path) -> FSResult<FileDescriptor> {
         let file = self.reslove_path(path)?;
+        let node = file.clone();
 
-        let file = file as *mut Inode;
-        Ok(FileDescriptor {
-            mountpoint: self,
-
-            write_pos: 0,
-            read_pos: 0,
-            node: file,
-        })
+        Ok(FileDescriptor::new(self, node))
     }
 
     fn read(&mut self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
         let count = buffer.len();
-        let file_size = unsafe { (*file_descriptor.node).size()? };
+        let file_size = file_descriptor.node.size()?;
 
         let count = if file_descriptor.read_pos + count > file_size {
             file_size - file_descriptor.read_pos
@@ -165,33 +188,29 @@ impl FS for RamFS {
             count
         };
 
-        unsafe {
-            (*file_descriptor.node)
-                .ops
-                .read(buffer, file_descriptor.read_pos, count)?;
-        }
+        file_descriptor
+            .node
+            .read(buffer, file_descriptor.read_pos, count)?;
 
         file_descriptor.read_pos += count;
         Ok(count)
     }
 
-    fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<()> {
-        unsafe {
-            (*file_descriptor.node)
-                .ops
-                .write(buffer, file_descriptor.write_pos)?;
-        }
+    fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<usize> {
+        file_descriptor
+            .node
+            .write(buffer, file_descriptor.write_pos)?;
 
         file_descriptor.write_pos += buffer.len();
 
-        Ok(())
+        Ok(buffer.len())
     }
 
     fn create(&mut self, path: Path) -> FSResult<()> {
         let inodeid = self.inodes.len();
 
         let (resloved, name) = self.reslove_path_uncreated(path)?;
-        resloved.ops.insert(name, inodeid)?;
+        resloved.insert(name, inodeid)?;
 
         let node = RamInode::new_file(name.to_string(), &[], inodeid);
         self.inodes.push(node);
@@ -203,10 +222,10 @@ impl FS for RamFS {
         let inodeid = self.inodes.len();
 
         let (resloved, name) = self.reslove_path_uncreated(path)?;
-        resloved.ops.insert(name, inodeid)?;
+        resloved.insert(name, inodeid)?;
 
-        let mut node = RamInode::new_dir(name.to_string(), inodeid);
-        node.ops.insert("..", resloved.inodeid)?;
+        let node = RamInode::new_dir(name.to_string(), inodeid);
+        node.insert("..", resloved.inodeid())?;
 
         self.inodes.push(node);
 
@@ -214,18 +233,19 @@ impl FS for RamFS {
     }
 
     fn diriter_open(&mut self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
-        if unsafe { !(*fd.node).is_dir() } {
+        // TODO: safer way to do this
+        // by adding an InodeOp that returns a Box<dyn DirIter> from self
+        if !fd.node.is_dir() {
             return Err(FSError::NotADirectory);
         }
 
-        let raminode: *const RamInode =
-            unsafe { ((*fd.node).ops.as_ref() as *const dyn InodeOps).cast() };
+        let raminode: *const Mutex<RamInode> = (&raw const *fd.node).cast();
+        let lock = unsafe { &*raminode }.lock();
 
-        let data = match unsafe { &*raminode } {
-            RamInode::Children(ref data) => data,
+        let data = match lock.data {
+            RamInodeData::Children(ref data) => data,
             _ => unreachable!(),
         };
-
         let mut data_entries = Vec::with_capacity(data.len());
 
         for (name, inode_id) in data {

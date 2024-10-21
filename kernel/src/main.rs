@@ -2,15 +2,16 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 #![feature(allocator_api)]
-#![feature(linked_list_remove)]
 #[cfg(feature = "test")]
 mod test;
 
 mod arch;
+mod devices;
 mod drivers;
 mod globals;
 mod limine;
 mod memory;
+mod shell;
 mod terminal;
 mod threading;
 mod utils;
@@ -19,6 +20,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use arch::x86_64::serial;
 
+use drivers::keyboard::HandleKey;
 use drivers::keyboard::Key;
 use drivers::vfs;
 use drivers::vfs::VFS;
@@ -31,8 +33,7 @@ use memory::frame_allocator::RegionAllocator;
 pub use memory::PhysAddr;
 pub use memory::VirtAddr;
 use spin::Mutex;
-use terminal::framebuffer::Terminal;
-use threading::processes::ProcessFlags;
+use terminal::FRAMEBUFFER_TERMINAL;
 use threading::Scheduler;
 
 #[macro_export]
@@ -77,12 +78,8 @@ macro_rules! cross_println {
         crate::serial!($($arg)*);
         crate::serial!("\n");
 
-        if !crate::terminal().panicked {
-            crate::terminal().panicked = true;
 
-            crate::println!(r"{}", format_args!($($arg)*));
-            crate::terminal().panicked = false;
-        }
+        crate::println!(r"{}", format_args!($($arg)*));
     };
 }
 
@@ -103,9 +100,10 @@ fn panic(info: &PanicInfo) -> ! {
     unsafe { asm!("cli") }
     unsafe {
         arch::x86_64::serial::SERIAL.inner.force_unlock();
+        FRAMEBUFFER_TERMINAL.force_write_unlock();
     }
-    terminal().enter_panic();
 
+    FRAMEBUFFER_TERMINAL.write().clear();
     cross_println!(
         "kernel panic:\n{}, at {}",
         info.message(),
@@ -113,8 +111,8 @@ fn panic(info: &PanicInfo) -> ! {
     );
     print_stack_trace();
 
-    crate::serial!("tty stdout dump:\n{}\n", crate::terminal().stdout_buffer);
-    crate::serial!("tty stdin dump:\n{}\n", crate::terminal().stdin_buffer);
+    // crate::serial!("tty stdout dump:\n{}\n", crate::terminal().stdout_buffer);
+    // crate::serial!("tty stdin dump:\n{}\n", crate::terminal().stdin_buffer);
     khalt()
 }
 
@@ -153,7 +151,6 @@ fn print_stack_trace() {
 #[no_mangle]
 pub extern "C" fn kinit() {
     arch::init_phase1();
-    Terminal::init();
     // initing globals
     let phy_offset = get_phy_offset();
     let kernel_img = limine::kernel_image_info();
@@ -177,13 +174,13 @@ pub extern "C" fn kinit() {
 
     memory::sorcery::init_page_table();
     memory::init(get_phy_offset_end());
-    Terminal::init_finish();
     println!("Terminal initialized successfuly");
 
     // initing the arch
     arch::init_phase2();
 
     unsafe {
+        devices::init();
         vfs::init();
 
         let mut ramdisk = limine::get_ramdisk();
@@ -212,22 +209,19 @@ fn kstart() -> ! {
 #[no_mangle]
 fn kmain() -> ! {
     debug!(Scheduler, "done ...");
-    scheduler().create_process(
-        terminal::shell as usize,
-        "shell",
-        &[],
-        ProcessFlags::empty(),
+    let stdin = vfs::expose::open("dev:/tty").unwrap();
+    let stdout = vfs::expose::open("dev:/tty").unwrap();
+    serial!(
+        "Hello, world!, running tests... stdin: {}, stdout: {}\n",
+        stdin,
+        stdout
     );
-
-    serial!("Hello, world!, running tests...\n");
 
     #[cfg(feature = "test")]
     test::testing_module::test_main();
 
     println!("finished running tests...");
-    println!(
-        "\x1B[38;2;0;255;0mBoot success! press ctrl + shift + C to clear screen (and enter input mode)\x1B[0m"
-    );
+    println!("\x1B[38;2;0;255;0mBoot success! press ctrl + shift + C to start the shell\x1B[0m");
 
     serial!("finished initing...\n");
     serial!("idle!\n");
@@ -237,7 +231,8 @@ fn kmain() -> ! {
 // whenever a key is pressed this function should be called
 // this executes a few other kernel-functions
 pub fn __navi_key_pressed(key: Key) {
-    if globals::terminal_inited() {
-        terminal().on_key_pressed(key)
-    }
+    FRAMEBUFFER_TERMINAL.try_write().and_then(|mut writer| {
+        writer.handle_key(key);
+        Some(())
+    });
 }

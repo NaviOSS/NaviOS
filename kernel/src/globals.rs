@@ -4,7 +4,6 @@ use spin::Mutex;
 
 use crate::{
     memory::{buddy_allocator::BuddyAllocator, frame_allocator::RegionAllocator},
-    terminal::framebuffer::Terminal,
     threading::Scheduler,
     utils::{elf::Elf, Locked},
 };
@@ -17,7 +16,6 @@ pub struct Kernel<'a> {
     pub rsdp_addr: Option<u64>,
     pub elf: Elf<'a>,
 
-    pub terminal: MaybeUninit<Terminal>,
     pub scheduler: MaybeUninit<Scheduler>,
 }
 
@@ -48,13 +46,6 @@ pub fn kernel<'a>() -> &'a mut Kernel<'a> {
 }
 pub fn kernel_inited() -> bool {
     KERNEL.inited()
-}
-
-pub fn terminal_inited() -> bool {
-    unsafe { kernel().terminal.assume_init_ref().ready }
-}
-pub fn terminal() -> &'static mut Terminal {
-    unsafe { kernel().terminal.assume_init_mut() }
 }
 
 pub fn scheduler_inited() -> bool {

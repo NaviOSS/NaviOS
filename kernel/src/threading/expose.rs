@@ -4,14 +4,13 @@ use alloc::string::ToString;
 use bitflags::bitflags;
 
 use crate::{
-    /*     debug, */
     drivers::vfs::{self, FSResult},
     khalt, scheduler,
     threading::processes::{Process, ProcessStatus},
     utils::elf::{Elf, ElfError},
 };
 
-use super::processes::ProcessInfo;
+use super::processes::{ProcessFlags, ProcessInfo};
 
 #[no_mangle]
 pub fn thread_exit() {
@@ -68,7 +67,7 @@ pub fn wait(pid: u64) {
 bitflags! {
     #[derive(Debug, Clone, Copy)]
     #[repr(C)]
-    pub struct SpwanFlags: u8 {
+    pub struct SpawnFlags: u8 {
         const CLONE_RESOURCES = 1 << 0;
         const CLONE_CWD = 1 << 1;
     }
@@ -81,18 +80,18 @@ pub unsafe fn spawn(
     name: &str,
     elf_bytes: &[u8],
     argv: &[&str],
-    flags: SpwanFlags,
+    flags: SpawnFlags,
 ) -> Result<u64, ElfError> {
     let elf = Elf::new(elf_bytes)?;
 
     let mut process = Process::from_elf(elf, name, argv)?;
     let pid = process.pid;
 
-    if flags.contains(SpwanFlags::CLONE_RESOURCES) {
+    if flags.contains(SpawnFlags::CLONE_RESOURCES) {
         process.resources = scheduler().current_process().resources.clone();
     }
 
-    if flags.contains(SpwanFlags::CLONE_CWD) {
+    if flags.contains(SpawnFlags::CLONE_CWD) {
         process.current_dir = scheduler().current_process().current_dir.clone();
     }
 
@@ -100,6 +99,29 @@ pub unsafe fn spawn(
     Ok(pid)
 }
 
+/// unsafe because function has to be a valid function pointer
+/// same as `spawn` but spwans a ring0 function
+pub unsafe fn spawn_function(
+    name: &str,
+    function: usize,
+    argv: &[&str],
+    flags: SpawnFlags,
+) -> Result<u64, ElfError> {
+    let mut process = Process::create(function, name, argv, ProcessFlags::empty())
+        .map_err(|_| ElfError::MapToError)?;
+    let pid = process.pid;
+
+    if flags.contains(SpawnFlags::CLONE_RESOURCES) {
+        process.resources = scheduler().current_process().resources.clone();
+    }
+
+    if flags.contains(SpawnFlags::CLONE_CWD) {
+        process.current_dir = scheduler().current_process().current_dir.clone();
+    }
+
+    scheduler().add_process(process);
+    Ok(pid)
+}
 /// also ensures the cwd ends with /
 /// will only Err if new_dir doesn't exists or is not a directory
 #[no_mangle]
@@ -189,6 +211,7 @@ pub fn sbrk(amount: isize) -> *mut u8 {
         .unwrap_or(core::ptr::null_mut())
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 #[repr(u32)]
 pub enum ErrorStatus {

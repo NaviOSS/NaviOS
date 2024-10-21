@@ -3,10 +3,9 @@
 //! makes use of memmory mapping and `FrameAllocator` (TODO: check if these are possible reasons it
 //! is slow)
 
-use core::{
-    alloc::{AllocError, Allocator, GlobalAlloc},
-    mem::MaybeUninit,
-};
+use core::alloc::{AllocError, Allocator, GlobalAlloc};
+
+use lazy_static::lazy_static;
 
 use crate::{debug, kernel, utils::Locked};
 
@@ -24,14 +23,17 @@ pub struct PageAllocator {
 }
 
 impl PageAllocator {
-    pub fn init(&mut self) {
+    pub fn new() -> Self {
         let (start, size) = ROOT_BINDINGS
             .get("LARGE_HEAP")
             .expect("failed to get LARGE_HEAP binding");
         debug!(PageAllocator, "initialized allocator");
-        self.heap_start = start as usize;
-        self.heap_end = self.heap_start + size;
-        self.last_allocation = (self.heap_start, self.heap_start);
+        Self {
+            heap_start: start as usize,
+            heap_end: start as usize + size,
+            last_allocation: (start as usize, start as usize),
+            allocations: 0,
+        }
     }
 
     /// allocates `page_count` number of contiguous pages
@@ -41,6 +43,10 @@ impl PageAllocator {
 
         let end = start + page_count * PAGE_SIZE;
         let start_page = Page::containing_address(start);
+
+        if end > self.heap_end {
+            return Err(MapToError::FrameAllocationFailed);
+        }
 
         let iter = IterPage {
             start: start_page,
@@ -60,7 +66,6 @@ impl PageAllocator {
                 )?;
             }
         }
-
         self.last_allocation = (start, end);
         self.allocations += 1;
         Ok(start_page.start_address as *mut u8)
@@ -121,4 +126,9 @@ unsafe impl Allocator for Locked<PageAllocator> {
         self.dealloc(ptr.as_ptr(), layout);
     }
 }
-pub static GLOBAL_PAGE_ALLOCATOR: MaybeUninit<Locked<PageAllocator>> = MaybeUninit::zeroed();
+
+lazy_static! {
+    pub static ref GLOBAL_PAGE_ALLOCATOR: Locked<PageAllocator> = Locked::new(PageAllocator::new());
+}
+
+pub type PageAlloc = &'static Locked<PageAllocator>;

@@ -17,9 +17,9 @@ use limine::request::RsdpRequest;
 use limine::response::MemoryMapResponse;
 use limine::BaseRevision;
 
+use crate::drivers::framebuffer::FrameBufferInfo;
+use crate::drivers::framebuffer::PixelFormat;
 use crate::memory::align_up;
-use crate::terminal::framebuffer::FrameBufferInfo;
-use crate::terminal::framebuffer::PixelFormat;
 use crate::utils::ustar::TarArchiveIter;
 
 #[used]

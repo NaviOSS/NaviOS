@@ -6,7 +6,7 @@ use crate::drivers::vfs::expose::DirIter;
 use crate::drivers::vfs::{vfs, FileDescriptor, FS};
 use crate::memory::{align_up, copy_to_userspace};
 use crate::utils::elf::{Elf, ElfError};
-use crate::{arch, debug, kernel, scheduler, terminal};
+use crate::{arch, debug, kernel, scheduler};
 
 use crate::memory::paging::{self, EntryFlags, MapToError, Page, PAGE_SIZE};
 use alloc::boxed::Box;
@@ -16,7 +16,6 @@ use bitflags::bitflags;
 
 use crate::{arch::threading::CPUStatus, memory::paging::PageTable};
 
-#[derive(Debug)]
 pub enum Resource {
     Null,
     File(FileDescriptor),
@@ -198,23 +197,7 @@ impl Process {
             context.cr3 = root_page_table_addr as u64;
         }
 
-        let mut resources = Vec::with_capacity(2);
-        // FIXME: the code isn't prepared for any null bs fixme!!!!!!!!!!!!!!!
-        // stdin fd
-        resources.push(Resource::File(FileDescriptor {
-            mountpoint: terminal(),
-            node: core::ptr::null_mut(),
-            read_pos: 0,
-            write_pos: 0,
-        }));
-        // stdout fd
-        resources.push(Resource::File(FileDescriptor {
-            mountpoint: terminal(),
-            node: core::ptr::null_mut(),
-            read_pos: 0,
-            write_pos: 0,
-        }));
-
+        let resources = Vec::with_capacity(2);
         Ok(Process {
             ppid,
             pid,

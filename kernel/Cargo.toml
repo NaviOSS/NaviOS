@@ -5,8 +5,7 @@ edition = "2021"
 
 [dependencies]
 noto-sans-mono-bitmap = { version = "0.3.0", features = [
-    "raster_heights_all",
-    "font_weights_all",
+    "size_20",
 ] }
 
 lazy_static = { version = "1.5.0", features = ["spin_no_std"] }
@@ -16,7 +15,7 @@ macros = { path = "../macros" }
 int-enum = "1.1"
 heapless = "0.8.0"
 limine = "0.3.0"
-
+ansi-parser = { version = "0.9.1", default-features = false }
 [dev-dependencies]
 cc = "1.1.1"
 

@@ -10,6 +10,7 @@ use crate::{
         Locked,
     },
 };
+pub mod devicefs;
 pub mod ramfs;
 
 use alloc::{
@@ -17,6 +18,7 @@ use alloc::{
     boxed::Box,
     collections::btree_map::BTreeMap,
     string::{String, ToString},
+    sync::Arc,
     vec::Vec,
 };
 use expose::DirIter;
@@ -37,13 +39,15 @@ pub fn init() {
     let mut vfs = vfs();
     let ramfs = Box::new(ramfs::RamFS::new());
     vfs.mount(b"ram", ramfs).unwrap();
+    vfs.mount(b"dev", Box::new(devicefs::DeviceFS::new()))
+        .unwrap();
     debug!(VFS, "done ...");
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FileDescriptor {
     pub mountpoint: *mut dyn FS,
-    pub node: *mut Inode,
+    pub node: Inode,
     /// acts as a dir entry index for directories
     /// acts as a byte index for files
     pub read_pos: usize,
@@ -53,8 +57,13 @@ pub struct FileDescriptor {
 }
 
 impl FileDescriptor {
-    pub fn name(&self) -> String {
-        unsafe { (*self.node).name.clone() }
+    pub fn new<'a>(mountpoint: *mut dyn FS, node: Inode) -> Self {
+        Self {
+            mountpoint,
+            node,
+            read_pos: 0,
+            write_pos: 0,
+        }
     }
 }
 
@@ -93,32 +102,23 @@ pub type FSResult<T> = Result<T, FSError>;
 pub enum InodeType {
     File,
     Directory,
+    Device,
 }
-
-/// this Inode is pesudo too far this should only work with RamFS
-/// i am trying to make it as generic as possible but i still dont have storage drivers and i have
-/// no idea how these works am trying my best for now
-/// TODO: system checklist
-/// - Synchronization
-/// - Allocations
-/// TODO: inode id!
-
-pub struct Inode {
-    name: String,
-    inode_type: InodeType,
-    inodeid: usize,
-    ///  TODO: use something instead of Box
-    ops: Box<dyn InodeOps>,
-}
-
-pub trait InodeOps: Send {
+pub trait InodeOps: Send + Sync {
+    fn name(&self) -> String;
     /// gets an Inode from self
     /// returns Err(()) if self is not a directory
     /// returns Ok(None) if self doesn't contain `name`
     /// returns Ok(inodeid) if successful
-    fn get(&self, name: &str) -> FSResult<Option<usize>>;
+    fn get(&self, name: &str) -> FSResult<Option<usize>> {
+        _ = name;
+        FSResult::Err(FSError::OperationNotSupported)
+    }
     /// checks if node contains `name` returns false if it doesn't or if it is not a directory
-    fn contains(&self, name: &str) -> bool;
+    fn contains(&self, name: &str) -> bool {
+        _ = name;
+        false
+    }
     /// returns the size of node
     /// different nodes may use this differently but in case it is a normal file it will always give the
     /// file size in bytes
@@ -127,7 +127,8 @@ pub trait InodeOps: Send {
     }
     /// attempts to read `count` bytes of node data if it is a file
     /// panics if invaild `offset`
-    fn read(&self, buffer: &mut [u8], offset: usize, count: usize) -> FSResult<()> {
+    /// returns the amount of bytes read
+    fn read(&self, buffer: &mut [u8], offset: usize, count: usize) -> FSResult<usize> {
         _ = buffer;
         _ = offset;
         _ = count;
@@ -136,7 +137,8 @@ pub trait InodeOps: Send {
     /// attempts to write `buffer.len` bytes from `buffer` into node data if it is a file starting
     /// from offset
     /// extends the nodes data and node size if `buffer.len` + `offset` is greater then node size
-    fn write(&mut self, buffer: &[u8], offset: usize) -> FSResult<()> {
+    /// returns the amount of bytes written
+    fn write(&self, buffer: &[u8], offset: usize) -> FSResult<usize> {
         _ = buffer;
         _ = offset;
         Err(FSError::OperationNotSupported)
@@ -144,38 +146,25 @@ pub trait InodeOps: Send {
 
     /// attempts to insert a node to self
     /// returns an FSError::NotADirectory if not a directory
-    fn insert(&mut self, name: &str, node: usize) -> FSResult<()> {
+    fn insert(&self, name: &str, node: usize) -> FSResult<()> {
         _ = name;
         _ = node;
         Err(FSError::OperationNotSupported)
     }
-}
 
-impl Inode {
-    /// quick wrapper around `self.ops.get`
-    pub fn get(&self, name: &str) -> FSResult<Option<usize>> {
-        self.ops.get(name)
-    }
+    fn inodeid(&self) -> usize;
+    fn kind(&self) -> InodeType;
 
-    /// quick wrapper around `self.ops.contains`
-    fn contains(&self, name: &str) -> bool {
-        self.ops.contains(name)
-    }
-
-    /// quick wrapper around `self.ops.size`
-    #[inline]
-    fn size(&self) -> FSResult<usize> {
-        self.ops.size()
-    }
-
-    pub fn is_dir(&self) -> bool {
-        self.inode_type == InodeType::Directory
-    }
-
-    pub fn is_file(&self) -> bool {
-        self.inode_type == InodeType::File
+    #[inline(always)]
+    fn is_dir(&self) -> bool {
+        self.kind() == InodeType::Directory
     }
 }
+
+/// unknown inode type
+pub type Inode = Arc<dyn InodeOps>;
+/// inode type with a known type
+pub type InodeOf<T> = Arc<T>;
 
 pub trait FS: Send {
     /// returns the name of the fs
@@ -188,23 +177,19 @@ pub trait FS: Send {
         Ok(())
     }
 
-    fn get_inode_mut(&mut self, inode_id: usize) -> FSResult<Option<&mut Inode>> {
-        _ = inode_id;
-        Err(FSError::OperationNotSupported)
-    }
-    fn get_inode(&self, inode_id: usize) -> FSResult<Option<&Inode>> {
+    fn get_inode(&self, inode_id: usize) -> FSResult<Option<Inode>> {
         _ = inode_id;
         Err(FSError::OperationNotSupported)
     }
 
     #[inline]
-    fn root_inode(&self) -> FSResult<&Inode> {
+    fn root_inode(&self) -> FSResult<Inode> {
         Ok(self.get_inode(0)?.unwrap())
     }
 
     /// goes trough path to get the inode it refers to
     /// will err if there is no such a file or directory or path is straight up invaild
-    fn reslove_path(&mut self, path: Path) -> FSResult<&mut Inode> {
+    fn reslove_path(&mut self, path: Path) -> FSResult<Inode> {
         let mut path = path.split(&['/', '\\']).peekable();
 
         let mut current_inode = self.root_inode()?;
@@ -238,14 +223,13 @@ pub trait FS: Send {
             current_inode = self.get_inode(inodeid)?.unwrap();
         }
 
-        // mutabaly re-borrows?
-        return Ok(self.get_inode_mut(current_inode.inodeid)?.unwrap());
+        return Ok(current_inode.clone());
     }
 
     /// goes trough path to get the inode it refers to
     /// will err if there is no such a file or directory or path is straight up invaild
     /// assumes that the last depth in path is the filename and returns it alongside the parent dir
-    fn reslove_path_uncreated<'a>(&mut self, path: Path<'a>) -> FSResult<(&mut Inode, &'a str)> {
+    fn reslove_path_uncreated<'a>(&mut self, path: Path<'a>) -> FSResult<(Inode, &'a str)> {
         let path = path.trim_end_matches('/');
 
         let (name, path) = {
@@ -259,7 +243,7 @@ pub trait FS: Send {
         };
 
         let resloved = self.reslove_path(path)?;
-        if resloved.inode_type != InodeType::Directory {
+        if resloved.kind() != InodeType::Directory {
             return Err(FSError::NotADirectory);
         }
 
@@ -280,7 +264,7 @@ pub trait FS: Send {
     }
     /// attempts to write `buffer.len` bytes to `file_descriptor`
     /// shouldn't write to directories!
-    fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<()> {
+    fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<usize> {
         _ = file_descriptor;
         _ = buffer;
         Err(FSError::OperationNotSupported)
@@ -327,12 +311,6 @@ impl VFS {
         }
     }
 
-    /// unmounts a drive returns Err(()) if there is no such a drive
-    pub fn umount(&mut self, name: &[u8]) -> Result<(), ()> {
-        self.drivers.remove(name).ok_or(())?;
-        Ok(())
-    }
-
     /// gets a drive from `self` named "`name`"
     /// or "`name`:" muttabily
     pub(self) fn get_with_name_mut(&mut self, name: &[u8]) -> Option<&mut Box<dyn FS>> {
@@ -343,18 +321,6 @@ impl VFS {
         }
 
         self.drivers.get_mut(name)
-    }
-
-    /// gets a drive from `self` named "`name`"
-    /// or "`name`:"
-    pub fn get_with_name(&mut self, name: &[u8]) -> Option<&Box<dyn FS>> {
-        let mut name = name;
-
-        if name.ends_with(b":") {
-            name = &name[..name.len() - 1];
-        }
-
-        self.drivers.get(name)
     }
 
     /// gets the drive name from `path` then gets the drive
@@ -446,7 +412,7 @@ impl FS for VFS {
         unsafe { (*file_descriptor.mountpoint).read(file_descriptor, buffer) }
     }
 
-    fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<()> {
+    fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<usize> {
         unsafe { (*file_descriptor.mountpoint).write(file_descriptor, buffer) }
     }
 

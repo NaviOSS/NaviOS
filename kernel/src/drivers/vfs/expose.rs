@@ -42,7 +42,7 @@ pub fn read(ri: usize, buffer: &mut [u8]) -> FSResult<usize> {
 }
 
 #[no_mangle]
-pub fn write(ri: usize, buffer: &[u8]) -> FSResult<()> {
+pub fn write(ri: usize, buffer: &[u8]) -> FSResult<usize> {
     let fd = get_fd!(ri);
     vfs().write(fd, buffer)
 }
@@ -74,28 +74,28 @@ impl DirEntry {
         unsafe { str::from_utf8_unchecked(&self.name[..self.name_length]) }
     }
 
-    pub fn get_from_inode_with_name(inode: *const Inode, name: &str) -> FSResult<Self> {
-        unsafe {
-            let name_slice = name.as_bytes();
-            let kind = (*inode).inode_type;
-            let size = (*inode).size().unwrap_or(0);
+    pub fn get_from_inode_with_name(inode: Inode, name: &str) -> FSResult<Self> {
+        let name_slice = name.as_bytes();
 
-            let name_length = name_slice.len();
-            let mut name = [0u8; MAX_NAME_LEN];
+        let kind = inode.kind();
+        let size = inode.size().unwrap_or(0);
 
-            name[..name_length].copy_from_slice(name_slice);
+        let name_length = name_slice.len();
+        let mut name = [0u8; MAX_NAME_LEN];
 
-            Ok(Self {
-                kind,
-                size,
-                name_length,
-                name,
-            })
-        }
+        name[..name_length].copy_from_slice(name_slice);
+
+        Ok(Self {
+            kind,
+            size,
+            name_length,
+            name,
+        })
     }
 
-    pub fn get_from_inode(inode: *const Inode) -> FSResult<Self> {
-        unsafe { Self::get_from_inode_with_name(inode, &(*inode).name) }
+    pub fn get_from_inode(inode: Inode) -> FSResult<Self> {
+        let name = inode.name();
+        Self::get_from_inode_with_name(inode, &name)
     }
 
     pub const unsafe fn zeroed() -> Self {
@@ -104,7 +104,7 @@ impl DirEntry {
 }
 
 pub trait DirIter: Debug {
-    fn next(&mut self) -> Option<&DirEntry>;
+    fn next(&mut self) -> Option<DirEntry>;
     fn clone(&self) -> Box<dyn DirIter>;
 }
 
@@ -145,6 +145,6 @@ pub fn diriter_close(dir_ri: usize) -> FSResult<()> {
 #[no_mangle]
 pub fn fstat(ri: usize, direntry: &mut DirEntry) -> FSResult<()> {
     let fd = get_fd!(ri);
-    *direntry = DirEntry::get_from_inode(fd.node)?;
+    *direntry = DirEntry::get_from_inode(fd.node.clone())?;
     Ok(())
 }

@@ -220,18 +220,6 @@ impl Scheduler {
         }
     }
 
-    /// wrapper around `Process::create` that also adds the result to self using
-    /// `Self::add_process`
-    pub fn create_process(
-        &mut self,
-        function: usize,
-        name: &str,
-        argv: &[&str],
-        flags: ProcessFlags,
-    ) {
-        self.add_process(Process::create(function, name, argv, flags).unwrap());
-    }
-
     #[inline]
     pub fn set_next_resource(&mut self, next_ri: usize) {
         if next_ri < self.current_process().next_ri {

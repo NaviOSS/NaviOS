@@ -11,7 +11,7 @@ use crate::{
     drivers::vfs::{self, expose::open},
     threading::{
         self,
-        expose::{ErrorStatus, SpwanFlags},
+        expose::{ErrorStatus, SpawnFlags},
         processes::ProcessInfo,
     },
     utils::{self, expose::SysInfo},
@@ -157,7 +157,7 @@ extern "C" fn syswrite(fd: usize, ptr: *const u8, len: usize) -> ErrorStatus {
 
     match vfs::expose::write(fd, slice) {
         Err(err) => err.into(),
-        Ok(()) => ErrorStatus::None,
+        Ok(_) => ErrorStatus::None,
     }
 }
 
@@ -269,7 +269,7 @@ pub struct SpawnConfig {
     pub name_len: usize,
     pub argv: *const *const [u8],
     pub argc: usize,
-    pub flags: SpwanFlags,
+    pub flags: SpawnFlags,
 }
 
 // if dest_pid is null we will just ignore it
