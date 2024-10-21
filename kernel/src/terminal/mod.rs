@@ -1,4 +1,4 @@
-use alloc::string::String;
+use alloc::vec::Vec;
 use bitflags::bitflags;
 use core::fmt::Write;
 use framebuffer::FRAMEBUFFER_TTY_INTERFACE;
@@ -7,6 +7,7 @@ use spin::RwLock;
 
 use crate::{
     drivers::keyboard::{HandleKey, Key, KeyCode, KeyFlags},
+    memory::page_allocator::{PageAlloc, GLOBAL_PAGE_ALLOCATOR},
     threading::expose::{spawn_function, SpawnFlags},
     utils::Locked,
 };
@@ -52,8 +53,8 @@ bitflags! {
 }
 
 pub struct TTY<'a> {
-    pub stdout_buffer: String,
-    pub stdin_buffer: String,
+    pub stdout_buffer: Vec<u8, PageAlloc>,
+    pub stdin_buffer: Vec<u8, PageAlloc>,
 
     pub settings: TTYSettings,
     interface: &'a Locked<dyn TTYInterface>,
@@ -63,7 +64,7 @@ impl Write for TTY<'_> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         if self.settings.contains(TTYSettings::DRAW_GRAPHICS) {
             self.interface.inner.lock().write_str(s)?;
-            self.stdout_buffer.push_str(s);
+            self.stdout_buffer.extend_from_slice(s.as_bytes());
         }
         Ok(())
     }
@@ -71,7 +72,7 @@ impl Write for TTY<'_> {
     fn write_char(&mut self, c: char) -> core::fmt::Result {
         if self.settings.contains(TTYSettings::DRAW_GRAPHICS) {
             self.interface.inner.lock().write_char(c)?;
-            self.stdout_buffer.push(c);
+            self.stdout_buffer.push(c as u8);
         }
         Ok(())
     }
@@ -80,8 +81,8 @@ impl Write for TTY<'_> {
 impl<'a> TTY<'a> {
     pub fn new(interface: &'a Locked<dyn TTYInterface>) -> Self {
         Self {
-            stdout_buffer: String::new(),
-            stdin_buffer: String::new(),
+            stdout_buffer: Vec::new_in(&*GLOBAL_PAGE_ALLOCATOR),
+            stdin_buffer: Vec::new_in(&*GLOBAL_PAGE_ALLOCATOR),
             interface,
             settings: TTYSettings::DRAW_GRAPHICS,
         }
@@ -160,7 +161,7 @@ impl HandleKey for TTY<'_> {
                     let char = key.map_key();
                     if char != '\0' {
                         let _ = self.write_char(char);
-                        self.stdin_buffer.push(char);
+                        self.stdin_buffer.push(char as u8);
                     }
                     // put the cursor back
                     _ = self.write_char('_');

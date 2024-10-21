@@ -14,19 +14,19 @@ impl CharDevice for RwLock<TTY<'_>> {
 
     fn read(&self, buffer: &mut [u8]) -> usize {
         self.write().enable_input();
-        while !self.read().stdin_buffer.ends_with('\n') {
+        while !self.read().stdin_buffer.ends_with(&[b'\n']) {
             thread_yeild();
         }
         self.write().disable_input();
 
         if self.read().stdin_buffer.len() <= buffer.len() {
             let count = self.read().stdin_buffer.len();
-            buffer[..count].copy_from_slice(self.read().stdin_buffer.as_bytes());
+            buffer[..count].copy_from_slice(&self.read().stdin_buffer);
             self.write().stdin_buffer.clear();
             count
         } else {
             let count = buffer.len();
-            buffer[..count].copy_from_slice(&self.read().stdin_buffer.as_bytes()[..count]);
+            buffer[..count].copy_from_slice(&self.read().stdin_buffer[..count]);
             self.write().stdin_buffer.drain(..count);
             count
         }
