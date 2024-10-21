@@ -3,10 +3,7 @@ use core::fmt::Write;
 use alloc::string::String;
 use spin::RwLock;
 
-use crate::{
-    terminal::{TTYSettings, TTY},
-    threading::expose::thread_yeild,
-};
+use crate::{terminal::TTY, threading::expose::thread_yeild};
 
 use super::CharDevice;
 
@@ -16,11 +13,11 @@ impl CharDevice for RwLock<TTY<'_>> {
     }
 
     fn read(&self, buffer: &mut [u8]) -> usize {
-        while !self.read().stdin_buffer.ends_with('\n')
-            || !self.read().settings.contains(TTYSettings::RECIVE_INPUT)
-        {
+        self.write().enable_input();
+        while !self.read().stdin_buffer.ends_with('\n') {
             thread_yeild();
         }
+        self.write().disable_input();
 
         if self.read().stdin_buffer.len() <= buffer.len() {
             let count = self.read().stdin_buffer.len();

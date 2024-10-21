@@ -42,6 +42,10 @@ pub trait TTYInterface: Send + Sync + Write {
 bitflags! {
     #[derive(Debug, Clone, Copy)]
     pub struct TTYSettings: u8 {
+        /// wether or not we are currently reciving input
+        /// the cursor should work well if enabled correctly using `self.enable_input` and disabled
+        /// using `self.disable_input`
+        // TODO: maybe the cursor should be the job of the shell?
         const RECIVE_INPUT = 1 << 0;
         const DRAW_GRAPHICS = 1 << 1;
     }
@@ -89,6 +93,37 @@ impl<'a> TTY<'a> {
         self.stdout_buffer.clear();
         interface.set_cursor(0, 0);
     }
+
+    pub fn enable_input(&mut self) {
+        if !self.settings.contains(TTYSettings::RECIVE_INPUT) {
+            self.settings |= TTYSettings::RECIVE_INPUT;
+            _ = self.write_char('_');
+        }
+    }
+
+    pub fn disable_input(&mut self) {
+        if self.settings.contains(TTYSettings::RECIVE_INPUT) {
+            self.settings &= !TTYSettings::RECIVE_INPUT;
+            _ = self.interface.inner.lock().backspace();
+        }
+    }
+
+    pub fn peform_backspace(&mut self) {
+        if !self.stdin_buffer.is_empty() {
+            if self.settings.contains(TTYSettings::RECIVE_INPUT) {
+                // removes the cursor `_`
+                self.interface.inner.lock().backspace();
+            }
+            // backspace
+            self.interface.inner.lock().backspace();
+            self.stdin_buffer.pop();
+
+            if self.settings.contains(TTYSettings::RECIVE_INPUT) {
+                // puts the cursor `_`
+                _ = self.write_char('_');
+            }
+        }
+    }
 }
 
 lazy_static! {
@@ -105,7 +140,6 @@ impl HandleKey for TTY<'_> {
             KeyCode::PageUp => self.interface.inner.lock().scroll_up(),
             KeyCode::KeyC if key.flags.contains(KeyFlags::CTRL | KeyFlags::SHIFT) => {
                 self.clear();
-                self.settings |= TTYSettings::RECIVE_INPUT;
                 unsafe {
                     spawn_function(
                         "shell",
@@ -117,16 +151,19 @@ impl HandleKey for TTY<'_> {
                 }
             }
             KeyCode::Backspace if self.settings.contains(TTYSettings::RECIVE_INPUT) => {
-                self.interface.inner.lock().backspace();
-                self.stdin_buffer.pop();
+                self.peform_backspace();
             }
             _ => {
                 if self.settings.contains(TTYSettings::RECIVE_INPUT) {
+                    // remove the cursor `_`
+                    self.interface.inner.lock().backspace();
                     let char = key.map_key();
                     if char != '\0' {
                         let _ = self.write_char(char);
                         self.stdin_buffer.push(char);
                     }
+                    // put the cursor back
+                    _ = self.write_char('_');
                 }
             }
         }
