@@ -142,7 +142,7 @@ impl HandleKey for TTY<'_> {
                 self.clear();
                 unsafe {
                     spawn_function(
-                        "shell",
+                        "Shell",
                         crate::shell::shell as usize,
                         &[],
                         SpawnFlags::CLONE_RESOURCES,

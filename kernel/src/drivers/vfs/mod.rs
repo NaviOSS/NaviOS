@@ -3,7 +3,7 @@ pub mod expose;
 use core::usize;
 
 use crate::{
-    debug,
+    debug, limine,
     threading::expose::{getcwd, ErrorStatus},
     utils::{
         ustar::{self, TarArchiveIter},
@@ -37,10 +37,18 @@ pub fn vfs() -> MutexGuard<'static, VFS> {
 pub fn init() {
     debug!(VFS, "initing ...");
     let mut vfs = vfs();
+    // ramfs
     let ramfs = Box::new(ramfs::RamFS::new());
     vfs.mount(b"ram", ramfs).unwrap();
+    // devices
     vfs.mount(b"dev", Box::new(devicefs::DeviceFS::new()))
         .unwrap();
+    // ramdisk
+    let mut ramdisk = limine::get_ramdisk();
+    let mut ramfs = Box::new(ramfs::RamFS::new());
+    VFS::unpack_tar(&mut *ramfs, &mut ramdisk).expect("failed unpacking ramdisk archive");
+    vfs.mount(b"sys", ramfs).expect("failed mounting");
+
     debug!(VFS, "done ...");
 }
 

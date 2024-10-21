@@ -53,7 +53,7 @@ impl FrameBuffer {
         let index = x + y * self.info.stride;
         let mut bytes = color.bytes();
 
-        if self.info.pixel_format == PixelFormat::Bgr {
+        if self.info.pixel_format == PixelFormat::Rgb {
             bytes.reverse();
         }
         self.buffer

@@ -17,13 +17,11 @@ mod threading;
 mod utils;
 
 extern crate alloc;
-use alloc::boxed::Box;
 use arch::x86_64::serial;
 
 use drivers::keyboard::HandleKey;
 use drivers::keyboard::Key;
 use drivers::vfs;
-use drivers::vfs::VFS;
 use globals::*;
 
 use limine::get_phy_offset;
@@ -179,20 +177,8 @@ pub extern "C" fn kinit() {
     unsafe {
         devices::init();
         vfs::init();
-
-        let mut ramdisk = limine::get_ramdisk();
-        serial!(
-            "ramdisk at {:#x}\n",
-            limine::get_ramdisk_file().addr() as usize
-        );
-        let mut ramfs = Box::new(vfs::ramfs::RamFS::new());
-
-        VFS::unpack_tar(&mut *ramfs, &mut ramdisk).expect("failed unpacking archive");
-        vfs::vfs().mount(b"sys", ramfs).expect("failed mounting");
-
         debug!(Kernel, "init phase 1 done");
-
-        Scheduler::init(kmain as usize, "kernel");
+        Scheduler::init(kmain as usize, "Eve");
     }
 }
 
@@ -222,6 +208,7 @@ fn kmain() -> ! {
 
     serial!("finished initing...\n");
     serial!("idle!\n");
+    // listening to interrupts
     khalt()
 }
 
