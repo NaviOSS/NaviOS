@@ -12,7 +12,10 @@ use tar::{Builder, Header};
 
 // (dir relative from build.rs, dir in ramdisk)
 // or (file relative from build.rs, path in ramdisk)
-const RAMDISK_CONTENT: &[(&str, &str)] = &[("bin/zig-out/bin/", "bin")];
+const RAMDISK_CONTENT: &[(&str, &str)] = &[
+    ("bin/zig-out/bin/", "bin"),
+    ("nash/zig-out/bin/nash", "bin/nash"),
+];
 
 fn limine_make() -> Output {
     if !fs::exists("limine").unwrap() {

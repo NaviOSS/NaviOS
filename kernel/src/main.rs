@@ -101,7 +101,7 @@ fn panic(info: &PanicInfo) -> ! {
 
     FRAMEBUFFER_TERMINAL.write().clear();
     cross_println!(
-        "kernel panic:\n{}, at {}",
+        "\x1B[38;2;255;0;0mkernel panic:\n{}, at {}\x1B[0m",
         info.message(),
         info.location().unwrap()
     );
@@ -119,7 +119,7 @@ fn print_stack_trace() {
     unsafe {
         core::arch::asm!("mov {}, rbp", out(reg) fp);
 
-        cross_println!("stack trace: ");
+        cross_println!("\x1B[38;2;0;0;200mStack trace:");
         while fp != 0 {
             let return_address_ptr = (fp as *const usize).offset(1);
             let return_address = *return_address_ptr;
@@ -141,6 +141,7 @@ fn print_stack_trace() {
             cross_println!("  {:#x} <{}>", return_address, name);
             fp = *(fp as *const usize);
         }
+        cross_println!("\x1B[0m");
     }
 }
 

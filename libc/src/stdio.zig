@@ -148,16 +148,32 @@ pub export fn getchar() c_int {
     return fgetc(&stdin);
 }
 
+pub fn zfgetline(file: *FILE) ![]u8 {
+    var buffer = stdlib.zalloc(u8, 1) orelse return error.MMapError;
+    var c = fgetc(file);
+    var i: usize = 0;
+
+    while (c != '\n') : (c = fgetc(file)) {
+        const extended: [*]u8 = @ptrCast(stdlib.realloc(buffer.ptr, i + 2));
+        buffer = extended[0 .. i + 2];
+        buffer[i] = @intCast(c);
+        i += 1;
+    }
+    buffer[i] = '\n';
+    return buffer;
+}
+
+pub fn zgetline() ![]u8 {
+    return zfgetline(&stdin);
+}
+
 pub export fn fgetline(file: *FILE, len: *usize) ?[*]c_char {
-    const ri: isize = @bitCast(file.fd);
-
-    const stat = io.fstat(ri);
-    const size = stat.?.size;
-
-    const ptr: ?*u8 = @ptrCast(stdlib.malloc(size));
-    if (io.read(ri, ptr orelse return null, size) < 0) return null;
-    len.* = size;
-    return @ptrCast(ptr);
+    const slice = zfgetline(file) catch |err| {
+        seterr(err);
+        return null;
+    };
+    len.* = slice.len;
+    return @ptrCast(slice.ptr);
 }
 
 fn wc(c: u8) isize {
