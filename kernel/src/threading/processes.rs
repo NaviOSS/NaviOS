@@ -6,7 +6,7 @@ use crate::drivers::vfs::expose::DirIter;
 use crate::drivers::vfs::{vfs, FileDescriptor, FS};
 use crate::memory::{align_up, copy_to_userspace, frame_allocator};
 use crate::utils::elf::{Elf, ElfError};
-use crate::{arch, debug, kernel, scheduler};
+use crate::{arch, debug, hddm, scheduler};
 
 use crate::memory::paging::{self, EntryFlags, MapToError, Page, PAGE_SIZE};
 use alloc::boxed::Box;
@@ -106,7 +106,7 @@ impl Process {
         let mut context = CPUStatus::default();
 
         let root_page_table_addr = paging::allocate_pml4()?;
-        let root_page_table = (root_page_table_addr | kernel().phy_offset) as *mut PageTable;
+        let root_page_table = (root_page_table_addr | hddm()) as *mut PageTable;
 
         unsafe {
             let page_table = &mut *root_page_table;
@@ -306,7 +306,7 @@ impl Process {
             )?
         };
 
-        let addr = frame.start_address | kernel().phy_offset;
+        let addr = frame.start_address | hddm();
         let ptr = addr as *mut u8;
         let slice = unsafe { slice::from_raw_parts_mut(ptr, PAGE_SIZE) };
 

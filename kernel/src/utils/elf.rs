@@ -5,7 +5,7 @@ use bitflags::bitflags;
 use macros::display_consts;
 
 use crate::{
-    kernel,
+    hddm,
     memory::{
         copy_to_userspace, frame_allocator,
         paging::{EntryFlags, IterPage, Page, PageTable, PAGE_SIZE},
@@ -387,7 +387,7 @@ impl<'a> Elf<'a> {
                         .ok_or(ElfError::MapToError)?;
 
                     let slice = slice::from_raw_parts_mut(
-                        (frame.start_address | kernel().phy_offset) as *mut u8,
+                        (frame.start_address | hddm()) as *mut u8,
                         PAGE_SIZE,
                     );
                     slice.fill(0);

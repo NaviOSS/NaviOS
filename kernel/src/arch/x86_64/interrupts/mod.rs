@@ -5,7 +5,7 @@ mod idt;
 use core::{arch::asm, fmt::Display};
 use idt::IDTDesc;
 
-use crate::{kernel, PhysAddr};
+use crate::{PhysAddr, KERNEL_ELF};
 
 use super::threading::RFLAGS;
 
@@ -32,12 +32,10 @@ pub struct TrapFrame {
 
 impl Display for TrapFrame {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let sym = kernel()
-            .elf
-            .sym_from_value_range(self.insturaction as usize);
+        let sym = KERNEL_ELF.sym_from_value_range(self.insturaction as usize);
 
         let name = if sym.is_some() {
-            kernel().elf.string_table_index(sym.unwrap().name_index)
+            KERNEL_ELF.string_table_index(sym.unwrap().name_index)
         } else {
             "??"
         };
@@ -62,12 +60,10 @@ impl Display for TrapFrame {
 
 impl Display for InterruptFrame {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let sym = kernel()
-            .elf
-            .sym_from_value_range(self.insturaction as usize);
+        let sym = KERNEL_ELF.sym_from_value_range(self.insturaction as usize);
 
         let name = if sym.is_some() {
-            kernel().elf.string_table_index(sym.unwrap().name_index)
+            KERNEL_ELF.string_table_index(sym.unwrap().name_index)
         } else {
             "??"
         };

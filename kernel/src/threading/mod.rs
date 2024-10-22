@@ -15,12 +15,12 @@ use alloc::{boxed::Box, vec::Vec};
 
 use crate::{
     arch::threading::{restore_cpu_status, CPUStatus},
-    debug, kernel,
+    debug,
     memory::{
         frame_allocator::Frame,
         paging::{EntryFlags, MapToError, Page, PageTable, PAGE_SIZE},
     },
-    scheduler,
+    scheduler, SCHEDULER,
 };
 
 /// helper function to work with `name` in Process
@@ -50,7 +50,7 @@ macro_rules! alloc_map {
         }
 
         for frame in frames {
-            let virt_addr = frame.start_address | kernel().phy_offset;
+            let virt_addr = frame.start_address | crate::hddm();
             let byte_array = virt_addr as *mut u8;
             let byte_array = unsafe { core::slice::from_raw_parts_mut(byte_array, PAGE_SIZE) };
             byte_array.fill(0);
@@ -113,8 +113,9 @@ impl Scheduler {
             next_pid: 1,
             processes_count: 1,
         };
-
-        kernel().scheduler = MaybeUninit::new(this);
+        unsafe {
+            (*SCHEDULER.0.get()) = MaybeUninit::new(this);
+        }
 
         let context = scheduler().current_process().context;
         restore_cpu_status(&context)

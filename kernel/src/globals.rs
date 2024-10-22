@@ -1,50 +1,26 @@
 use core::{cell::UnsafeCell, mem::MaybeUninit};
 
+use lazy_static::lazy_static;
 use spin::Mutex;
 
 use crate::{
+    limine,
     memory::buddy_allocator::BuddyAllocator,
     threading::Scheduler,
-    utils::{elf::Elf, Locked},
+    utils::{self, elf::Elf, Locked},
 };
+// TODO: figure out a safer way to Scheduler
+pub struct SchedulerWrapper(pub UnsafeCell<MaybeUninit<Scheduler>>);
 
-/// boot info
-#[derive(Debug)]
-pub struct Kernel<'a> {
-    pub phy_offset: usize,
-    pub rsdp_addr: Option<u64>,
-    pub elf: Elf<'a>,
-
-    pub scheduler: MaybeUninit<Scheduler>,
-}
-
-pub struct KernelWrapper(UnsafeCell<MaybeUninit<Kernel<'static>>>);
-unsafe impl Sync for KernelWrapper {}
-
-impl KernelWrapper {
-    pub fn get(&self) -> &mut Kernel {
-        unsafe { &mut *self.0.get().cast::<Kernel>() }
-    }
-    pub fn inited(&self) -> bool {
-        self.get().phy_offset != 0
-    }
-}
-
-pub static KERNEL: KernelWrapper = KernelWrapper(UnsafeCell::new(MaybeUninit::zeroed()));
-
-pub fn kernel<'a>() -> &'a mut Kernel<'a> {
-    KERNEL.get()
-}
-pub fn kernel_inited() -> bool {
-    KERNEL.inited()
-}
+unsafe impl Sync for SchedulerWrapper {}
+pub static SCHEDULER: SchedulerWrapper = SchedulerWrapper(UnsafeCell::new(MaybeUninit::zeroed()));
 
 pub fn scheduler_inited() -> bool {
-    unsafe { kernel().scheduler.assume_init_ref().current_process != core::ptr::null_mut() }
+    scheduler().current_process != core::ptr::null_mut()
 }
-
+#[inline(always)]
 pub fn scheduler() -> &'static mut Scheduler {
-    unsafe { kernel().scheduler.assume_init_mut() }
+    unsafe { (*SCHEDULER.0.get()).assume_init_mut() }
 }
 
 #[global_allocator]
@@ -53,4 +29,20 @@ static GLOBAL_ALLOCATOR: Locked<MaybeUninit<BuddyAllocator>> =
 
 pub fn global_allocator() -> &'static Mutex<MaybeUninit<BuddyAllocator<'static>>> {
     &GLOBAL_ALLOCATOR.inner
+}
+/// static mut because we need really fast access of HDDM
+pub static mut HDDM: usize = 0;
+#[inline(always)]
+pub fn hddm() -> usize {
+    unsafe { HDDM }
+}
+
+lazy_static! {
+    pub static ref KERNEL_ELF: Elf<'static> = {
+        let kernel_img = limine::kernel_image_info();
+        let kernel_img_bytes = unsafe { core::slice::from_raw_parts(kernel_img.0, kernel_img.1) };
+        let elf = utils::elf::Elf::new(kernel_img_bytes).unwrap();
+        elf
+    };
+    pub static ref RSDP_ADDR: usize = limine::rsdp_addr();
 }

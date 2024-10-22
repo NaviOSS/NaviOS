@@ -3,7 +3,7 @@ use core::{arch::asm, fmt::Display};
 use lazy_static::lazy_static;
 
 use crate::{
-    debug, kernel,
+    debug, hddm,
     limine::{self, MEMORY_END},
     memory::frame_allocator::{self, Frame},
 };
@@ -80,7 +80,7 @@ impl<const N: usize> PageTableBindings<N> {
             let frame =
                 frame_allocator::allocate_frame().ok_or(MapToError::FrameAllocationFailed)?;
 
-            let virt_start_addr = frame.start_address | kernel().phy_offset;
+            let virt_start_addr = frame.start_address | hddm();
             let table = unsafe { &mut *(virt_start_addr as *mut PageTable) };
 
             table.zeroize();

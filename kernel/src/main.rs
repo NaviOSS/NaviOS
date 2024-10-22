@@ -64,7 +64,6 @@ pub fn khalt() -> ! {
 
 #[allow(unused_imports)]
 use core::panic::PanicInfo;
-use core::slice;
 
 /// prints to both the serial and the terminal doesn't print to the terminal if it panicked or if
 /// it is not ready...
@@ -125,14 +124,10 @@ fn print_stack_trace() {
             let return_address = *return_address_ptr;
 
             let name = {
-                if kernel_inited() {
-                    let sym = kernel().elf.sym_from_value_range(return_address);
+                let sym = KERNEL_ELF.sym_from_value_range(return_address);
 
-                    if let Some(sym) = sym {
-                        kernel().elf.string_table_index(sym.name_index)
-                    } else {
-                        "??"
-                    }
+                if let Some(sym) = sym {
+                    KERNEL_ELF.string_table_index(sym.name_index)
                 } else {
                     "??"
                 }
@@ -150,23 +145,16 @@ pub extern "C" fn kinit() {
     arch::init_phase1();
     // initing globals
     let phy_offset = get_phy_offset();
-    let kernel_img = limine::kernel_image_info();
+    unsafe {
+        HDDM = phy_offset;
+    }
 
     serial!(
-        "image at: 0x{:x}\nlen: 0x{:x}\nphy_offset: 0x{:x}..0x{:x}\nmemory size: 0x{:x}\n",
-        kernel_img.0 as usize,
-        kernel_img.1,
+        "phy_offset: 0x{:x}..0x{:x}\nmemory size: 0x{:x}\n",
         phy_offset,
         limine::get_phy_offset_end(),
         *MEMORY_SIZE
     );
-
-    let kernel_img_bytes = unsafe { slice::from_raw_parts(kernel_img.0, kernel_img.1) };
-    let elf = utils::elf::Elf::new(kernel_img_bytes).unwrap();
-
-    kernel().phy_offset = phy_offset;
-    kernel().rsdp_addr = limine::rsdp_addr();
-    kernel().elf = elf;
 
     memory::sorcery::init_page_table();
     memory::init(get_phy_offset_end());
@@ -178,7 +166,7 @@ pub extern "C" fn kinit() {
     unsafe {
         devices::init();
         vfs::init();
-        debug!(Kernel, "init phase 1 done");
+        debug!(Scheduler, "Eve starting...");
         Scheduler::init(kmain as usize, "Eve");
     }
 }

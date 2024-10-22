@@ -63,8 +63,8 @@ pub fn get_phy_offset() -> usize {
     HHDM_REQUEST.get_response().unwrap().offset() as usize
 }
 
-pub fn rsdp_addr() -> Option<u64> {
-    Some(RSDP_REQUEST.get_response()?.address() as u64)
+pub fn rsdp_addr() -> usize {
+    RSDP_REQUEST.get_response().unwrap().address() as usize
 }
 
 pub fn kernel_file() -> &'static File {
