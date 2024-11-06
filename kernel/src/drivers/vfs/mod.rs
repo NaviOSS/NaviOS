@@ -5,10 +5,7 @@ use core::usize;
 use crate::{
     debug, limine,
     threading::expose::{getcwd, ErrorStatus},
-    utils::{
-        ustar::{self, TarArchiveIter},
-        Locked,
-    },
+    utils::ustar::{self, TarArchiveIter},
 };
 pub mod devicefs;
 pub mod ramfs;
@@ -23,20 +20,16 @@ use alloc::{
 };
 use expose::DirIter;
 use lazy_static::lazy_static;
-use spin::MutexGuard;
+use spin::RwLock;
 pub type Path<'a> = &'a str;
 
 lazy_static! {
-    pub static ref VFS_STRUCT: Locked<VFS> = Locked::new(VFS::new());
-}
-
-pub fn vfs() -> MutexGuard<'static, VFS> {
-    (*VFS_STRUCT).inner.lock()
+    pub static ref VFS_STRUCT: RwLock<VFS> = RwLock::new(VFS::new());
 }
 
 pub fn init() {
     debug!(VFS, "initing ...");
-    let mut vfs = vfs();
+    let mut vfs = VFS_STRUCT.write();
     // ramfs
     let ramfs = Box::new(ramfs::RamFS::new());
     vfs.mount(b"ram", ramfs).unwrap();
@@ -88,6 +81,7 @@ pub enum FSError {
     InvaildFileDescriptorOrRes,
     AlreadyExists,
     NotExecuteable,
+    ResourceBusy,
 }
 impl Into<ErrorStatus> for FSError {
     fn into(self) -> ErrorStatus {
@@ -101,6 +95,7 @@ impl Into<ErrorStatus> for FSError {
             Self::InvaildFileDescriptorOrRes => ErrorStatus::InvaildResource,
             Self::AlreadyExists => ErrorStatus::AlreadyExists,
             Self::NotExecuteable => ErrorStatus::NotExecutable,
+            Self::ResourceBusy => ErrorStatus::Busy,
         }
     }
 }
@@ -174,13 +169,13 @@ pub type Inode = Arc<dyn InodeOps>;
 /// inode type with a known type
 pub type InodeOf<T> = Arc<T>;
 
-pub trait FS: Send {
+pub trait FS: Send + Sync {
     /// returns the name of the fs
     /// for example, `TmpFS` name is "tmpfs"
     /// again we cannot use consts because of `dyn`...
     fn name(&self) -> &'static str;
     /// attempts to close a file cleanig all it's resources
-    fn close(&mut self, file_descriptor: &mut FileDescriptor) -> FSResult<()> {
+    fn close(&self, file_descriptor: &mut FileDescriptor) -> FSResult<()> {
         _ = file_descriptor;
         Ok(())
     }
@@ -197,7 +192,7 @@ pub trait FS: Send {
 
     /// goes trough path to get the inode it refers to
     /// will err if there is no such a file or directory or path is straight up invaild
-    fn reslove_path(&mut self, path: Path) -> FSResult<Inode> {
+    fn reslove_path(&self, path: Path) -> FSResult<Inode> {
         let mut path = path.split(&['/', '\\']).peekable();
 
         let mut current_inode = self.root_inode()?;
@@ -237,7 +232,7 @@ pub trait FS: Send {
     /// goes trough path to get the inode it refers to
     /// will err if there is no such a file or directory or path is straight up invaild
     /// assumes that the last depth in path is the filename and returns it alongside the parent dir
-    fn reslove_path_uncreated<'a>(&mut self, path: Path<'a>) -> FSResult<(Inode, &'a str)> {
+    fn reslove_path_uncreated<'a>(&self, path: Path<'a>) -> FSResult<(Inode, &'a str)> {
         let path = path.trim_end_matches('/');
 
         let (name, path) = {
@@ -259,20 +254,20 @@ pub trait FS: Send {
     }
 
     /// opens a path returning a file descriptor or an Err(()) if path doesn't exist
-    fn open(&mut self, path: Path) -> FSResult<FileDescriptor> {
+    fn open(&self, path: Path) -> FSResult<FileDescriptor> {
         _ = path;
         Err(FSError::OperationNotSupported)
     }
     /// attempts to read `buffer.len` bytes from file_descriptor returns the actual count of the bytes read
     /// shouldn't read directories!
-    fn read(&mut self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
+    fn read(&self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
         _ = file_descriptor;
         _ = buffer;
         Err(FSError::OperationNotSupported)
     }
     /// attempts to write `buffer.len` bytes to `file_descriptor`
     /// shouldn't write to directories!
-    fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<usize> {
+    fn write(&self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<usize> {
         _ = file_descriptor;
         _ = buffer;
         Err(FSError::OperationNotSupported)
@@ -289,7 +284,7 @@ pub trait FS: Send {
     }
 
     /// opens an iterator of directroy entires, fd must be a directory
-    fn diriter_open(&mut self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
+    fn diriter_open(&self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
         _ = fd;
         Err(FSError::OperationNotSupported)
     }
@@ -331,11 +326,42 @@ impl VFS {
         self.drivers.get_mut(name)
     }
 
+    /// gets a drive from `self` named "`name`"
+    /// or "`name`:" imuttabily
+    pub(self) fn get_with_name(&self, name: &[u8]) -> Option<&Box<dyn FS>> {
+        let mut name = name;
+
+        if name.ends_with(b":") {
+            name = &name[..name.len() - 1];
+        }
+
+        self.drivers.get(name)
+    }
     /// gets the drive name from `path` then gets the drive
     /// path must be absolute starting with DRIVE_NAME:/
     /// returns an &str which removes the DRIVE_NAME:/ from path
     /// also handles relative path
-    pub(self) fn get_from_path(&mut self, path: Path) -> FSResult<(&mut Box<dyn FS>, String)> {
+    pub(self) fn get_from_path_mut(&mut self, path: Path) -> FSResult<(&mut Box<dyn FS>, String)> {
+        let mut spilt_path = path.split(&['/', '\\']);
+
+        let drive = spilt_path.next().ok_or(FSError::InvaildDrive)?;
+        if !(drive.ends_with(':')) {
+            let full_path = getcwd().to_owned() + path;
+            return self.get_from_path_checked_mut(&full_path);
+        }
+
+        Ok((
+            self.get_with_name_mut(drive.as_bytes())
+                .ok_or(FSError::InvaildDrive)?,
+            path[drive.len()..].to_string(),
+        ))
+    }
+
+    /// gets the drive name from `path` then gets the drive
+    /// path must be absolute starting with DRIVE_NAME:/
+    /// returns an &str which removes the DRIVE_NAME:/ from path
+    /// also handles relative path
+    pub(self) fn get_from_path(&self, path: Path) -> FSResult<(&Box<dyn FS>, String)> {
         let mut spilt_path = path.split(&['/', '\\']);
 
         let drive = spilt_path.next().ok_or(FSError::InvaildDrive)?;
@@ -345,13 +371,14 @@ impl VFS {
         }
 
         Ok((
-            self.get_with_name_mut(drive.as_bytes())
+            self.get_with_name(drive.as_bytes())
                 .ok_or(FSError::InvaildDrive)?,
             path[drive.len()..].to_string(),
         ))
     }
+
     /// get_from_path but path cannot be realtive to cwd
-    pub(self) fn get_from_path_checked(
+    pub(self) fn get_from_path_checked_mut(
         &mut self,
         path: Path,
     ) -> FSResult<(&mut Box<dyn FS>, String)> {
@@ -369,8 +396,24 @@ impl VFS {
         ))
     }
 
+    /// get_from_path but path cannot be realtive to cwd
+    pub(self) fn get_from_path_checked(&self, path: Path) -> FSResult<(&Box<dyn FS>, String)> {
+        let mut spilt_path = path.split(&['/', '\\']);
+
+        let drive = spilt_path.next().ok_or(FSError::InvaildDrive)?;
+        if !(drive.ends_with(':')) {
+            return Err(FSError::InvaildDrive);
+        }
+
+        Ok((
+            self.get_with_name(drive.as_bytes())
+                .ok_or(FSError::InvaildDrive)?,
+            path[drive.len()..].to_string(),
+        ))
+    }
+
     /// checks if a path is a vaild dir returns Err if path has an error
-    pub fn verify_path_dir(&mut self, path: Path) -> FSResult<()> {
+    pub fn verify_path_dir(&self, path: Path) -> FSResult<()> {
         let (mountpoint, path) = self.get_from_path_checked(path)?;
 
         let res = mountpoint.reslove_path(&path)?;
@@ -408,7 +451,7 @@ impl FS for VFS {
         "vfs"
     }
 
-    fn open(&mut self, path: Path) -> FSResult<FileDescriptor> {
+    fn open(&self, path: Path) -> FSResult<FileDescriptor> {
         let (mountpoint, path) = self.get_from_path(path)?;
 
         let file = mountpoint.open(&path)?;
@@ -416,16 +459,16 @@ impl FS for VFS {
         Ok(file)
     }
 
-    fn read(&mut self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
+    fn read(&self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
         unsafe { (*file_descriptor.mountpoint).read(file_descriptor, buffer) }
     }
 
-    fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<usize> {
+    fn write(&self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<usize> {
         unsafe { (*file_descriptor.mountpoint).write(file_descriptor, buffer) }
     }
 
     fn create(&mut self, path: Path) -> FSResult<()> {
-        let (mountpoint, path) = self.get_from_path(path)?;
+        let (mountpoint, path) = self.get_from_path_mut(path)?;
 
         if path.ends_with('/') {
             return Err(FSError::NotAFile);
@@ -435,16 +478,16 @@ impl FS for VFS {
     }
 
     fn createdir(&mut self, path: Path) -> FSResult<()> {
-        let (mountpoint, path) = self.get_from_path(path)?;
+        let (mountpoint, path) = self.get_from_path_mut(path)?;
 
         mountpoint.createdir(&path)
     }
 
-    fn close(&mut self, file_descriptor: &mut FileDescriptor) -> FSResult<()> {
+    fn close(&self, file_descriptor: &mut FileDescriptor) -> FSResult<()> {
         unsafe { (*file_descriptor.mountpoint).close(file_descriptor) }
     }
 
-    fn diriter_open(&mut self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
+    fn diriter_open(&self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
         unsafe { (*fd.mountpoint).diriter_open(fd) }
     }
 }

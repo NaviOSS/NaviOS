@@ -6,7 +6,10 @@ use alloc::{
 use lazy_static::lazy_static;
 use spin::Mutex;
 
-use crate::{drivers::vfs::InodeOps, terminal::FRAMEBUFFER_TERMINAL};
+use crate::{
+    drivers::vfs::{FSResult, InodeOps},
+    terminal::FRAMEBUFFER_TERMINAL,
+};
 
 pub struct DeviceManager {
     devices: LinkedList<&'static dyn Device>,
@@ -43,8 +46,8 @@ pub trait Device: Send + Sync + InodeOps {
 
 pub trait CharDevice: Send + Sync {
     fn name(&self) -> &'static str;
-    fn read(&self, buffer: &mut [u8]) -> usize;
-    fn write(&self, buffer: &[u8]) -> usize;
+    fn read(&self, buffer: &mut [u8]) -> FSResult<usize>;
+    fn write(&self, buffer: &[u8]) -> FSResult<usize>;
 }
 
 impl<T: CharDevice> InodeOps for T {
@@ -62,11 +65,11 @@ impl<T: CharDevice> InodeOps for T {
         _offset: usize,
         _count: usize,
     ) -> crate::drivers::vfs::FSResult<usize> {
-        Ok(self.read(buffer))
+        self.read(buffer)
     }
 
     fn write(&self, buffer: &[u8], _offset: usize) -> crate::drivers::vfs::FSResult<usize> {
-        Ok(CharDevice::write(self, buffer))
+        CharDevice::write(self, buffer)
     }
 
     fn inodeid(&self) -> usize {

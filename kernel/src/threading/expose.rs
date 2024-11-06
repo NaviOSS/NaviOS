@@ -4,7 +4,7 @@ use alloc::string::ToString;
 use bitflags::bitflags;
 
 use crate::{
-    drivers::vfs::{self, FSResult},
+    drivers::vfs::{FSResult, VFS_STRUCT},
     khalt, scheduler,
     threading::processes::{Process, ProcessStatus},
     utils::elf::{Elf, ElfError},
@@ -126,7 +126,7 @@ pub unsafe fn spawn_function(
 /// will only Err if new_dir doesn't exists or is not a directory
 #[no_mangle]
 pub fn chdir(new_dir: &str) -> FSResult<()> {
-    vfs::vfs().verify_path_dir(new_dir)?;
+    VFS_STRUCT.read().verify_path_dir(new_dir)?;
     let cwd = &mut scheduler().current_process().current_dir;
     *cwd = new_dir.to_string();
     if !cwd.ends_with('/') {
@@ -244,6 +244,7 @@ pub enum ErrorStatus {
     MissingPermissions,
     // memory allocations and mapping error, most likely that memory is full
     MMapError,
+    Busy,
     // errors sent by processes
     NotEnoughArguments,
 }

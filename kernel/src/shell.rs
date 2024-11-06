@@ -20,14 +20,21 @@ use crate::{
 /// TODO: replace with a normal read?
 pub fn readln() -> String {
     let mut buffer = String::with_capacity(16);
-    CharDevice::read(&*FRAMEBUFFER_TERMINAL, &mut []);
+    while let Err(FSError::ResourceBusy) = CharDevice::read(&*FRAMEBUFFER_TERMINAL, &mut []) {
+        threading::expose::thread_yeild();
+    }
     let mut char = [0];
-
-    while let 1 = CharDevice::read(&*FRAMEBUFFER_TERMINAL, &mut char) {
-        if char[0] == b'\n' {
-            break;
+    loop {
+        match CharDevice::read(&*FRAMEBUFFER_TERMINAL, &mut char) {
+            Ok(1) => {
+                if char[0] == b'\n' {
+                    break;
+                }
+                buffer.push(char[0] as char);
+            }
+            Err(FSError::ResourceBusy) => threading::expose::thread_yeild(),
+            _ => break,
         }
-        buffer.push(char[0] as char);
     }
     buffer
 }

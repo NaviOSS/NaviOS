@@ -8,7 +8,7 @@ use core::{
 use alloc::{slice, string::String};
 
 use crate::{
-    drivers::vfs::{self, expose::open},
+    drivers::vfs::{self, expose::open, FSError},
     threading::{
         self,
         expose::{ErrorStatus, SpawnFlags},
@@ -16,6 +16,29 @@ use crate::{
     },
     utils::{self, expose::SysInfo},
 };
+
+use super::interrupts::InterruptFrame;
+/// used sometimes for debugging syscalls
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+#[repr(C)]
+pub struct SyscallContext {
+    pub r15: u64,
+    pub r14: u64,
+    pub r13: u64,
+    pub r12: u64,
+    pub r11: u64,
+    pub r10: u64,
+    pub r9: u64,
+    pub r8: u64,
+    pub rbp: u64,
+    pub rdi: u64,
+    pub rsi: u64,
+    pub rdx: u64,
+    pub rcx: u64,
+    pub rbx: u64,
+    pub frame: InterruptFrame,
+}
 global_asm!(
     "
 .section .rodata
@@ -63,7 +86,6 @@ syscall_base:
     push r13
     push r14
     push r15
-    mov rbp, 0
     call [syscall_table + rax * 8]
     pop r15
     pop r14
@@ -154,23 +176,30 @@ extern "C" fn sysopen(path_ptr: *const u8, len: usize, dest_fd: *mut usize) -> E
 #[no_mangle]
 extern "C" fn syswrite(fd: usize, ptr: *const u8, len: usize) -> ErrorStatus {
     let slice = make_slice!(ptr, len);
-
-    match vfs::expose::write(fd, slice) {
-        Err(err) => err.into(),
-        Ok(_) => ErrorStatus::None,
+    while let Err(err) = vfs::expose::write(fd, slice) {
+        match err {
+            FSError::ResourceBusy => {
+                threading::expose::thread_yeild();
+            }
+            _ => return err.into(),
+        }
     }
+    ErrorStatus::None
 }
 
 #[no_mangle]
 extern "C" fn sysread(fd: usize, ptr: *mut u8, len: usize, dest_read: *mut usize) -> ErrorStatus {
     let slice = make_slice_mut!(ptr, len);
 
-    match vfs::expose::read(fd, slice) {
-        Err(err) => err.into(),
-        Ok(bytes_read) => unsafe {
-            *dest_read = bytes_read;
-            ErrorStatus::None
-        },
+    loop {
+        match vfs::expose::read(fd, slice) {
+            Err(FSError::ResourceBusy) => threading::expose::thread_yeild(),
+            Err(err) => return err.into(),
+            Ok(bytes_read) => unsafe {
+                *dest_read = bytes_read;
+                return ErrorStatus::None;
+            },
+        }
     }
 }
 
@@ -267,7 +296,7 @@ extern "C" fn sysfstat(ri: usize, direntry: *mut vfs::expose::DirEntry) -> Error
 pub struct SpawnConfig {
     pub name_ptr: *const u8,
     pub name_len: usize,
-    pub argv: *const *const [u8],
+    pub argv: *mut (*const u8, usize),
     pub argc: usize,
     pub flags: SpawnFlags,
 }
@@ -299,15 +328,26 @@ extern "C" fn sysspawn(
     let name = String::from_utf8_lossy(name);
 
     let argv = if !argv.is_null() {
-        make_slice!(argv, argc)
+        make_slice_mut!(argv, argc)
     } else {
-        &[]
+        &mut []
     };
-    let elf_pytes = make_slice!(elf_ptr, elf_len);
 
+    let argv_str: &mut [&str] = unsafe { core::mem::transmute(&mut *argv) };
+
+    for (i, arg) in argv.iter().enumerate() {
+        // transmut doesn't work we make it work here
+        let slice = make_slice!(arg.0, arg.1);
+        unsafe {
+            argv_str[i] = str::from_utf8_unchecked(slice);
+        }
+        // argv[i] is invaild after this
+        // argv_str[i] is argv[i] but in a rusty way
+    }
+
+    let elf_bytes = make_slice!(elf_ptr, elf_len);
     unsafe {
-        let argv: &[&str] = core::mem::transmute(argv);
-        match threading::expose::spawn(&name, elf_pytes, argv, flags) {
+        match threading::expose::spawn(&name, elf_bytes, argv_str, flags) {
             Err(err) => err.into(),
             Ok(pid) => {
                 if !dest_pid.is_null() {

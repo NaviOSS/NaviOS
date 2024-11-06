@@ -3,7 +3,7 @@ use core::slice;
 use super::{ARGV_START, STACK_END};
 
 use crate::drivers::vfs::expose::DirIter;
-use crate::drivers::vfs::{vfs, FileDescriptor, FS};
+use crate::drivers::vfs::FileDescriptor;
 use crate::memory::{align_up, copy_to_userspace, frame_allocator};
 use crate::utils::elf::{Elf, ElfError};
 use crate::{arch, debug, hddm, scheduler};
@@ -111,6 +111,7 @@ impl Process {
         unsafe {
             let page_table = &mut *root_page_table;
             super::alloc_stack(page_table)?;
+            super::alloc_ring0_stack(page_table)?;
             super::alloc_argv(page_table)?;
 
             if argv.len() != 0 {
@@ -259,21 +260,16 @@ impl Process {
     /// frees self and then returns next
     /// frees all resources that has something to do with this process and all it's memory
     pub fn free(&mut self) -> Option<Box<Process>> {
-        debug!(Process, "deallocating a process with pid {} ...", self.pid);
-
         let root_page_table = unsafe { &mut (*self.root_page_table) };
         unsafe { root_page_table.free(4) };
 
-        debug!(Process, "deallocated the process's page table ...");
-
         for resource in &mut self.resources {
             match resource {
-                Resource::File(ref mut fd) => vfs().close(fd).unwrap(),
                 _ => (),
             }
         }
 
-        debug!(Process, "closed process resources ...");
+        debug!(Process, "process with pid {} TERMINATED ...", self.pid);
 
         self.next.take()
     }

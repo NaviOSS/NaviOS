@@ -109,7 +109,7 @@ lazy_static! {
 
         tss.interrupt_stack_table[0] = alloc_stack!();
         tss.interrupt_stack_table[1] = alloc_stack!();
-        tss.privilege_stack_table[0] = alloc_stack!();
+        tss.privilege_stack_table[0] = crate::threading::RING0_STACK_END as u64;
 
         tss
     };

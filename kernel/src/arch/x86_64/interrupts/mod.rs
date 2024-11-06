@@ -9,7 +9,7 @@ use crate::{PhysAddr, KERNEL_ELF};
 
 use super::threading::RFLAGS;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C)]
 pub struct InterruptFrame {
     pub insturaction: u64,

@@ -171,14 +171,17 @@ impl FS for RamFS {
         Ok(node.map(|node| node.clone()))
     }
 
-    fn open(&mut self, path: Path) -> FSResult<FileDescriptor> {
+    fn open(&self, path: Path) -> FSResult<FileDescriptor> {
         let file = self.reslove_path(path)?;
         let node = file.clone();
 
-        Ok(FileDescriptor::new(self, node))
+        Ok(FileDescriptor::new(
+            self as *const RamFS as *mut RamFS,
+            node,
+        ))
     }
 
-    fn read(&mut self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
+    fn read(&self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
         let count = buffer.len();
         let file_size = file_descriptor.node.size()?;
 
@@ -196,7 +199,7 @@ impl FS for RamFS {
         Ok(count)
     }
 
-    fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<usize> {
+    fn write(&self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<usize> {
         file_descriptor
             .node
             .write(buffer, file_descriptor.write_pos)?;
@@ -232,7 +235,7 @@ impl FS for RamFS {
         Ok(())
     }
 
-    fn diriter_open(&mut self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
+    fn diriter_open(&self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
         // TODO: safer way to do this
         // by adding an InodeOp that returns a Box<dyn DirIter> from self
         if !fd.node.is_dir() {

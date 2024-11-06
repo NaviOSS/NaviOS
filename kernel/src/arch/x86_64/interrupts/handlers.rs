@@ -8,7 +8,7 @@ use super::{InterruptFrame, TrapFrame};
 
 use crate::arch::x86_64::interrupts::apic::send_eoi;
 use crate::arch::x86_64::{inb, threading};
-use crate::{drivers, println};
+use crate::{drivers, serial};
 
 const ATTR_TRAP: u8 = 0xF;
 const ATTR_INT: u8 = 0xE;
@@ -64,7 +64,7 @@ extern "x86-interrupt" fn invaild_opcode(frame: InterruptFrame) {
 
 #[no_mangle]
 extern "x86-interrupt" fn breakpoint_handler(frame: InterruptFrame) {
-    println!("hi from interrupt, breakpoint!\n{}", frame);
+    serial!("hi from interrupt, breakpoint!\n{}", frame);
 }
 
 #[no_mangle]

@@ -6,7 +6,7 @@ use alloc::boxed::Box;
 
 use crate::{scheduler, threading::processes::Resource};
 
-use super::{vfs, FSError, FSResult, Inode, InodeType, Path, FS};
+use super::{FSError, FSResult, Inode, InodeType, Path, FS, VFS_STRUCT};
 /// gets a FileDescriptor from a fd (file_descriptor id) may return Err(FSError::InvaildFileDescriptor)
 macro_rules! get_fd {
     ($ri: expr) => {{
@@ -22,14 +22,20 @@ macro_rules! get_fd {
 
 #[no_mangle]
 pub fn open(path: Path) -> FSResult<usize> {
-    let fd = vfs().open(path)?;
+    let fd = VFS_STRUCT
+        .try_read()
+        .ok_or(FSError::ResourceBusy)?
+        .open(path)?;
     Ok(scheduler().add_resource(Resource::File(fd)))
 }
 
 #[no_mangle]
 pub fn close(ri: usize) -> FSResult<()> {
     let fd = get_fd!(ri);
-    vfs().close(fd)?;
+    VFS_STRUCT
+        .try_read()
+        .ok_or(FSError::ResourceBusy)?
+        .close(fd)?;
 
     _ = scheduler().remove_resource(ri);
     Ok(())
@@ -38,23 +44,35 @@ pub fn close(ri: usize) -> FSResult<()> {
 #[no_mangle]
 pub fn read(ri: usize, buffer: &mut [u8]) -> FSResult<usize> {
     let fd = get_fd!(ri);
-    vfs().read(fd, buffer)
+    VFS_STRUCT
+        .try_read()
+        .ok_or(FSError::ResourceBusy)?
+        .read(fd, buffer)
 }
 
 #[no_mangle]
 pub fn write(ri: usize, buffer: &[u8]) -> FSResult<usize> {
     let fd = get_fd!(ri);
-    vfs().write(fd, buffer)
+    VFS_STRUCT
+        .try_read()
+        .ok_or(FSError::ResourceBusy)?
+        .write(fd, buffer)
 }
 
 #[no_mangle]
 pub fn create(path: Path) -> FSResult<()> {
-    vfs().create(path)
+    VFS_STRUCT
+        .try_write()
+        .ok_or(FSError::ResourceBusy)?
+        .create(path)
 }
 
 #[no_mangle]
 pub fn createdir(path: Path) -> FSResult<()> {
-    vfs().createdir(path)
+    VFS_STRUCT
+        .try_write()
+        .ok_or(FSError::ResourceBusy)?
+        .createdir(path)
 }
 
 pub const MAX_NAME_LEN: usize = 128;
@@ -113,7 +131,10 @@ pub trait DirIter: Debug {
 /// return the ri of the diriter
 pub fn diriter_open(fd_ri: usize) -> FSResult<usize> {
     let fd = get_fd!(fd_ri);
-    let diriter = vfs().diriter_open(fd)?;
+    let diriter = VFS_STRUCT
+        .try_read()
+        .ok_or(FSError::ResourceBusy)?
+        .diriter_open(fd)?;
 
     Ok(scheduler().add_resource(Resource::DirIter(diriter)))
 }

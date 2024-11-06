@@ -145,20 +145,23 @@ impl FS for DeviceFS {
         Ok(None)
     }
 
-    fn open(&mut self, path: Path) -> FSResult<FileDescriptor> {
+    fn open(&self, path: Path) -> FSResult<FileDescriptor> {
         let resolved = self.reslove_path(path)?;
-        Ok(FileDescriptor::new(self, resolved.clone()))
+        Ok(FileDescriptor::new(
+            self as *const Self as *mut Self,
+            resolved.clone(),
+        ))
     }
 
-    fn write(&mut self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<usize> {
+    fn write(&self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<usize> {
         file_descriptor.node.write(buffer, 0)
     }
 
-    fn read(&mut self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
+    fn read(&self, file_descriptor: &mut FileDescriptor, buffer: &mut [u8]) -> FSResult<usize> {
         file_descriptor.node.read(buffer, 0, 0)
     }
 
-    fn diriter_open(&mut self, _fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
+    fn diriter_open(&self, _fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
         Ok(DeviceDirIter::new())
     }
 }

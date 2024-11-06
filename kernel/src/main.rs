@@ -113,14 +113,14 @@ fn panic(info: &PanicInfo) -> ! {
 
 #[allow(unused)]
 fn print_stack_trace() {
-    let mut fp: usize;
+    let mut fp: *const usize;
 
     unsafe {
         core::arch::asm!("mov {}, rbp", out(reg) fp);
 
         cross_println!("\x1B[38;2;0;0;200mStack trace:");
-        while fp != 0 {
-            let return_address_ptr = (fp as *const usize).offset(1);
+        while !fp.is_null() && fp.is_aligned() {
+            let return_address_ptr = fp.offset(1);
             let return_address = *return_address_ptr;
 
             let name = {
@@ -134,7 +134,7 @@ fn print_stack_trace() {
             };
 
             cross_println!("  {:#x} <{}>", return_address, name);
-            fp = *(fp as *const usize);
+            fp = *fp as *const usize;
         }
         cross_println!("\x1B[0m");
     }

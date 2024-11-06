@@ -1,8 +1,11 @@
 pub mod expose;
 pub mod processes;
 pub const STACK_SIZE: usize = PAGE_SIZE * 6;
-pub const STACK_START: usize = 0x00007A0000000000;
+pub const STACK_START: usize = 0x00007A3000000000;
 pub const STACK_END: usize = STACK_START + STACK_SIZE;
+
+pub const RING0_STACK_START: usize = 0x00007A0000000000;
+pub const RING0_STACK_END: usize = RING0_STACK_START + STACK_SIZE;
 
 pub const ENVIROMENT_START: usize = 0x00007E0000000000;
 pub const ARGV_START: usize = ENVIROMENT_START + 0xA000000000;
@@ -83,6 +86,10 @@ pub fn alloc_argv(page_table: &mut PageTable) -> Result<(), MapToError> {
     alloc_map!(page_table, ARGV_START, ARGV_SIZE);
 }
 
+/// allocates and maps a ring0 stack to page_table
+pub fn alloc_ring0_stack(page_table: &mut PageTable) -> Result<(), MapToError> {
+    alloc_map!(page_table, RING0_STACK_START, STACK_SIZE);
+}
 pub struct Scheduler {
     pub head: Box<Process>,
     /// raw pointers for peformance, we are ring0 we need the lowest stuff
