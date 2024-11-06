@@ -3,7 +3,7 @@ use core::slice;
 use super::{ARGV_START, STACK_END};
 
 use crate::drivers::vfs::expose::DirIter;
-use crate::drivers::vfs::FileDescriptor;
+use crate::drivers::vfs::{FileDescriptor, FS, VFS_STRUCT};
 use crate::memory::{align_up, copy_to_userspace, frame_allocator};
 use crate::utils::elf::{Elf, ElfError};
 use crate::{arch, debug, hddm, scheduler};
@@ -265,6 +265,7 @@ impl Process {
 
         for resource in &mut self.resources {
             match resource {
+                Resource::File(fd) => VFS_STRUCT.read().close(fd).unwrap(),
                 _ => (),
             }
         }
