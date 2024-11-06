@@ -98,7 +98,7 @@ pub inline fn diriter_next(diriter: usize, direntry: *raw.DirEntry) usize {
 }
 
 pub inline fn wait(pid: usize) void {
-    return syscall1(11, pid);
+    _ = syscall1(11, pid);
 }
 
 pub inline fn fstat(ri: usize, direntry: *raw.DirEntry) usize {

@@ -11,12 +11,7 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
-    const freetarget = b.resolveTargetQuery(std.Target.Query{
-        .abi = .none,
-        .os_tag = .freestanding,
-        .ofmt = .elf,
-        .cpu_arch = .x86_64,
-    });
+    const freetarget = b.resolveTargetQuery(std.Target.Query{ .abi = .none, .os_tag = .freestanding, .ofmt = .elf, .cpu_arch = .x86_64, .cpu_features_sub = std.Target.x86.featureSet(&[_]std.Target.x86.Feature{ .avx, .avx2, .sse, .sse2 }) });
 
     const lib = b.addStaticLibrary(.{
         .name = "libc",

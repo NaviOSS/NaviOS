@@ -27,6 +27,7 @@ pub const Error = error{
     MissingPermissions,
     // memory allocations and mapping error, most likely that memory is full
     MMapError,
+    Busy,
     NotEnoughArguments,
     // iso
     ArgumentOutOfDomain,

@@ -24,7 +24,7 @@ comptime {
     _ = private;
 }
 
-export fn exit() noreturn {
+pub export fn exit() noreturn {
     syscalls.exit();
     while (true) {
         asm volatile ("hlt");
@@ -34,7 +34,7 @@ export fn exit() noreturn {
 pub fn panic(msg: []const u8, error_return_trace: ?*builtin.StackTrace, return_addr: ?usize) noreturn {
     @setCold(true);
     const at = return_addr orelse @returnAddress();
-    stdio.zprintf("libc panic: %.*s at %p <??>\n", .{ msg.len, msg.ptr, at }) catch {};
+    stdio.zprintf("\x1B[38;2;200;0;0mlibc panic: %.*s at %p <??>\n", .{ msg.len, msg.ptr, at }) catch {};
 
     stdio.zprintf("trace:\n", .{}) catch {};
     if (error_return_trace) |trace| {
@@ -49,6 +49,7 @@ pub fn panic(msg: []const u8, error_return_trace: ?*builtin.StackTrace, return_a
             stdio.zprintf("  %p <??>\n", .{rbp.?[1]}) catch {};
         }
     }
+    stdio.zprintf("\x1B[0m", .{}) catch {};
 
     exit();
 }

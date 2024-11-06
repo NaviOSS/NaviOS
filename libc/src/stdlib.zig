@@ -43,7 +43,7 @@ fn find_free(size: usize) ?*Chunk {
     const end = brk();
 
     while (@intFromPtr(current) < @intFromPtr(end)) {
-        if (current.size >= size)
+        if (current.size >= size and current.free)
             return current;
         current = @ptrFromInt(@intFromPtr(current) + @sizeOf(Chunk) + current.size);
     }
@@ -52,7 +52,7 @@ fn find_free(size: usize) ?*Chunk {
 }
 
 pub export fn malloc(size: usize) ?*anyopaque {
-    const asize = align_up(size, MALLOC_SIZE_ALIGN);
+    const asize = if (size != 0) align_up(size, MALLOC_SIZE_ALIGN) else MALLOC_SIZE_ALIGN;
     var block = find_free(asize);
 
     // attempt to increase heap size

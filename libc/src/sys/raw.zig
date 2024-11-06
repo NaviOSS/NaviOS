@@ -1,7 +1,7 @@
 //! raw system structs
 pub fn Slice(comptime T: type) type {
     return extern struct {
-        ptr: *const T,
+        ptr: [*]const T,
         len: usize,
     };
 }
@@ -16,7 +16,7 @@ pub const DirEntry = extern struct { kind: u8, size: usize, name_length: usize, 
 
 pub const SpawnConfig = extern struct {
     name: Slice(u8),
-    argv: *const Slice(u8),
+    argv: [*]const Slice(u8),
     argc: usize,
     flags: SpawnFlags,
 };
