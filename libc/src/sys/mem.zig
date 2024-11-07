@@ -5,7 +5,7 @@ const seterr = errors.seterr;
 pub fn zsbrk(amount: isize) errors.Error!*anyopaque {
     const brea = syscalls.sbrk(amount);
     if (brea == null)
-        return error.MMapError;
+        return error.OutOfMemory;
 
     return @ptrCast(brea);
 }

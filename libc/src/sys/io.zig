@@ -163,3 +163,33 @@ pub fn zcreatedir(path: []const u8) errors.Error!void {
     const err = createdir(@ptrCast(path.ptr), path.len);
     if (err == -1) return errors.geterr();
 }
+
+pub export fn chdir(path: [*]const u8, path_len: usize) isize {
+    const err = syscalls.chdir(path, path_len);
+    if (err != 0) {
+        errors.errno = @truncate(err);
+        return -1;
+    }
+    return 0;
+}
+
+pub export fn getcwd(ptr: [*]const u8, len: usize) isize {
+    var dest_len: usize = undefined;
+    const err = syscalls.getcwd(ptr, len, &dest_len);
+    if (err != 0) {
+        errors.errno = @truncate(err);
+        return -1;
+    }
+    return @bitCast(dest_len);
+}
+
+pub fn zgetcwd(buffer: []u8) errors.Error!usize {
+    const len = getcwd(@ptrCast(buffer.ptr), buffer.len);
+    if (len == -1) return errors.geterr();
+    return @bitCast(len);
+}
+
+pub fn zchdir(path: []const u8) errors.Error!void {
+    const err = chdir(@ptrCast(path.ptr), path.len);
+    if (err == -1) return errors.geterr();
+}

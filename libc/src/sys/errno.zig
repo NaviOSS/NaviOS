@@ -26,7 +26,7 @@ pub const Error = error{
     // Generic premissions(protection) related error
     MissingPermissions,
     // memory allocations and mapping error, most likely that memory is full
-    MMapError,
+    OutOfMemory,
     Busy,
     NotEnoughArguments,
     // iso

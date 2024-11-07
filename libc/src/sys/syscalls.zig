@@ -109,11 +109,11 @@ pub inline fn spawn(elf_ptr: *const u8, elf_len: usize, config: *const raw.Spawn
     return syscall4(13, @intFromPtr(elf_ptr), elf_len, @intFromPtr(config), @intFromPtr(dest_pid));
 }
 
-pub inline fn chdir(path_ptr: *const u8, path_len: usize) usize {
+pub inline fn chdir(path_ptr: [*]const u8, path_len: usize) usize {
     return syscall3(14, @intFromPtr(path_ptr), path_len, 0);
 }
 
-pub inline fn getcwd(ptr: *const u8, len: *const u8, dest_len_got: *u8) usize {
+pub inline fn getcwd(ptr: [*]const u8, len: usize, dest_len_got: *usize) usize {
     return syscall3(15, @intFromPtr(ptr), len, @intFromPtr(dest_len_got));
 }
 

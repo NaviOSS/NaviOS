@@ -81,8 +81,9 @@ pub fn zmalloc(comptime T: type) ?*T {
     return @ptrCast(@alignCast(malloc(@sizeOf(T))));
 }
 
-pub fn zalloc(comptime T: type, n: usize) ?[]T {
-    const ptr: [*]T = @ptrCast(@alignCast(malloc(@sizeOf(T) * n)));
+pub fn zalloc(comptime T: type, n: usize) ![]T {
+    const allocated = malloc(n * @sizeOf(T)) orelse return error.OutOfMemory;
+    const ptr: [*]T = @ptrCast(@alignCast(allocated));
     return ptr[0..n];
 }
 /// combines free block starting from head

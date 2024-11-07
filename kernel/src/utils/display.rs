@@ -44,3 +44,27 @@ impl Into<RGB> for u32 {
         RGB(self)
     }
 }
+
+impl Into<RGB> for [u8; 3] {
+    fn into(self) -> RGB {
+        RGB::new(self[0], self[1], self[2])
+    }
+}
+
+impl From<RGB> for [u8; 3] {
+    fn from(rgb: RGB) -> Self {
+        rgb.bytes()
+    }
+}
+
+impl Into<RGB> for (u8, u8, u8) {
+    fn into(self) -> RGB {
+        RGB::new(self.0, self.1, self.2)
+    }
+}
+
+impl From<RGB> for (u8, u8, u8) {
+    fn from(rgb: RGB) -> Self {
+        rgb.tuple()
+    }
+}

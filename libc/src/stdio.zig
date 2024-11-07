@@ -149,7 +149,7 @@ pub export fn getchar() c_int {
 }
 
 pub fn zfgetline(file: *FILE) ![]u8 {
-    var buffer = stdlib.zalloc(u8, 1) orelse return error.MMapError;
+    var buffer = try stdlib.zalloc(u8, 1);
     var c = fgetc(file);
     var i: usize = 0;
 
