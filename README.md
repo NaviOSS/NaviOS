@@ -1,7 +1,8 @@
-# NaviOS 
+# SafaOS
 badly written open-source generic operating system made for fun written in rust!
 i am attempting to make something like ChromeOS with native wasm support
 this is my first OS!
+**previously known as NaviOS**
 
 **this project is written in rust and zig** which is inconvenience and expensive i know, but this was made for fun and learning purposes, even so our primary goal is the runtime results.
 **star the repo!**
@@ -67,10 +68,11 @@ currently using the [limine](https://limine-bootloader.org/) bootloader
 # roadmap
 note: i dont know much about osdev (this is my first OS), stuff prefixed with ? is missing info and more stuff may be added in the feature
 ## next:
-- [ ] remove the bash requirement
-- [ ] update README.md
-- [ ] some bechmarking tools
-    - [ ] PIT timer?
+- remove the bash requirement
+- update README.md and all the README.mds and phillosophy.mds hiding in the repo
+- rename NaviOS to SafaOS EVERYWHERE
+- some bechmarking tools
+    - PIT timer?
 
 ## roadmap
 - [X] x86_64 basics
@@ -78,11 +80,6 @@ note: i dont know much about osdev (this is my first OS), stuff prefixed with ? 
     - [X] interrupts
     - [X] APIC
     - [X] framebuffer terminal
-- [ ] framebuffer terminal
-    - [X] scrolling
-    - [X] locking the terminal (threading, context switching)
-    - [ ] maybe try to RWLock the terminal instead of just locking the viewport?
-    - [X] terminal shell process
 - [X] ACPI parsing
     - [X] RSDT parsing
     - [X] XSDT parsing
@@ -98,15 +95,12 @@ note: i dont know much about osdev (this is my first OS), stuff prefixed with ? 
 - [X] memory
     - [X] pagging
     - [X] kernel heap
-    - [ ] a slab allocator
-    - [ ] move more stuff to linked list and rely more on the slab allocator
-    - [ ] figure out how should i give apps memory?
     - [X] higher half kernel
 - [ ] fs
     - [X] basic vfs
     - [X] ramfs
     - [ ] fat32
-- [ ] networking
+- [ ] networking?
     - [ ] OSI Model
         - [ ] Layer 1:
             - [ ] Manage Network Driver (NIC)
@@ -121,14 +115,12 @@ note: i dont know much about osdev (this is my first OS), stuff prefixed with ? 
         - [ ] Layer 4:
             - [ ] TCP
             - [ ] UDP
-- [ ] GUI
-    - [ ] ?
-- [ ] apps
+- [ ] GUI?
+- [ ] userspace
     - [X] context switching, and simple processes
     - [X] more advanced context switching, (pid, name, each process has it's own page table)
-    - [ ] process resources
+    - [X] process resources
     - [ ] the ability for each process to have multiple threads
-    - [X] userspace
+    - [X] RING3
     - [X] ELF support
-    - [ ] wasm VM
-    - [ ] more wasm
+    - [ ] research wasm and multi-archicture support
