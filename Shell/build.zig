@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
     // for restricting supported target set are available.
-    const target = b.standardTargetOptions(.{ .default_target = .{ .abi = .none, .os_tag = .freestanding, .cpu_features_sub = std.Target.x86.featureSet(&[_]std.Target.x86.Feature{.avx}) } });
+    const target = b.standardTargetOptions(.{ .default_target = .{ .abi = .none, .os_tag = .freestanding, .cpu_features_sub = std.Target.x86.featureSet(&[_]std.Target.x86.Feature{ .avx, .avx2, .sse, .sse2 }) } });
     // Standard optimization options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
     // set a preferred release mode, allowing the user to decide how to optimize.
@@ -16,7 +16,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("../libc/src/root.zig"),
     });
     const exe = b.addExecutable(.{
-        .name = "nash",
+        .name = "Shell",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,

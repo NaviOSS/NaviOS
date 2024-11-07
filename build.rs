@@ -14,7 +14,7 @@ use tar::{Builder, Header};
 // or (file relative from build.rs, path in ramdisk)
 const RAMDISK_CONTENT: &[(&str, &str)] = &[
     ("bin/zig-out/bin/", "bin"),
-    ("nash/zig-out/bin/nash", "bin/nash"),
+    ("Shell/zig-out/bin/Shell", "bin/Shell"),
 ];
 
 fn limine_make() -> Output {
@@ -102,6 +102,11 @@ fn compile_programs() -> Output {
     Command::new("make")
         .arg("-C")
         .arg("programs")
+        .output()
+        .unwrap();
+    Command::new("bash")
+        .arg("-c")
+        .arg("cd Shell && zig build")
         .output()
         .unwrap();
     Command::new("bash")

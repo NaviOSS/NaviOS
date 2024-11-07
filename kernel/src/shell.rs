@@ -311,23 +311,20 @@ pub fn process_command(command: String) {
 pub fn shell() {
     serial!("shell!\n");
 
-    print!("\x1B[38;2;0;255;0m");
     print!(
         r"
-     _   _             _  ____   _____
-    | \ | |           (_)/ __ \ / ____|
-    |  \| | __ ___   ___| |  | | (___
-    | . ` |/ _` \ \ / / | |  | |\___ \
-    | |\  | (_| |\ V /| | |__| |____) |
-    |_| \_|\__,_| \_/ |_|\____/|_____/"
+ ____   __   ____  __    __   ____ 
+/ ___) / _\ (  __)/ _\  /  \ / ___)
+\___ \/    \ ) _)/    \(  O )\___ \
+(____/\_/\_/(__) \_/\_/ \__/ (____/
+"
     );
-    print!("\x1B[0m\n");
 
-    println!("\nwelcome to NaviOS!\ntype help or ? for a list of avalible commands\nyou are now in ram:/ a playground, sys: is also mounted it contains the init ramdisk");
+    println!("\x1B[38;2;222;10;10m\nwelcome to SafaOS!\ntype help or ? for a list of avalible commands\nyou are now in ram:/ a playground, sys: is also mounted it contains the init ramdisk");
 
     loop {
         print!(
-            "\x1B[38;2;0;255;0m{}\x1B[0m # ",
+            "\x1B[38;2;255;0;193m{}\x1B[0m # ",
             threading::expose::getcwd()
         );
         process_command(readln());
