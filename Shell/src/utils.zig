@@ -16,7 +16,7 @@ pub fn ArrayList(comptime T: type) type {
         capacity: usize,
 
         pub fn init() !Self {
-            const items = libc.stdlib.zalloc(T, 0) orelse return error.OutOfMemory;
+            const items = try libc.stdlib.zalloc(T, 0);
             return Self{ .items = items, .capacity = 0 };
         }
 
