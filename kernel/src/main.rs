@@ -19,8 +19,8 @@ mod utils;
 extern crate alloc;
 use arch::x86_64::serial;
 
+use drivers::keyboard::keys::Key;
 use drivers::keyboard::HandleKey;
-use drivers::keyboard::Key;
 use drivers::vfs;
 use globals::*;
 

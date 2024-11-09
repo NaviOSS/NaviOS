@@ -4,7 +4,7 @@
 // UTF8 char
 // default mapping in `DEFAULT_MAPPING` const
 
-use super::keyboard::{Key, KeyCode, KeyFlags};
+use super::keyboard::keys::{Key, KeyCode, KeyFlags};
 
 #[derive(Clone, Copy)]
 pub struct MappingEntry {
