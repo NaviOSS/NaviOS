@@ -93,7 +93,12 @@ extern "x86-interrupt" fn page_fault_handler(frame: TrapFrame) {
 #[inline]
 pub fn handle_ps2_keyboard() {
     let key = inb(0x60);
-    drivers::keyboard::encode_ps2_set_1(key);
+    // outside of this function the keyboard should only be read from
+    let encoded = drivers::keyboard::KEYBOARD.write().handle_ps2_set_1(key);
+    if encoded == drivers::keyboard::keys::Key::NULL_KEY {
+        return;
+    }
+    crate::__navi_key_pressed(encoded);
 }
 #[no_mangle]
 pub extern "x86-interrupt" fn keyboard_interrupt_handler() {
