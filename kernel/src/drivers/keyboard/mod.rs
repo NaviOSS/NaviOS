@@ -72,11 +72,11 @@ impl Keyboard {
         let mut flags = KeyFlags::empty();
 
         if self.code_is_pressed(Key::SHIFT_KEY.code) && keycode != KeyCode::Ctrl {
-            flags |= KeyFlags::CTRL;
+            flags |= KeyFlags::SHIFT;
         }
 
         if self.code_is_pressed(Key::CTRL_KEY.code) && keycode != KeyCode::Shift {
-            flags |= KeyFlags::SHIFT;
+            flags |= KeyFlags::CTRL;
         }
 
         if self.code_is_pressed(Key::ALT_KEY.code) && keycode != KeyCode::Alt {
