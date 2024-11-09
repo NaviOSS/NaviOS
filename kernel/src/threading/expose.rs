@@ -1,20 +1,25 @@
 use core::arch::asm;
 
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 use bitflags::bitflags;
 
 use crate::{
     drivers::vfs::{FSResult, VFS_STRUCT},
-    khalt, scheduler,
-    threading::processes::{Process, ProcessStatus},
+    khalt,
+    memory::paging::allocate_pml4,
+    scheduler,
+    threading::processes::Process,
     utils::elf::{Elf, ElfError},
 };
 
-use super::processes::{ProcessFlags, ProcessInfo};
+use super::{
+    processes::{ProcessFlags, ProcessInfo, ProcessState},
+    resources::Resource,
+};
 
 #[no_mangle]
-pub fn thread_exit() {
-    scheduler().current_process().status = ProcessStatus::WaitingForBurying;
+pub fn thread_exit(code: usize) {
+    scheduler().current_process().terminate(code, 0);
     // enables interrupts if they were disabled to give control back to the scheduler
     #[cfg(target_arch = "x86_64")]
     unsafe {
@@ -32,35 +37,55 @@ pub fn thread_yeild() {
 }
 
 #[no_mangle]
-pub fn wait(pid: u64) {
-    // debug!(
-    //     Process,
-    //     "{} waiting for {} to exit ...",
-    //     scheduler().current_process().pid,
-    //     pid
-    // );
-
+/// waits for `pid` to exit
+/// returns it's exit code after cleaning it up
+pub fn wait(pid: u64) -> usize {
+    // loops through the processes until it finds the process with `pid` as a zombie
     loop {
         let mut current = scheduler().head.as_mut();
         let mut found = false;
 
-        while let Some(ref mut process) = current.next {
-            if process.pid == pid {
-                found = true;
-                if process.status == ProcessStatus::WaitingForBurying {
-                    return;
+        // cycles through the processes one by one untils it finds the process with `pid`
+        // returns the exit code of the process if it's a zombie and cleans it up
+        // if it's not a zombie it will be caught by the next above loop
+        loop {
+            if current
+                .next
+                .as_ref()
+                .is_some_and(|process| process.pid == pid)
+            {
+                // TODO: rethink returning only the exit code
+                // a bit of a hack to fight the borrow checker
+                let mut exit_code = None;
+
+                if let ProcessState::Zombie(ref state) = current.next.as_ref().unwrap().state {
+                    exit_code = Some(state.exit_code);
                 }
+
+                if let Some(exit_code) = exit_code {
+                    // cleans up the process
+                    current.next = current.next.as_mut().unwrap().next.take();
+                    scheduler().processes_count -= 1;
+                    return exit_code;
+                }
+
+                found = true;
+                break;
             }
 
-            current = process;
-            thread_yeild()
+            if let Some(ref mut process) = current.next {
+                current = process;
+                thread_yeild()
+            } else {
+                break;
+            }
         }
 
         if !found {
-            return;
+            return 0;
         }
 
-        thread_yeild()
+        thread_yeild();
     }
 }
 
@@ -82,17 +107,28 @@ pub unsafe fn spawn(
     argv: &[&str],
     flags: SpawnFlags,
 ) -> Result<u64, ElfError> {
+    let cwd = if flags.contains(SpawnFlags::CLONE_CWD) {
+        getcwd().to_string()
+    } else {
+        String::from("ram:/")
+    };
+
     let elf = Elf::new(elf_bytes)?;
 
-    let mut process = Process::from_elf(elf, name, argv)?;
+    let mut process = Process::from_elf(elf, name, cwd, argv)?;
     let pid = process.pid;
 
+    let ProcessState::Alive(ref mut state) = process.state else {
+        unreachable!()
+    };
+    // handles the flags
     if flags.contains(SpawnFlags::CLONE_RESOURCES) {
-        process.resources = scheduler().current_process().resources.clone();
-    }
-
-    if flags.contains(SpawnFlags::CLONE_CWD) {
-        process.current_dir = scheduler().current_process().current_dir.clone();
+        let clone = scheduler()
+            .current_process_state()
+            .resource_manager
+            .lock()
+            .clone_resources();
+        state.resource_manager.lock().overwrite_resources(clone);
     }
 
     scheduler().add_process(process);
@@ -107,18 +143,38 @@ pub unsafe fn spawn_function(
     argv: &[&str],
     flags: SpawnFlags,
 ) -> Result<u64, ElfError> {
-    let mut process = Process::create(function, name, argv, ProcessFlags::empty())
-        .map_err(|_| ElfError::MapToError)?;
+    let page_table_addr = allocate_pml4().map_err(|_| ElfError::MapToError)?;
+
+    let cwd = if flags.contains(SpawnFlags::CLONE_CWD) {
+        getcwd().to_string()
+    } else {
+        String::from("ram:/")
+    };
+
+    let mut process = Process::create(
+        function,
+        name,
+        argv,
+        0,
+        page_table_addr,
+        cwd,
+        ProcessFlags::empty(),
+    )
+    .map_err(|_| ElfError::MapToError)?;
     let pid = process.pid;
 
+    let ProcessState::Alive(ref mut state) = process.state else {
+        unreachable!()
+    };
+
     if flags.contains(SpawnFlags::CLONE_RESOURCES) {
-        process.resources = scheduler().current_process().resources.clone();
+        let clone = scheduler()
+            .current_process_state()
+            .resource_manager
+            .lock()
+            .clone_resources();
+        state.resource_manager.lock().overwrite_resources(clone);
     }
-
-    if flags.contains(SpawnFlags::CLONE_CWD) {
-        process.current_dir = scheduler().current_process().current_dir.clone();
-    }
-
     scheduler().add_process(process);
     Ok(pid)
 }
@@ -126,9 +182,9 @@ pub unsafe fn spawn_function(
 /// will only Err if new_dir doesn't exists or is not a directory
 #[no_mangle]
 pub fn chdir(new_dir: &str) -> FSResult<()> {
-    VFS_STRUCT.read().verify_path_dir(new_dir)?;
-    let cwd = &mut scheduler().current_process().current_dir;
-    *cwd = new_dir.to_string();
+    let new_dir = VFS_STRUCT.read().verify_path_dir(new_dir)?;
+    let cwd = &mut scheduler().current_process_state().current_dir;
+    *cwd = new_dir;
     if !cwd.ends_with('/') {
         cwd.push('/');
     }
@@ -138,7 +194,7 @@ pub fn chdir(new_dir: &str) -> FSResult<()> {
 
 #[no_mangle]
 pub fn getcwd<'a>() -> &'a str {
-    &scheduler().current_process().current_dir
+    &scheduler().current_process_state().current_dir
 }
 
 #[no_mangle]
@@ -149,21 +205,21 @@ pub fn pkill(pid: u64) -> Result<(), ()> {
     }
 
     let process = scheduler().find(pid).ok_or(())?;
+    let current_pid = scheduler().current_process().pid;
 
-    if process.ppid == scheduler().current_process().pid
-        || process.pid == scheduler().current_process().pid
-    {
-        process.status = ProcessStatus::WaitingForBurying;
+    if process.ppid == current_pid || process.pid == current_pid {
+        process.terminate(1, current_pid);
         return Ok(());
     }
 
+    // loops through parents and checks if one of the great-grandparents is the current process
     let mut ppid = process.ppid;
 
     while ppid != 0 {
         let process = scheduler().find(ppid).ok_or(())?;
 
-        if process.pid == scheduler().current_process().pid {
-            process.status = ProcessStatus::WaitingForBurying;
+        if process.pid == current_pid {
+            process.terminate(1, current_pid);
             return Ok(());
         }
 
@@ -206,9 +262,33 @@ pub fn pcollect(info: &mut [ProcessInfo]) -> Result<(), ()> {
 /// on fail returns null
 pub fn sbrk(amount: isize) -> *mut u8 {
     scheduler()
-        .current_process()
+        .current_process_state()
         .extend_data_by(amount)
         .unwrap_or(core::ptr::null_mut())
+}
+// TODO: lock? or should every resource handle it's own lock?
+pub fn get_resource(ri: usize) -> Option<&'static mut Resource> {
+    scheduler()
+        .current_process_state()
+        .resource_manager
+        .get_mut()
+        .get(ri)
+}
+
+pub fn add_resource(resource: Resource) -> usize {
+    scheduler()
+        .current_process_state()
+        .resource_manager
+        .lock()
+        .add_resource(resource)
+}
+
+pub fn remove_resource(ri: usize) -> Result<(), ()> {
+    scheduler()
+        .current_process_state()
+        .resource_manager
+        .lock()
+        .remove_resource(ri)
 }
 
 #[allow(dead_code)]
@@ -232,7 +312,6 @@ pub enum ErrorStatus {
     // for operations that requires a vaild utf8 str...
     InvaildStr,
     InvaildPath,
-    InvaildDrive,
     NoSuchAFileOrDirectory,
     NotAFile,
     NotADirectory,

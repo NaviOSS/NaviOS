@@ -24,8 +24,8 @@ comptime {
     _ = private;
 }
 
-pub export fn exit() noreturn {
-    syscalls.exit();
+pub export fn exit(code: usize) noreturn {
+    syscalls.exit(code);
     while (true) {
         asm volatile ("hlt");
     }
@@ -51,7 +51,7 @@ pub fn panic(msg: []const u8, error_return_trace: ?*builtin.StackTrace, return_a
     }
     stdio.zprintf("\x1B[0m", .{}) catch {};
 
-    exit();
+    exit(1);
 }
 
 /// sets to c main
@@ -125,6 +125,7 @@ fn _start() callconv(.Naked) noreturn {
         \\ pop %rsi
         \\ pop %rdi
         \\ call _redirect_start
+        \\ mov %rax, %rdi
         \\ call exit
         \\ hlt
     );

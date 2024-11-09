@@ -1,9 +1,6 @@
 // TODO: figure out errors
 // for now errors are a big mess
-use core::{
-    arch::{asm, global_asm},
-    str,
-};
+use core::{arch::global_asm, str};
 
 use alloc::{slice, string::String};
 
@@ -145,9 +142,8 @@ macro_rules! make_slice_mut {
 }
 /// for now
 #[no_mangle]
-extern "C" fn sysexit() {
-    unsafe { asm!("sti") }
-    threading::expose::thread_exit();
+extern "C" fn sysexit(code: usize) {
+    threading::expose::thread_exit(code);
 }
 
 #[no_mangle]
@@ -271,8 +267,8 @@ unsafe extern "C" fn sysdiriter_next(
 }
 
 #[no_mangle]
-extern "C" fn syswait(pid: u64) {
-    threading::expose::wait(pid);
+extern "C" fn syswait(pid: u64) -> usize {
+    threading::expose::wait(pid)
 }
 
 #[no_mangle]

@@ -6,7 +6,7 @@ const printf = libc.stdio.zprintf;
 
 pub fn main() !void {
     const info = try sysinfo();
-    const processes = zalloc(libc.sys.raw.ProcessInfo, info.processes_count).?;
+    const processes = try zalloc(libc.sys.raw.ProcessInfo, info.processes_count);
 
     _ = try pcollect(processes);
 

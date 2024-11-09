@@ -26,10 +26,10 @@ pub const SysInfo = extern struct { total_mem: usize, used_mem: usize, processes
 pub const ProcessStatus = enum(u8) {
     Waiting,
     Running,
-    WaitingForBurying,
+    Zombie,
 };
 
-pub const ProcessInfo = extern struct { ppid: u64, pid: u64, name: [64]u8, status: ProcessStatus };
+pub const ProcessInfo = extern struct { ppid: u64, pid: u64, name: [64]u8, status: ProcessStatus, resource_count: usize, exit_code: usize, exit_addr: usize, exit_stack_addr: usize, killed_by: u64, data_start: usize, data_break: usize };
 
 pub const OsStr = extern struct {
     len: usize,

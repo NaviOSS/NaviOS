@@ -1,45 +1,19 @@
 use core::slice;
 
+use super::resources::ResourceManager;
 use super::{ARGV_START, STACK_END};
 
-use crate::drivers::vfs::expose::DirIter;
-use crate::drivers::vfs::{FileDescriptor, FS, VFS_STRUCT};
 use crate::memory::{align_up, copy_to_userspace, frame_allocator};
 use crate::utils::elf::{Elf, ElfError};
-use crate::{arch, debug, hddm, scheduler};
+use crate::{arch, debug, hddm, scheduler, PhysAddr};
 
 use crate::memory::paging::{self, EntryFlags, MapToError, Page, PAGE_SIZE};
 use alloc::boxed::Box;
 use alloc::string::String;
-use alloc::vec::Vec;
 use bitflags::bitflags;
+use spin::Mutex;
 
 use crate::{arch::threading::CPUStatus, memory::paging::PageTable};
-
-pub enum Resource {
-    Null,
-    File(FileDescriptor),
-    DirIter(Box<dyn DirIter>),
-}
-
-impl Clone for Resource {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Null => Self::Null,
-            Self::File(ref fd) => Self::File(fd.clone()),
-            Self::DirIter(ref diriter) => Self::DirIter(DirIter::clone(&**diriter)),
-        }
-    }
-}
-impl Resource {
-    pub const fn variant(&self) -> u8 {
-        match self {
-            Resource::Null => 0,
-            Resource::File(_) => 1,
-            Resource::DirIter(_) => 2,
-        }
-    }
-}
 
 bitflags! {
     #[repr(C)]
@@ -54,26 +28,101 @@ bitflags! {
 pub enum ProcessStatus {
     Waiting,
     Running,
-    WaitingForBurying,
+    Zombie,
 }
 
-pub struct Process {
-    pub ppid: u64,
-    pub pid: u64,
-    pub name: [u8; 64],
-    pub status: ProcessStatus,
-    pub context: CPUStatus,
-
-    pub root_page_table: *mut PageTable,
-    pub resources: Vec<Resource>,
-    pub next_ri: usize,
-
-    pub current_dir: String,
-
+pub struct AliveProcessState {
+    root_page_table: *mut PageTable,
+    pub(super) resource_manager: Mutex<ResourceManager>,
     data_pages: usize,
-    pub data_break: usize,
+    pub(super) current_dir: String,
+
     data_start: usize,
-    pub next: Option<Box<Self>>,
+    data_break: usize,
+}
+
+impl AliveProcessState {
+    pub fn new(current_dir: String, root_page_table_addr: PhysAddr, data_break: usize) -> Self {
+        let data_break = align_up(data_break, PAGE_SIZE);
+        AliveProcessState {
+            root_page_table: (root_page_table_addr | hddm()) as *mut PageTable,
+            resource_manager: Mutex::new(ResourceManager::new()),
+            current_dir,
+
+            data_pages: 0,
+            data_break,
+            data_start: data_break,
+        }
+    }
+
+    #[inline(always)]
+    fn data_break_actual(&self) -> usize {
+        self.data_start + PAGE_SIZE * self.data_pages
+    }
+
+    fn page_extend_data(&mut self) -> Result<(), MapToError> {
+        let page_end = self.data_break_actual();
+        let new_page = Page::containing_address(page_end);
+
+        let frame = frame_allocator::allocate_frame().ok_or(MapToError::FrameAllocationFailed)?;
+
+        unsafe {
+            (*self.root_page_table).map_to(
+                new_page,
+                frame,
+                EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE | EntryFlags::PRESENT,
+            )?
+        };
+
+        let addr = frame.start_address | hddm();
+        let ptr = addr as *mut u8;
+        let slice = unsafe { slice::from_raw_parts_mut(ptr, PAGE_SIZE) };
+
+        slice.fill(0);
+        self.data_pages += 1;
+        Ok(())
+    }
+
+    fn page_unextend_data(&mut self) {
+        let page_end = self.data_break_actual();
+        let new_page = Page::containing_address(page_end);
+
+        let frame = unsafe { (*self.root_page_table).get_frame(new_page).unwrap() };
+        frame_allocator::deallocate_frame(frame);
+
+        self.data_pages -= 1;
+    }
+
+    pub fn extend_data_by(&mut self, amount: isize) -> Result<*mut u8, MapToError> {
+        if amount >= 0 {
+            let amount = amount as usize;
+            while self.data_break_actual() < self.data_break + amount {
+                self.page_extend_data()?;
+            }
+
+            self.data_break += amount;
+        } else {
+            let amount = amount as usize;
+            while self.data_break_actual() > self.data_break - amount {
+                self.page_unextend_data();
+            }
+
+            self.data_break -= amount;
+        }
+
+        Ok(self.data_break as *mut u8)
+    }
+}
+
+pub struct ZombieProcessState {
+    pub exit_code: usize,
+    pub exit_addr: usize,
+    pub exit_stack_addr: usize,
+    pub killed_by: u64,
+    pub last_resource_id: usize,
+
+    pub data_start: usize,
+    pub data_break: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -83,6 +132,31 @@ pub struct ProcessInfo {
     pub pid: u64,
     pub name: [u8; 64],
     pub status: ProcessStatus,
+
+    pub resource_count: usize,
+    pub exit_code: usize,
+    pub exit_addr: usize,
+    pub exit_stack_addr: usize,
+
+    pub killed_by: u64,
+    pub data_start: usize,
+    pub data_break: usize,
+}
+
+pub enum ProcessState {
+    Zombie(ZombieProcessState),
+    Alive(AliveProcessState),
+}
+
+pub struct Process {
+    pub ppid: u64,
+    pub pid: u64,
+    pub name: [u8; 64],
+    pub status: ProcessStatus,
+    pub context: CPUStatus,
+
+    pub state: ProcessState,
+    pub next: Option<Box<Self>>,
 }
 
 impl Process {
@@ -93,6 +167,9 @@ impl Process {
         pid: u64,
         name: &str,
         argv: &[&str],
+        data_start: usize,
+        root_page_table_addr: usize,
+        current_work_dir: String,
         flags: ProcessFlags,
     ) -> Result<Self, MapToError> {
         let name_bytes = name.as_bytes();
@@ -105,7 +182,6 @@ impl Process {
         let status = ProcessStatus::Waiting;
         let mut context = CPUStatus::default();
 
-        let root_page_table_addr = paging::allocate_pml4()?;
         let root_page_table = (root_page_table_addr | hddm()) as *mut PageTable;
 
         unsafe {
@@ -198,7 +274,6 @@ impl Process {
             context.cr3 = root_page_table_addr as u64;
         }
 
-        let resources = Vec::with_capacity(2);
         Ok(Process {
             ppid,
             pid,
@@ -206,14 +281,11 @@ impl Process {
             status,
             context,
 
-            root_page_table,
-            resources,
-            current_dir: String::from("ram:/"),
-            next_ri: 0,
-
-            data_pages: 0,
-            data_break: 0,
-            data_start: 0,
+            state: ProcessState::Alive(AliveProcessState::new(
+                current_work_dir,
+                root_page_table_addr,
+                data_start,
+            )),
             next: None,
         })
     }
@@ -222,13 +294,12 @@ impl Process {
         function: usize,
         name: &str,
         argv: &[&str],
+        data_start: usize,
+        root_page_table_addr: usize,
+        current_work_dir: String,
         flags: ProcessFlags,
     ) -> Result<Self, MapToError> {
         let pid = scheduler().next_pid;
-        debug!(
-            Process,
-            "creating a process with pid {} ({}) ...", pid, name
-        );
 
         let results = Self::new(
             function,
@@ -236,108 +307,115 @@ impl Process {
             pid,
             name,
             argv,
+            data_start,
+            root_page_table_addr,
+            current_work_dir,
             flags,
         )?;
         scheduler().next_pid += 1;
 
-        debug!(Process, "success ...");
+        debug!(Process, "process with pid {} ({}) CREATED ...", pid, name);
         Ok(results)
     }
 
     #[inline(always)]
     /// creates a userspace process from an elf
-    pub fn from_elf(elf: Elf, name: &str, argv: &[&str]) -> Result<Self, ElfError> {
-        let mut process = Self::create(elf.header.entry_point, name, argv, ProcessFlags::USERSPACE)
-            .ok()
-            .ok_or(ElfError::MapToError)?;
-        let data_break = unsafe { elf.load_exec(&mut *process.root_page_table)? };
+    pub fn from_elf(
+        elf: Elf,
+        name: &str,
+        current_work_dir: String,
+        argv: &[&str],
+    ) -> Result<Self, ElfError> {
+        let page_table_addr = paging::allocate_pml4().map_err(|_| ElfError::MapToError)?;
 
-        process.data_start = align_up(data_break, PAGE_SIZE);
-        process.data_break = process.data_start;
+        let data_break =
+            unsafe { elf.load_exec(&mut *((page_table_addr | hddm()) as *mut PageTable))? };
+
+        let process = Self::create(
+            elf.header.entry_point,
+            name,
+            argv,
+            data_break,
+            page_table_addr,
+            current_work_dir,
+            ProcessFlags::USERSPACE,
+        )
+        .ok()
+        .ok_or(ElfError::MapToError)?;
+
         Ok(process)
     }
 
-    /// frees self and then returns next
-    /// frees all resources that has something to do with this process and all it's memory
-    pub fn free(&mut self) -> Option<Box<Process>> {
-        let root_page_table = unsafe { &mut (*self.root_page_table) };
-        unsafe { root_page_table.free(4) };
+    /// makes a process a zombie
+    /// does nothing if the process is already a zombie
+    /// also moves the parentership of the process (it's children) to it's parent
+    pub fn terminate(&mut self, exit_code: usize, terminator: u64) {
+        if let ProcessState::Alive(ref mut state) = &mut self.state {
+            let root_page_table = unsafe { &mut (*state.root_page_table) };
+            unsafe { root_page_table.free(4) };
 
-        for resource in &mut self.resources {
-            match resource {
-                Resource::File(fd) => VFS_STRUCT.read().close(fd).unwrap(),
-                _ => (),
-            }
+            let last_resource_id = state.resource_manager.lock().clean();
+            let zombified = ProcessState::Zombie(ZombieProcessState {
+                exit_code,
+                exit_addr: self.context.at(),
+                exit_stack_addr: self.context.stack_at(),
+                killed_by: terminator,
+                last_resource_id,
+                data_start: state.data_start,
+                data_break: state.data_break,
+            });
+
+            self.state = zombified;
+            self.status = ProcessStatus::Zombie;
+            scheduler().move_parentership(self.pid, self.ppid);
+            debug!(Process, "process with pid {} TERMINATED ...", self.pid);
         }
-
-        debug!(Process, "process with pid {} TERMINATED ...", self.pid);
-
-        self.next.take()
     }
 
     pub fn info(&self) -> ProcessInfo {
+        let (
+            exit_code,
+            exit_addr,
+            exit_stack_addr,
+            killed_by,
+            resource_count,
+            data_start,
+            data_break,
+        ) = match &self.state {
+            ProcessState::Zombie(state) => (
+                state.exit_code,
+                state.exit_addr,
+                state.exit_stack_addr,
+                state.killed_by,
+                state.last_resource_id,
+                state.data_start,
+                state.data_break,
+            ),
+            ProcessState::Alive(state) => (
+                0,
+                0,
+                0,
+                0,
+                state.resource_manager.lock().next_ri(),
+                state.data_start,
+                state.data_break,
+            ),
+        };
+
         ProcessInfo {
             ppid: self.ppid,
             pid: self.pid,
             name: self.name,
             status: self.status,
+
+            exit_code,
+            exit_addr,
+            exit_stack_addr,
+
+            killed_by,
+            resource_count,
+            data_start,
+            data_break,
         }
-    }
-
-    #[inline(always)]
-    fn data_break_actual(&self) -> usize {
-        self.data_start + PAGE_SIZE * self.data_pages
-    }
-
-    fn page_extend_data(&mut self) -> Result<(), MapToError> {
-        let page_end = self.data_break_actual();
-        let new_page = Page::containing_address(page_end);
-
-        let frame = frame_allocator::allocate_frame().ok_or(MapToError::FrameAllocationFailed)?;
-
-        unsafe {
-            (*self.root_page_table).map_to(
-                new_page,
-                frame,
-                EntryFlags::WRITABLE | EntryFlags::USER_ACCESSIBLE | EntryFlags::PRESENT,
-            )?
-        };
-
-        let addr = frame.start_address | hddm();
-        let ptr = addr as *mut u8;
-        let slice = unsafe { slice::from_raw_parts_mut(ptr, PAGE_SIZE) };
-
-        slice.fill(0);
-        self.data_pages += 1;
-        Ok(())
-    }
-
-    fn page_unextend_data(&mut self) {
-        let page_end = self.data_break_actual();
-        let new_page = Page::containing_address(page_end);
-
-        let frame = unsafe { (*self.root_page_table).get_frame(new_page).unwrap() };
-        frame_allocator::deallocate_frame(frame);
-
-        self.data_pages -= 1;
-    }
-    pub fn extend_data_by(&mut self, amount: isize) -> Result<*mut u8, MapToError> {
-        if amount >= 0 {
-            let amount = amount as usize;
-            while self.data_break_actual() < self.data_break + amount {
-                self.page_extend_data()?;
-            }
-
-            self.data_break += amount;
-        } else {
-            let amount = amount as usize;
-            while self.data_break_actual() > self.data_break - amount {
-                self.page_unextend_data();
-            }
-
-            self.data_break -= amount;
-        }
-
-        Ok(self.data_break as *mut u8)
     }
 }

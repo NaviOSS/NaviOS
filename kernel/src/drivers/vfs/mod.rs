@@ -91,7 +91,7 @@ impl Into<ErrorStatus> for FSError {
             Self::NotADirectory => ErrorStatus::NotADirectory,
             Self::NoSuchAFileOrDirectory => ErrorStatus::NoSuchAFileOrDirectory,
             Self::InvaildPath => ErrorStatus::InvaildPath,
-            Self::InvaildDrive => ErrorStatus::InvaildDrive,
+            Self::InvaildDrive => ErrorStatus::NoSuchAFileOrDirectory,
             Self::InvaildFileDescriptorOrRes => ErrorStatus::InvaildResource,
             Self::AlreadyExists => ErrorStatus::AlreadyExists,
             Self::NotExecuteable => ErrorStatus::NotExecutable,
@@ -198,6 +198,11 @@ pub trait FS: Send + Sync {
         let mut current_inode = self.root_inode()?;
 
         if path.peek() == Some(&"") {
+            path.next();
+        }
+
+        // skips drive if it is provided
+        if path.peek().is_some_and(|peek| peek.contains(':')) {
             path.next();
         }
 
@@ -339,42 +344,34 @@ impl VFS {
     }
     /// gets the drive name from `path` then gets the drive
     /// path must be absolute starting with DRIVE_NAME:/
-    /// returns an &str which removes the DRIVE_NAME:/ from path
     /// also handles relative path
     pub(self) fn get_from_path_mut(&mut self, path: Path) -> FSResult<(&mut Box<dyn FS>, String)> {
         let mut spilt_path = path.split(&['/', '\\']);
 
         let drive = spilt_path.next().ok_or(FSError::InvaildDrive)?;
-        if !(drive.ends_with(':')) {
-            let full_path = getcwd().to_owned() + path;
-            return self.get_from_path_checked_mut(&full_path);
-        }
+        let full_path = if !(drive.ends_with(':')) {
+            &(getcwd().to_owned() + path)
+        } else {
+            path
+        };
 
-        Ok((
-            self.get_with_name_mut(drive.as_bytes())
-                .ok_or(FSError::InvaildDrive)?,
-            path[drive.len()..].to_string(),
-        ))
+        return self.get_from_path_checked_mut(full_path);
     }
 
     /// gets the drive name from `path` then gets the drive
     /// path must be absolute starting with DRIVE_NAME:/
-    /// returns an &str which removes the DRIVE_NAME:/ from path
     /// also handles relative path
     pub(self) fn get_from_path(&self, path: Path) -> FSResult<(&Box<dyn FS>, String)> {
         let mut spilt_path = path.split(&['/', '\\']);
 
         let drive = spilt_path.next().ok_or(FSError::InvaildDrive)?;
-        if !(drive.ends_with(':')) {
-            let full_path = getcwd().to_owned() + path;
-            return self.get_from_path_checked(&full_path);
-        }
+        let full_path = if !(drive.ends_with(':')) {
+            &(getcwd().to_owned() + path)
+        } else {
+            path
+        };
 
-        Ok((
-            self.get_with_name(drive.as_bytes())
-                .ok_or(FSError::InvaildDrive)?,
-            path[drive.len()..].to_string(),
-        ))
+        return self.get_from_path_checked(full_path);
     }
 
     /// get_from_path but path cannot be realtive to cwd
@@ -392,7 +389,7 @@ impl VFS {
         Ok((
             self.get_with_name_mut(drive.as_bytes())
                 .ok_or(FSError::InvaildDrive)?,
-            path[drive.len()..].to_string(),
+            path.to_string(),
         ))
     }
 
@@ -408,20 +405,22 @@ impl VFS {
         Ok((
             self.get_with_name(drive.as_bytes())
                 .ok_or(FSError::InvaildDrive)?,
-            path[drive.len()..].to_string(),
+            path.to_string(),
         ))
     }
 
     /// checks if a path is a vaild dir returns Err if path has an error
-    pub fn verify_path_dir(&self, path: Path) -> FSResult<()> {
-        let (mountpoint, path) = self.get_from_path_checked(path)?;
+    /// handles relative paths
+    /// returns the absolute path if it is a dir
+    pub fn verify_path_dir(&self, path: Path) -> FSResult<String> {
+        let (mountpoint, path) = self.get_from_path(path)?;
 
         let res = mountpoint.reslove_path(&path)?;
 
         if !res.is_dir() {
             return Err(FSError::NotADirectory);
         }
-        Ok(())
+        Ok(path)
     }
 
     pub fn unpack_tar(fs: &mut dyn FS, tar: &mut TarArchiveIter) -> FSResult<()> {

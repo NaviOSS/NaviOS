@@ -4,16 +4,19 @@ use core::{fmt::Debug, str, usize};
 
 use alloc::boxed::Box;
 
-use crate::{scheduler, threading::processes::Resource};
+use crate::threading::{
+    expose::{add_resource, get_resource, remove_resource},
+    resources::Resource,
+};
 
 use super::{FSError, FSResult, Inode, InodeType, Path, FS, VFS_STRUCT};
 /// gets a FileDescriptor from a fd (file_descriptor id) may return Err(FSError::InvaildFileDescriptor)
 macro_rules! get_fd {
     ($ri: expr) => {{
-        let Some(crate::threading::processes::Resource::File(ref mut file_descriptor)) =
-            crate::scheduler().current_process().resources.get_mut($ri)
+        let Some(crate::threading::resources::Resource::File(ref mut file_descriptor)) =
+            crate::threading::expose::get_resource($ri)
         else {
-            return Err(FSError::InvaildFileDescriptorOrRes);
+            return Err(FSError::NotAFile);
         };
 
         file_descriptor
@@ -26,7 +29,7 @@ pub fn open(path: Path) -> FSResult<usize> {
         .try_read()
         .ok_or(FSError::ResourceBusy)?
         .open(path)?;
-    Ok(scheduler().add_resource(Resource::File(fd)))
+    Ok(add_resource(Resource::File(fd)))
 }
 
 #[no_mangle]
@@ -37,7 +40,7 @@ pub fn close(ri: usize) -> FSResult<()> {
         .ok_or(FSError::ResourceBusy)?
         .close(fd)?;
 
-    _ = scheduler().remove_resource(ri);
+    _ = remove_resource(ri);
     Ok(())
 }
 
@@ -136,12 +139,11 @@ pub fn diriter_open(fd_ri: usize) -> FSResult<usize> {
         .ok_or(FSError::ResourceBusy)?
         .diriter_open(fd)?;
 
-    Ok(scheduler().add_resource(Resource::DirIter(diriter)))
+    Ok(add_resource(Resource::DirIter(diriter)))
 }
 
 pub fn diriter_next(dir_ri: usize, direntry: &mut DirEntry) -> FSResult<()> {
-    let Some(Resource::DirIter(diriter)) = scheduler().current_process().resources.get_mut(dir_ri)
-    else {
+    let Some(Resource::DirIter(diriter)) = get_resource(dir_ri) else {
         return Err(FSError::InvaildFileDescriptorOrRes);
     };
 
@@ -157,10 +159,7 @@ pub fn diriter_next(dir_ri: usize, direntry: &mut DirEntry) -> FSResult<()> {
 #[no_mangle]
 /// may only Err if dir_ri is invaild
 pub fn diriter_close(dir_ri: usize) -> FSResult<()> {
-    scheduler()
-        .remove_resource(dir_ri)
-        .ok()
-        .ok_or(FSError::InvaildFileDescriptorOrRes)
+    remove_resource(dir_ri).map_err(|_| FSError::InvaildFileDescriptorOrRes)
 }
 
 #[no_mangle]

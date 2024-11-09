@@ -6,7 +6,10 @@ use lazy_static::lazy_static;
 use spin::RwLock;
 
 use crate::{
-    drivers::keyboard::{HandleKey, Key, KeyCode, KeyFlags},
+    drivers::keyboard::{
+        keys::{Key, KeyCode, KeyFlags},
+        HandleKey,
+    },
     memory::page_allocator::{PageAlloc, GLOBAL_PAGE_ALLOCATOR},
     threading::expose::{spawn_function, SpawnFlags},
     utils::Locked,

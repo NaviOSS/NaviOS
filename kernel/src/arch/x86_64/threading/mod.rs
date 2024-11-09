@@ -83,6 +83,16 @@ pub struct CPUStatus {
     xmm0: [u8; 16],
 }
 
+impl CPUStatus {
+    pub fn at(&self) -> usize {
+        self.rip as usize
+    }
+
+    pub fn stack_at(&self) -> usize {
+        self.rsp as usize
+    }
+}
+
 global_asm!(
     "
 .global restore_cpu_status

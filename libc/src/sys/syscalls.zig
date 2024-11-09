@@ -53,8 +53,8 @@ inline fn syscall6(number: usize, arg1: usize, arg2: usize, arg3: usize, arg4: u
         : "r10", "r11"
     );
 }
-pub inline fn exit() void {
-    _ = syscall0(0);
+pub inline fn exit(code: usize) void {
+    _ = syscall1(0, code);
 }
 
 pub inline fn yield() void {
@@ -97,8 +97,8 @@ pub inline fn diriter_next(diriter: usize, direntry: *raw.DirEntry) usize {
     return syscall3(10, diriter, @intFromPtr(direntry), 0);
 }
 
-pub inline fn wait(pid: usize) void {
-    _ = syscall1(11, pid);
+pub inline fn wait(pid: usize) usize {
+    return syscall1(11, pid);
 }
 
 pub inline fn fstat(ri: usize, direntry: *raw.DirEntry) usize {

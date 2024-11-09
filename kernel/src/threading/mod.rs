@@ -1,5 +1,7 @@
 pub mod expose;
 pub mod processes;
+pub mod resources;
+
 pub const STACK_SIZE: usize = PAGE_SIZE * 6;
 pub const STACK_START: usize = 0x00007A3000000000;
 pub const STACK_END: usize = STACK_START + STACK_SIZE;
@@ -12,16 +14,16 @@ pub const ARGV_START: usize = ENVIROMENT_START + 0xA000000000;
 pub const ARGV_SIZE: usize = PAGE_SIZE * 4;
 
 use core::{arch::asm, mem::MaybeUninit};
-use processes::{Process, ProcessFlags, ProcessStatus, Resource};
+use processes::{AliveProcessState, Process, ProcessFlags, ProcessState, ProcessStatus};
 
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{boxed::Box, string::String, vec::Vec};
 
 use crate::{
     arch::threading::{restore_cpu_status, CPUStatus},
-    debug,
+    debug, hddm,
     memory::{
         frame_allocator::Frame,
-        paging::{EntryFlags, MapToError, Page, PageTable, PAGE_SIZE},
+        paging::{current_root_table, EntryFlags, MapToError, Page, PageTable, PAGE_SIZE},
     },
     scheduler, SCHEDULER,
 };
@@ -99,20 +101,40 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
-    #[inline]
+    #[inline(always)]
     pub fn current_process(&self) -> &mut Process {
         unsafe { &mut *self.current_process }
     }
 
+    #[inline(always)]
+    pub fn current_process_state(&self) -> &mut AliveProcessState {
+        if let ProcessState::Alive(ref mut state) = self.current_process().state {
+            return state;
+        } else {
+            panic!("current process is not alive");
+        }
+    }
     #[inline]
     /// inits the scheduler
     /// jumps to `function` after initing!
     pub unsafe fn init(function: usize, name: &str) {
         debug!(Scheduler, "initing ...");
         asm!("cli");
-
-        let mut process =
-            Box::new(Process::new(function, 0, 0, name, &[], ProcessFlags::empty()).unwrap());
+        let page_table_addr = current_root_table() as *mut PageTable as usize - hddm();
+        let mut process = Box::new(
+            Process::new(
+                function,
+                0,
+                0,
+                name,
+                &[],
+                0,
+                page_table_addr,
+                String::from("ram:/"),
+                ProcessFlags::empty(),
+            )
+            .unwrap(),
+        );
 
         let this = Self {
             current_process: &mut *process,
@@ -134,21 +156,11 @@ impl Scheduler {
 
         self.current_process().context = context;
 
-        if self.current_process().status != ProcessStatus::WaitingForBurying {
+        if self.current_process().status != ProcessStatus::Zombie {
             self.current_process().status = ProcessStatus::Waiting;
         }
 
         loop {
-            if self
-                .current_process()
-                .next
-                .as_ref()
-                .is_some_and(|x| x.status == ProcessStatus::WaitingForBurying)
-            {
-                self.current_process().next = self.current_process().next.as_mut().unwrap().free();
-                self.processes_count -= 1;
-            }
-
             if self.current_process().next.is_some() {
                 self.current_process = &mut **(*self.current_process).next.as_mut().unwrap();
             } else {
@@ -226,50 +238,15 @@ impl Scheduler {
         }
     }
 
-    #[inline]
-    pub fn set_next_resource(&mut self, next_ri: usize) {
-        if next_ri < self.current_process().next_ri {
-            self.current_process().next_ri = next_ri;
-        }
-    }
-
-    #[inline]
-    /// adds a resource to current process and returns it's ri
-    // FIXME: this may become a little of a problem in multiple threads, the ri may be incorrect
-    // if you add a resource while another is being added?
-    // maybe we need a resource manager
-    // system checklist
-    // - Sync
-    pub fn add_resource(&mut self, resource: processes::Resource) -> usize {
-        let resources = &mut self.current_process().resources[self.current_process().next_ri..];
-
-        for (mut ri, res) in resources.iter_mut().enumerate() {
-            if res.variant() == Resource::Null.variant() {
-                ri += self.current_process().next_ri;
-
-                self.current_process().next_ri = ri;
-                *res = resource;
-
-                return ri;
+    /// moves all the parentership of processes with parent `ppid` to `pid`
+    pub fn move_parentership(&mut self, pid: u64, ppid: u64) {
+        let mut current = &mut *self.head;
+        while let Some(ref mut process) = current.next {
+            if process.ppid == ppid {
+                process.ppid = pid;
             }
+
+            current = &mut **process;
         }
-
-        self.current_process().resources.push(resource);
-
-        let ri = self.current_process().resources.len() - 1;
-        self.current_process().next_ri = ri;
-
-        return ri;
-    }
-
-    #[inline]
-    pub fn remove_resource(&mut self, ri: usize) -> Result<(), ()> {
-        if ri >= self.current_process().resources.len() {
-            return Err(());
-        }
-
-        self.current_process().resources[ri] = Resource::Null;
-        self.set_next_resource(ri);
-        Ok(())
     }
 }
