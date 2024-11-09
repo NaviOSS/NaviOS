@@ -12,6 +12,7 @@ mod globals;
 mod limine;
 mod memory;
 mod shell;
+mod syscalls;
 mod terminal;
 mod threading;
 mod utils;
