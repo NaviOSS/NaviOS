@@ -32,13 +32,13 @@ impl InodeOps for Mutex<DeviceManagerInode> {
         false
     }
 
-    fn get(&self, name: &str) -> crate::drivers::vfs::FSResult<Option<usize>> {
+    fn get(&self, name: &str) -> crate::drivers::vfs::FSResult<usize> {
         for (i, device) in DEVICE_MANAGER.lock().devices().iter().enumerate() {
             if Device::name(*device) == name {
-                return Ok(Some(i + 1));
+                return Ok(i + 1);
             }
         }
-        Ok(None)
+        Err(super::FSError::NoSuchAFileOrDirectory)
     }
 }
 

@@ -3,10 +3,12 @@ const printf = libc.stdio.zprintf;
 const getline = libc.stdio.zgetline;
 const Lexer = @import("Lexer.zig");
 const repl = @import("repl.zig");
+const Error = libc.sys.errno.Error;
+
 pub const panic = libc.panic;
 const ArrayList = @import("utils.zig").ArrayList;
 
-pub fn main() !void {
+pub fn main() Error!void {
     var ret: u64 = 0;
     while (true) {
         const cwd_buffer = try libc.stdlib.zalloc(u8, 1024);

@@ -11,11 +11,7 @@ pub fn build(b: *std.Build) !void {
     // means any target is allowed, and the default is native. Other options
     // for restricting supported target set are available.
 
-    const target = b.standardTargetOptions(.{ .default_target = .{
-        .abi = .none,
-        .os_tag = .freestanding,
-        .ofmt = .elf,
-    } });
+    const target = b.standardTargetOptions(.{ .default_target = .{ .abi = .none, .os_tag = .freestanding, .ofmt = .elf, .cpu_features_sub = std.Target.x86.featureSet(&[_]std.Target.x86.Feature{ .avx, .avx2, .sse, .sse2 }) } });
 
     // Standard optimization options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not

@@ -57,9 +57,12 @@ impl InodeOps for Mutex<RamInode> {
             _ => Err(FSError::NotAFile),
         }
     }
-    fn get(&self, name: Path) -> FSResult<Option<usize>> {
+    fn get(&self, name: Path) -> FSResult<usize> {
         match self.lock().data {
-            RamInodeData::Children(ref tree) => Ok(tree.get(name).copied()),
+            RamInodeData::Children(ref tree) => tree
+                .get(name)
+                .copied()
+                .ok_or(FSError::NoSuchAFileOrDirectory),
             RamInodeData::HardLink(ref inode) => inode.get(name),
             _ => Err(FSError::NotADirectory),
         }

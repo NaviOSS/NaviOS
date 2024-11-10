@@ -110,10 +110,7 @@ pub enum InodeType {
 pub trait InodeOps: Send + Sync {
     fn name(&self) -> String;
     /// gets an Inode from self
-    /// returns Err(()) if self is not a directory
-    /// returns Ok(None) if self doesn't contain `name`
-    /// returns Ok(inodeid) if successful
-    fn get(&self, name: &str) -> FSResult<Option<usize>> {
+    fn get(&self, name: &str) -> FSResult<usize> {
         _ = name;
         FSResult::Err(FSError::OperationNotSupported)
     }
@@ -266,7 +263,7 @@ pub trait FS: Send + Sync {
                 return Err(FSError::NoSuchAFileOrDirectory);
             }
 
-            let inodeid = current_inode.get(depth)?.unwrap();
+            let inodeid = current_inode.get(depth)?;
             current_inode = self.get_inode(inodeid)?.unwrap();
         }
 

@@ -11,6 +11,11 @@ pub export fn strerror(errnum: u32) [*:0]const c_char {
     if (errnum >= @intFromError(Error.Last)) {
         return @ptrCast("UNKNOWN");
     }
+
+    if (errnum == 0) {
+        return @ptrCast("NO ERROR");
+    }
+
     const errnum_short: u16 = @truncate(errnum);
     const err: Error = @errorCast(@errorFromInt(errnum_short));
     return @ptrCast(@errorName(err));

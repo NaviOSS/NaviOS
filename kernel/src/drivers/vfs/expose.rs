@@ -93,7 +93,8 @@ impl DirEntry {
         unsafe { str::from_utf8_unchecked(&self.name[..self.name_length]) }
     }
 
-    pub fn get_from_inode_with_name(inode: Inode, name: &str) -> FSResult<Self> {
+    pub fn get_from_inode(inode: Inode) -> FSResult<Self> {
+        let name = inode.name();
         let name_slice = name.as_bytes();
 
         let kind = inode.kind();
@@ -110,11 +111,6 @@ impl DirEntry {
             name_length,
             name,
         })
-    }
-
-    pub fn get_from_inode(inode: Inode) -> FSResult<Self> {
-        let name = inode.name();
-        Self::get_from_inode_with_name(inode, &name)
     }
 
     pub const unsafe fn zeroed() -> Self {
