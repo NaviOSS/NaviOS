@@ -1,20 +1,18 @@
-use core::{fmt::Debug, usize};
+use core::usize;
 
 use alloc::string::ToString;
 use alloc::sync::Arc;
 use alloc::vec;
-use alloc::{boxed::Box, collections::btree_map::BTreeMap, string::String, vec::Vec};
+use alloc::{collections::btree_map::BTreeMap, string::String, vec::Vec};
 use spin::Mutex;
 
-use super::InodeOf;
-use super::{
-    expose::{DirEntry, DirIter},
-    FSError, FSResult, FileDescriptor, Inode, InodeOps, InodeType, Path, FS,
-};
+use super::{DirIter, InodeOf};
+use super::{FSError, FSResult, FileDescriptor, Inode, InodeOps, InodeType, Path, FS};
 
 pub enum RamInodeData {
     Data(Vec<u8>),
     Children(BTreeMap<String, usize>),
+    HardLink(Inode),
 }
 
 pub struct RamInode {
@@ -46,18 +44,23 @@ impl RamInode {
             inodeid,
         ))
     }
+
+    fn new_hardlink(name: String, inode: Inode, inodeid: usize) -> InodeOf<Mutex<Self>> {
+        Arc::new(RamInode::new(name, RamInodeData::HardLink(inode), inodeid))
+    }
 }
 
 impl InodeOps for Mutex<RamInode> {
     fn size(&self) -> FSResult<usize> {
         match self.lock().data {
             RamInodeData::Data(ref data) => Ok(data.len()),
-            RamInodeData::Children(_) => Err(FSError::NotAFile),
+            _ => Err(FSError::NotAFile),
         }
     }
     fn get(&self, name: Path) -> FSResult<Option<usize>> {
         match self.lock().data {
             RamInodeData::Children(ref tree) => Ok(tree.get(name).copied()),
+            RamInodeData::HardLink(ref inode) => inode.get(name),
             _ => Err(FSError::NotADirectory),
         }
     }
@@ -65,6 +68,7 @@ impl InodeOps for Mutex<RamInode> {
     fn contains(&self, name: Path) -> bool {
         match self.lock().data {
             RamInodeData::Children(ref tree) => tree.contains_key(name),
+            RamInodeData::HardLink(ref inode) => inode.contains(name),
             _ => false,
         }
     }
@@ -75,6 +79,7 @@ impl InodeOps for Mutex<RamInode> {
                 buffer[..count].copy_from_slice(&data[offset..offset + count]);
                 Ok(count)
             }
+            RamInodeData::HardLink(ref inode) => inode.read(buffer, offset, count),
             _ => Err(FSError::NotAFile),
         }
     }
@@ -89,6 +94,7 @@ impl InodeOps for Mutex<RamInode> {
                 data[offset..buffer.len()].copy_from_slice(buffer);
                 Ok(buffer.len() - offset)
             }
+            RamInodeData::HardLink(ref inode) => inode.write(buffer, offset),
             _ => Err(FSError::NotAFile),
         }
     }
@@ -103,6 +109,7 @@ impl InodeOps for Mutex<RamInode> {
                 tree.insert(name.to_string(), node);
                 Ok(())
             }
+            RamInodeData::HardLink(ref inode) => inode.insert(name, node),
             _ => Err(FSError::NotADirectory),
         }
     }
@@ -111,6 +118,7 @@ impl InodeOps for Mutex<RamInode> {
         match self.lock().data {
             RamInodeData::Children(_) => InodeType::Directory,
             RamInodeData::Data(_) => InodeType::File,
+            RamInodeData::HardLink(ref inode) => inode.kind(),
         }
     }
 
@@ -121,30 +129,16 @@ impl InodeOps for Mutex<RamInode> {
     fn inodeid(&self) -> usize {
         self.lock().inodeid
     }
-}
+    fn open_diriter(&self, fs: *mut dyn FS) -> FSResult<DirIter> {
+        match self.lock().data {
+            RamInodeData::Children(ref data) => Ok(DirIter::new(
+                fs,
+                data.into_iter().map(|(_, inodeid)| *inodeid).collect(),
+            )),
 
-#[derive(Clone)]
-pub struct RamDirIter {
-    index: usize,
-    dir: Vec<DirEntry>,
-}
-
-impl Debug for RamDirIter {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "RamDirIter")
-    }
-}
-
-impl DirIter for RamDirIter {
-    fn next(&mut self) -> Option<DirEntry> {
-        let index = self.index;
-        self.index += 1;
-
-        self.dir.get(index).cloned()
-    }
-
-    fn clone(&self) -> Box<dyn DirIter> {
-        Box::new(Clone::clone(self))
+            RamInodeData::HardLink(ref inode) => inode.open_diriter(fs),
+            _ => Err(FSError::NotADirectory),
+        }
     }
 }
 
@@ -157,6 +151,16 @@ impl RamFS {
         Self {
             inodes: vec![RamInode::new_dir("/".to_string(), 0)],
         }
+    }
+
+    fn make_hardlink(&mut self, inodeid: usize, name: String) -> usize {
+        let inode = self.inodes.get_mut(inodeid).unwrap();
+        let inode = inode.clone();
+        let inodeid = self.inodes.len();
+
+        self.inodes
+            .push(RamInode::new_hardlink(name, inode, inodeid));
+        inodeid
     }
 }
 
@@ -228,38 +232,11 @@ impl FS for RamFS {
         resloved.insert(name, inodeid)?;
 
         let node = RamInode::new_dir(name.to_string(), inodeid);
-        node.insert("..", resloved.inodeid())?;
+        self.inodes.push(node.clone());
 
-        self.inodes.push(node);
+        let inodeid = self.make_hardlink(resloved.inodeid(), "..".to_string());
+        node.insert("..", inodeid)?;
 
         Ok(())
-    }
-
-    fn diriter_open(&self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
-        // TODO: safer way to do this
-        // by adding an InodeOp that returns a Box<dyn DirIter> from self
-        if !fd.node.is_dir() {
-            return Err(FSError::NotADirectory);
-        }
-
-        let raminode: *const Mutex<RamInode> = (&raw const *fd.node).cast();
-        let lock = unsafe { &*raminode }.lock();
-
-        let data = match lock.data {
-            RamInodeData::Children(ref data) => data,
-            _ => unreachable!(),
-        };
-        let mut data_entries = Vec::with_capacity(data.len());
-
-        for (name, inode_id) in data {
-            let inode = self.get_inode(*inode_id)?.unwrap();
-
-            data_entries.push(DirEntry::get_from_inode_with_name(inode, &name)?)
-        }
-
-        Ok(Box::new(RamDirIter {
-            dir: data_entries,
-            index: 0,
-        }))
     }
 }

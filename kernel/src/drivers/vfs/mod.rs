@@ -18,7 +18,7 @@ use alloc::{
     sync::Arc,
     vec::Vec,
 };
-use expose::DirIter;
+use expose::DirEntry;
 use lazy_static::lazy_static;
 use spin::RwLock;
 pub type Path<'a> = &'a str;
@@ -162,12 +162,51 @@ pub trait InodeOps: Send + Sync {
     fn is_dir(&self) -> bool {
         self.kind() == InodeType::Directory
     }
+
+    fn open_diriter(&self, fs: *mut dyn FS) -> FSResult<DirIter> {
+        _ = fs;
+        Err(FSError::OperationNotSupported)
+    }
 }
 
 /// unknown inode type
 pub type Inode = Arc<dyn InodeOps>;
 /// inode type with a known type
 pub type InodeOf<T> = Arc<T>;
+
+#[derive(Debug, Clone)]
+pub struct DirIter {
+    fs: *mut dyn FS,
+    inode_ids: Box<[usize]>,
+    index: usize,
+}
+
+impl DirIter {
+    pub const fn new(fs: *mut dyn FS, inode_ids: Box<[usize]>) -> Self {
+        Self {
+            fs,
+            inode_ids,
+            index: 0,
+        }
+    }
+
+    pub fn next(&mut self) -> Option<DirEntry> {
+        let index = self.index;
+        self.index += 1;
+
+        if index >= self.inode_ids.len() {
+            return None;
+        }
+
+        let inode_id = self.inode_ids[index];
+        let inode = unsafe { (*self.fs).get_inode(inode_id) };
+
+        match inode {
+            Ok(Some(inode)) => DirEntry::get_from_inode(inode).ok(),
+            _ => None,
+        }
+    }
+}
 
 pub trait FS: Send + Sync {
     /// returns the name of the fs
@@ -289,9 +328,8 @@ pub trait FS: Send + Sync {
     }
 
     /// opens an iterator of directroy entires, fd must be a directory
-    fn diriter_open(&self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
-        _ = fd;
-        Err(FSError::OperationNotSupported)
+    fn diriter_open(&self, fd: &mut FileDescriptor) -> FSResult<DirIter> {
+        fd.node.open_diriter(fd.mountpoint)
     }
 }
 
@@ -484,9 +522,5 @@ impl FS for VFS {
 
     fn close(&self, file_descriptor: &mut FileDescriptor) -> FSResult<()> {
         unsafe { (*file_descriptor.mountpoint).close(file_descriptor) }
-    }
-
-    fn diriter_open(&self, fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
-        unsafe { (*fd.mountpoint).diriter_open(fd) }
     }
 }

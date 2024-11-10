@@ -1,16 +1,13 @@
 use alloc::{
-    boxed::Box,
     string::{String, ToString},
     sync::Arc,
+    vec::Vec,
 };
 use spin::Mutex;
 
 use crate::devices::{Device, DEVICE_MANAGER};
 
-use super::{
-    expose::{DirEntry, DirIter},
-    FSResult, FileDescriptor, Inode, InodeOps, InodeType, Path, FS,
-};
+use super::{DirIter, FSResult, FileDescriptor, Inode, InodeOps, InodeType, Path, FS};
 
 pub struct DeviceManagerInode;
 impl InodeOps for Mutex<DeviceManagerInode> {
@@ -85,35 +82,6 @@ impl InodeOps for Mutex<DeviceInode> {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct DeviceDirIter {
-    index: usize,
-}
-impl DeviceDirIter {
-    pub fn new() -> Box<dyn DirIter> {
-        Box::new(Self { index: 0 })
-    }
-}
-impl DirIter for DeviceDirIter {
-    fn next(&mut self) -> Option<DirEntry> {
-        let index = self.index;
-        self.index += 1;
-        let name = Device::name(DEVICE_MANAGER.lock().get_device_at(index)?);
-        let mut name_bytes = [0u8; 128];
-
-        name_bytes[..name.len()].copy_from_slice(name.as_bytes());
-        Some(DirEntry {
-            kind: InodeType::Device,
-            size: 0,
-            name_length: name.len(),
-            name: name_bytes,
-        })
-    }
-
-    fn clone(&self) -> Box<dyn DirIter> {
-        Box::new(Clone::clone(self))
-    }
-}
 pub struct DeviceFS {
     root_inode: Inode,
 }
@@ -161,7 +129,17 @@ impl FS for DeviceFS {
         file_descriptor.node.read(buffer, 0, 0)
     }
 
-    fn diriter_open(&self, _fd: &mut FileDescriptor) -> FSResult<Box<dyn DirIter>> {
-        Ok(DeviceDirIter::new())
+    fn diriter_open(&self, _fd: &mut FileDescriptor) -> FSResult<DirIter> {
+        let length = DEVICE_MANAGER.lock().devices().len();
+
+        let mut inodeids = Vec::with_capacity(length);
+        for inodeid in 0..length {
+            inodeids.push(inodeid);
+        }
+
+        Ok(DirIter::new(
+            self as *const DeviceFS as *mut DeviceFS,
+            inodeids.into_boxed_slice(),
+        ))
     }
 }

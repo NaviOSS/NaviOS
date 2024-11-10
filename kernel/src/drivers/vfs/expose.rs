@@ -2,8 +2,6 @@
 //! a resource index instead of a file descriptor aka ri
 use core::{fmt::Debug, str, usize};
 
-use alloc::boxed::Box;
-
 use crate::threading::{
     expose::{add_resource, get_resource, remove_resource},
     resources::Resource,
@@ -122,11 +120,6 @@ impl DirEntry {
     pub const unsafe fn zeroed() -> Self {
         core::mem::zeroed()
     }
-}
-
-pub trait DirIter: Debug {
-    fn next(&mut self) -> Option<DirEntry>;
-    fn clone(&self) -> Box<dyn DirIter>;
 }
 
 #[no_mangle]

@@ -1,23 +1,15 @@
-use alloc::{boxed::Box, vec::Vec};
+use alloc::vec::Vec;
 
-use crate::drivers::vfs::{expose::DirIter, FileDescriptor, FS, VFS_STRUCT};
+use crate::drivers::vfs::{DirIter, FileDescriptor, FS, VFS_STRUCT};
 
+#[derive(Clone)]
 pub enum Resource {
     Null,
     File(FileDescriptor),
     /// TODO: better diriter implementation
-    DirIter(Box<dyn DirIter>),
+    DirIter(DirIter),
 }
 
-impl Clone for Resource {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Null => Self::Null,
-            Self::File(ref fd) => Self::File(fd.clone()),
-            Self::DirIter(ref diriter) => Self::DirIter(DirIter::clone(&**diriter)),
-        }
-    }
-}
 impl Resource {
     pub const fn variant(&self) -> u8 {
         match self {
