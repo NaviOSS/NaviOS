@@ -7,9 +7,11 @@ const Error = libc.sys.errno.Error;
 
 pub const panic = libc.panic;
 const ArrayList = @import("utils.zig").ArrayList;
-
+const environment = @import("environment.zig");
 pub fn main() Error!void {
     var ret: u64 = 0;
+    try environment.init();
+
     while (true) {
         const cwd_buffer = try libc.stdlib.zalloc(u8, 1024);
         defer libc.stdlib.free(cwd_buffer.ptr);

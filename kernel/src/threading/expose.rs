@@ -98,10 +98,7 @@ bitflags! {
     }
 }
 
-/// FIXME: unsafe because elf_ptr has to be non-null and aligned
-/// maybe return an error instead
-/// and we need to get rid of the aligned requirment
-pub unsafe fn spawn(
+pub fn spawn(
     name: &str,
     elf_bytes: &[u8],
     argv: &[&str],

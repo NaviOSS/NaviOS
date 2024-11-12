@@ -1,6 +1,10 @@
-use alloc::string::String;
+use alloc::{string::String, vec::Vec};
 
 use crate::{
+    drivers::vfs::{
+        expose::{fstat, open, read, DirEntry},
+        InodeType,
+    },
     make_slice, make_slice_mut,
     threading::{
         self,
@@ -81,6 +85,37 @@ extern "C" fn sysspawn(
                 ErrorStatus::None
             }
         }
+    }
+}
+/// spawns an elf process from a path
+/// this is a little bit of a hack for now
+fn pspawn(path: &str, config: *const SpawnConfig, dest_pid: *mut u64) -> Result<(), ErrorStatus> {
+    let file = open(path).map_err(|e| e.into())?;
+
+    let mut stat = unsafe { DirEntry::zeroed() };
+    fstat(file, &mut stat).map_err(|e| e.into())?;
+
+    if stat.kind != InodeType::File {
+        return Err(ErrorStatus::NotAFile);
+    }
+    let mut buffer = Vec::with_capacity(stat.size);
+    buffer.resize(stat.size, 0);
+    read(file, &mut buffer).map_err(|e| e.into())?;
+    Err(sysspawn(buffer.as_ptr(), buffer.len(), config, dest_pid))
+}
+#[no_mangle]
+extern "C" fn syspspawn(
+    path: *const u8,
+    len: usize,
+    config: *const SpawnConfig,
+    dest_pid: *mut u64,
+) -> ErrorStatus {
+    let path = make_slice!(path, len);
+    let path = unsafe { core::str::from_utf8_unchecked(path) };
+    unsafe {
+        pspawn(path, config, dest_pid)
+            .map_err(|e| e.into())
+            .unwrap_err_unchecked()
     }
 }
 

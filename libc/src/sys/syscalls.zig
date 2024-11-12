@@ -128,3 +128,7 @@ pub inline fn pcollect(ptr: *raw.ProcessInfo, len: usize) usize {
 pub inline fn sbrk(amount: isize) ?*u8 {
     return @ptrFromInt(syscall1(18, @bitCast(amount)));
 }
+
+pub inline fn pspawn(path_ptr: *const u8, path_len: usize, config: *const raw.SpawnConfig, dest_pid: *u64) usize {
+    return syscall4(19, @intFromPtr(path_ptr), path_len, @intFromPtr(config), @intFromPtr(dest_pid));
+}

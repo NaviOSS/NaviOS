@@ -21,18 +21,25 @@ pub fn ArrayList(comptime T: type) type {
         }
 
         pub fn deinit(self: *Self) void {
-            libc.stdlib.free(self.items.ptr);
+            libc.stdlib.free(@ptrCast(self.items.ptr));
         }
 
-        fn extend_capacity(self: *Self) !void {
-            self.capacity += 1;
+        pub fn extend_capacity_by(self: *Self, amount: usize) !void {
+            self.capacity += amount;
             const realloc = libc.stdlib.realloc(@ptrCast(self.items.ptr), @sizeOf(T) * self.capacity) orelse return error.OutOfMemory;
             self.items.ptr = @ptrCast(@alignCast(realloc));
         }
 
+        pub fn set_len(self: *Self, len: usize) !void {
+            if (len > self.capacity) {
+                try self.extend_capacity_by(len - self.capacity);
+            }
+            self.items.len = len;
+        }
+
         pub fn append(self: *Self, item: T) !void {
             if (self.items.len == self.capacity) {
-                try self.extend_capacity();
+                try self.extend_capacity_by(1);
             }
             self.items.len += 1;
             self.items[self.items.len - 1] = item;

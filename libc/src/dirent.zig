@@ -10,17 +10,36 @@ pub const DIR = extern struct {
     current_index: usize = 0,
     ri: isize,
     dir_ri: isize,
+
+    pub fn next(dir: *DIR) ?raw.DirEntry {
+        defer dir.current_index += 1;
+        return io.zdiriter_next(dir.ri);
+    }
+
+    fn dirclose(dir: *DIR) errors.Error!void {
+        try io.zdiriter_close(dir.ri);
+        try io.zclose(dir.dir_ri);
+
+        stdlib.free(dir);
+    }
+
+    pub fn close(dir: *DIR) void {
+        dirclose(dir) catch unreachable;
+    }
 };
 
 pub export fn opendir(path: [*:0]const c_char) ?*DIR {
-    return zopendir(@ptrCast(path)) catch |err| {
+    const length = string.strlen(path);
+    const path_u8: [*:0]const u8 = @ptrCast(path);
+
+    return zopendir(path_u8[0..length]) catch |err| {
         seterr(err);
         return null;
     };
 }
 
-pub fn zopendir(path: [*:0]const u8) !*DIR {
-    const dir_ri = try io.zopen(path[0..string.strlen(@ptrCast(path))]);
+pub fn zopendir(path: []const u8) !*DIR {
+    const dir_ri = try io.zopen(path);
 
     const ri = try io.zdiriter_open(dir_ri);
 
@@ -31,13 +50,9 @@ pub fn zopendir(path: [*:0]const u8) !*DIR {
     return dir;
 }
 
-pub fn zreaddir(dir: *DIR) ?raw.DirEntry {
-    defer dir.current_index += 1;
-    return io.zdiriter_next(dir.ri);
-}
 // FIXME: this is very unhealthy
 pub export fn readdir(dir: *DIR) ?*raw.DirEntry {
-    var entry = zreaddir(dir) orelse return null;
+    var entry = dir.next() orelse return null;
     return &entry;
 }
 
@@ -45,14 +60,8 @@ pub export fn telldir(dir: *DIR) c_int {
     return @intCast(dir.current_index);
 }
 
-pub fn zclosedir(dir: *DIR) !void {
-    try io.zdiriter_close(dir.ri);
-    try io.zclose(dir.dir_ri);
-
-    stdlib.free(dir);
-}
 pub export fn closedir(dir: *DIR) c_int {
-    zclosedir(dir) catch |err| {
+    dir.dirclose() catch |err| {
         seterr(err);
         return -1;
     };

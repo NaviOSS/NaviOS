@@ -13,9 +13,10 @@ extern "C" fn sysopen(path_ptr: *const u8, len: usize, dest_fd: *mut usize) -> E
     }
 
     let path = make_slice!(path_ptr, len);
-    let path = String::from_utf8_lossy(path);
 
-    match open(&path) {
+    let path = unsafe { core::str::from_utf8_unchecked(path) };
+
+    match open(path) {
         Ok(fd) => unsafe {
             *dest_fd = fd;
             ErrorStatus::None

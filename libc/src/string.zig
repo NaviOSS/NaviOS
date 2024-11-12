@@ -45,3 +45,7 @@ pub export fn memcpy(dest: [*]void, src: [*]const void, size: usize) [*]void {
 
     return dest;
 }
+
+pub fn zmemcpy(comptime T: type, dest: []T, src: []const T) void {
+    _ = memcpy(@ptrCast(dest.ptr), @ptrCast(src.ptr), @sizeOf(T) * src.len);
+}

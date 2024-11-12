@@ -2,24 +2,43 @@ const libc = @import("libc");
 const Token = @import("Lexer.zig").Token;
 const alloc = libc.stdlib.zalloc;
 const free = libc.stdlib.free;
-const zspawn = libc.sys.utils.zspwan;
+const zpspawn = libc.sys.utils.zpspwan;
 const Slice = libc.sys.raw.Slice;
 const Error = libc.sys.errno.Error;
+const eql = @import("utils.zig").eql;
+const environment = @import("environment.zig");
+const ArrayList = @import("utils.zig").ArrayList;
 
 const ExecuteBuiltin = @import("builtin.zig").executeBuiltin;
 
 fn spawn(name: []const u8, argv: []const Slice(u8)) Error!u64 {
-    const file = try libc.stdio.zfopen(name, .{ .read = true });
-    defer libc.stdio.zfclose(file) catch unreachable;
+    var path_var = try environment.get_path();
+    defer path_var.deinit();
 
-    const stat = try libc.sys.io.zfstat(file.fd);
-    const size = stat.size;
+    for (path_var.items) |path| {
+        var it = try libc.dirent.zopendir(path);
+        defer it.close();
 
-    const buffer = try alloc(u8, size);
-    defer free(buffer.ptr);
+        while (it.next()) |entry| {
+            const entry_name = entry.name[0..entry.name_length];
 
-    _ = try libc.sys.io.zread(file.fd, buffer);
-    return zspawn(buffer, argv, name);
+            if (eql(u8, entry_name, name)) {
+                var full_path = try ArrayList(u8).init();
+                defer full_path.deinit();
+
+                try full_path.set_len(path.len + 1 + entry_name.len);
+
+                libc.string.zmemcpy(u8, full_path.items, path);
+                full_path.items[path.len] = '/';
+                libc.string.zmemcpy(u8, full_path.items[path.len + 1 ..], entry_name);
+
+                const pid = zpspawn(full_path.items, argv, name);
+                return pid;
+            }
+        }
+    }
+
+    return error.NoSuchAFileOrDirectory;
 }
 
 fn wait(pid: u64) usize {

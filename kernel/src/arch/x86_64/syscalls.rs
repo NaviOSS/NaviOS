@@ -47,6 +47,7 @@ syscall_table:
     .quad sysinfo
     .quad syspcollect
     .quad syssbrk
+    .quad syspspawn
 syscall_table_end:
 
 SYSCALL_TABLE_INFO:
