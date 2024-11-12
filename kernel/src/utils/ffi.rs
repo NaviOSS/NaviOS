@@ -70,7 +70,6 @@ impl<'a, T> From<&'a mut T> for Optional<T> {
 }
 
 /// a slice of values
-/// nullable as long as you don't make it using Slice::new
 /// if into_slice is called on a null pointer it will return an empty slice
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -80,10 +79,10 @@ pub struct Slice<T> {
 }
 
 impl<'a, T> Slice<T> {
-    /// ptr must be non null and aligned
+    /// ptr must be aligned
     /// panics if ptr is invaild
     pub fn new(ptr: *const T, len: usize) -> Self {
-        if ptr.is_null() || !ptr.is_aligned() {
+        if !(ptr.is_aligned() || ptr.is_null()) {
             panic!("Pointer {:#x} is null or unaligned", ptr as usize);
         }
 
@@ -108,7 +107,6 @@ impl<'a, T> Into<&'a [T]> for Slice<T> {
 }
 
 /// a mutable slice of values
-/// nullable as long as you don't make it using Slice::new
 /// if into_slice is called on a null pointer it will return an empty slice
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -118,10 +116,10 @@ pub struct SliceMut<T> {
 }
 
 impl<'a, T> SliceMut<T> {
-    /// ptr must be non null and aligned
+    /// ptr must be aligned
     /// panics if ptr is invaild
     pub fn new(ptr: *mut T, len: usize) -> Self {
-        if ptr.is_null() || !ptr.is_aligned() {
+        if !(ptr.is_aligned() || ptr.is_null()) {
             panic!("Pointer {:#x} is null or unaligned", ptr as usize);
         }
 
