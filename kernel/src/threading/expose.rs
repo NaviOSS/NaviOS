@@ -1,10 +1,16 @@
 use core::arch::asm;
 
-use alloc::string::{String, ToString};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use bitflags::bitflags;
 
 use crate::{
-    drivers::vfs::{FSResult, VFS_STRUCT},
+    drivers::vfs::{
+        expose::{fstat, open, read, DirEntry},
+        FSError, FSResult, InodeType, VFS_STRUCT,
+    },
     khalt,
     memory::paging::allocate_pml4,
     scheduler,
@@ -130,6 +136,22 @@ pub fn spawn(
 
     scheduler().add_process(process);
     Ok(pid)
+}
+
+/// spawns an elf process from a path
+pub fn pspawn(name: &str, path: &str, argv: &[&str], flags: SpawnFlags) -> Result<u64, FSError> {
+    let file = open(path)?;
+
+    let mut stat = unsafe { DirEntry::zeroed() };
+    fstat(file, &mut stat)?;
+
+    if stat.kind != InodeType::File {
+        return Err(FSError::NotAFile);
+    }
+    let mut buffer = Vec::with_capacity(stat.size);
+    buffer.resize(stat.size, 0);
+    read(file, &mut buffer).map_err(|e| e.into())?;
+    spawn(name, &buffer, argv, flags).map_err(|_| FSError::NotExecuteable)
 }
 
 /// unsafe because function has to be a valid function pointer

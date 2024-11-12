@@ -1,9 +1,11 @@
 use crate::{
     threading::{self, expose::ErrorStatus},
-    utils::{self, expose::SysInfo},
+    utils::{
+        self,
+        expose::SysInfo,
+        ffi::{Optional, Slice, SliceMut},
+    },
 };
-
-use super::{make_slice, make_slice_mut};
 
 /// for now
 #[no_mangle]
@@ -18,12 +20,9 @@ extern "C" fn sysyield() {
 
 #[no_mangle]
 extern "C" fn syschdir(path_ptr: *const u8, path_len: usize) -> ErrorStatus {
-    let slice = make_slice!(path_ptr, path_len);
-    let Ok(name) = core::str::from_utf8(slice) else {
-        return ErrorStatus::InvaildStr;
-    };
+    let path = Slice::new(path_ptr, path_len).into_str();
 
-    if let Err(err) = threading::expose::chdir(name) {
+    if let Err(err) = threading::expose::chdir(path) {
         err.into()
     } else {
         ErrorStatus::None
@@ -31,20 +30,18 @@ extern "C" fn syschdir(path_ptr: *const u8, path_len: usize) -> ErrorStatus {
 }
 
 #[no_mangle]
-extern "C" fn sysgetcwd(path_ptr: *mut u8, len: usize, dest_len: *mut usize) -> ErrorStatus {
-    let slice = make_slice_mut!(path_ptr, len);
+extern "C" fn sysgetcwd(path_ptr: *mut u8, len: usize, dest_len: Optional<usize>) -> ErrorStatus {
+    let path = SliceMut::new(path_ptr, len).into_slice();
     let got = threading::expose::getcwd().as_bytes();
 
     if got.len() > len {
         return ErrorStatus::Generic;
     }
 
-    slice[..got.len()].copy_from_slice(&got);
+    path[..got.len()].copy_from_slice(&got);
 
-    if !dest_len.is_null() {
-        unsafe {
-            *dest_len = got.len();
-        }
+    if let Some(dest_len) = dest_len.into_option() {
+        *dest_len = got.len();
     }
 
     ErrorStatus::None
@@ -58,10 +55,6 @@ extern "C" fn syssbrk(amount: isize) -> *mut u8 {
 
 #[no_mangle]
 extern "C" fn sysinfo(ptr: *mut SysInfo) -> ErrorStatus {
-    if ptr.is_null() || !ptr.is_aligned() {
-        return ErrorStatus::InvaildPtr;
-    }
-
     unsafe {
         utils::expose::info(&mut *ptr);
     }

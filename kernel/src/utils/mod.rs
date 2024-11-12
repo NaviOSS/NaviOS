@@ -1,6 +1,7 @@
 pub mod display;
 pub mod elf;
 pub mod expose;
+pub mod ffi;
 pub mod ustar;
 
 use core::ops::Deref;
