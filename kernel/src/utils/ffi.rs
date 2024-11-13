@@ -188,3 +188,38 @@ impl SliceMut<Slice<u8>> {
         double_slice
     }
 }
+/// a non-Nullable muttable refrence to a value
+/// use .get() to get the value
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct RequiredMut<T> {
+    value: *mut T,
+}
+
+impl<'a, T> RequiredMut<T> {
+    pub fn get(self) -> ErrorStatusResult<&'a mut T> {
+        if self.value.is_null() || !self.value.is_aligned() {
+            ErrorStatusResult::err(ErrorStatus::InvaildPtr)
+        } else {
+            ErrorStatusResult::ok(unsafe { &mut *self.value })
+        }
+    }
+}
+
+/// a non-Nullable refrence to a value
+/// use .get() to get the value
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
+pub struct Required<T> {
+    value: *const T,
+}
+
+impl<'a, T> Required<T> {
+    pub fn get(self) -> ErrorStatusResult<&'a T> {
+        if self.value.is_null() || !self.value.is_aligned() {
+            ErrorStatusResult::err(ErrorStatus::InvaildPtr)
+        } else {
+            ErrorStatusResult::ok(unsafe { &*self.value })
+        }
+    }
+}

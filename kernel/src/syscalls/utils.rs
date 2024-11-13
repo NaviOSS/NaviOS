@@ -4,7 +4,7 @@ use crate::{
         self,
         errors::ErrorStatus,
         expose::SysInfo,
-        ffi::{Optional, Slice, SliceMut},
+        ffi::{Optional, RequiredMut, Slice, SliceMut},
     },
 };
 
@@ -55,10 +55,8 @@ extern "C" fn syssbrk(amount: isize) -> *mut u8 {
 }
 
 #[no_mangle]
-extern "C" fn sysinfo(ptr: *mut SysInfo) -> ErrorStatus {
-    unsafe {
-        utils::expose::info(&mut *ptr);
-    }
+extern "C" fn sysinfo(ptr: RequiredMut<SysInfo>) -> ErrorStatus {
+    utils::expose::info(ptr.get()?);
 
     ErrorStatus::None
 }

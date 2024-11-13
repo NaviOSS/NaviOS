@@ -2,7 +2,7 @@ use crate::{
     threading::{self, expose::SpawnFlags, processes::ProcessInfo},
     utils::{
         errors::ErrorStatus,
-        ffi::{Optional, Slice, SliceMut},
+        ffi::{Optional, Required, Slice, SliceMut},
     },
 };
 
@@ -30,10 +30,10 @@ impl SpawnConfig {
 extern "C" fn sysspawn(
     elf_ptr: *const u8,
     elf_len: usize,
-    config: *const SpawnConfig,
+    config: Required<SpawnConfig>,
     dest_pid: Optional<u64>,
 ) -> ErrorStatus {
-    let config = unsafe { &*config };
+    let config = config.get()?;
     let (name, argv, flags) = config.as_rust();
     let elf_bytes = Slice::new(elf_ptr, elf_len)?.into_slice();
     match threading::expose::spawn(&name, elf_bytes, argv, flags) {
@@ -51,10 +51,10 @@ extern "C" fn sysspawn(
 extern "C" fn syspspawn(
     path_ptr: *const u8,
     path_len: usize,
-    config: *const SpawnConfig,
+    config: Required<SpawnConfig>,
     dest_pid: Optional<u64>,
 ) -> ErrorStatus {
-    let config = unsafe { &*config };
+    let config = config.get()?;
     let path = Slice::new(path_ptr, path_len)?.into_str();
     let (name, argv, flags) = config.as_rust();
 

@@ -3,7 +3,7 @@ use crate::{
     threading,
     utils::{
         errors::ErrorStatus,
-        ffi::{Optional, Slice, SliceMut},
+        ffi::{Optional, RequiredMut, Slice, SliceMut},
     },
 };
 
@@ -110,23 +110,21 @@ extern "C" fn sysdiriter_close(diriter_ri: usize) -> ErrorStatus {
 }
 
 #[no_mangle]
-unsafe extern "C" fn sysdiriter_next(
+extern "C" fn sysdiriter_next(
     diriter_ri: usize,
-    direntry: *mut vfs::expose::DirEntry,
+    direntry: RequiredMut<vfs::expose::DirEntry>,
 ) -> ErrorStatus {
-    match vfs::expose::diriter_next(diriter_ri, &mut *direntry) {
+    match vfs::expose::diriter_next(diriter_ri, direntry.get()?) {
         Err(err) => err.into(),
         Ok(()) => ErrorStatus::None,
     }
 }
 
 #[no_mangle]
-extern "C" fn sysfstat(ri: usize, direntry: *mut vfs::expose::DirEntry) -> ErrorStatus {
-    unsafe {
-        if let Err(err) = vfs::expose::fstat(ri, &mut *direntry) {
-            err.into()
-        } else {
-            ErrorStatus::None
-        }
+extern "C" fn sysfstat(ri: usize, direntry: RequiredMut<vfs::expose::DirEntry>) -> ErrorStatus {
+    if let Err(err) = vfs::expose::fstat(ri, direntry.get()?) {
+        err.into()
+    } else {
+        ErrorStatus::None
     }
 }
