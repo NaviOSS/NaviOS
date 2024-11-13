@@ -45,6 +45,7 @@ otherwise you have the iso feel free to do whatever you want with it
 - scheduler with one-thread processes
 - VFS with RamFS (ustar unpacking support)
 - init ramdisk
+- devices
 - userspace:
     - resources
     - userspace elf executing
@@ -56,24 +57,17 @@ otherwise you have the iso feel free to do whatever you want with it
 
 currently using the [limine](https://limine-bootloader.org/) bootloader
 
-# structure
-- `/build.rs` contains code that builds the final iso
-- `/src` contains code that is executed on `cargo run` only runs the built iso using qemu for now
-- `/kernel` contains the kernel code, written in rust
-- `/kernel/src/arch/x86_64` x86_64 specific code such as syscalls, interrupts, x86_64 initing...
-- `/libc` contains libc code written in zig
-- `/bin` contains init ramdisk programs that is compiled on your os then copied to the init ramdisk in the final iso, written in zig
-- `/macros` contains some additional rust proc macros to automatic some stuff...
-
 # roadmap
 note: i dont know much about osdev (this is my first OS), stuff prefixed with ? is missing info and more stuff may be added in the feature
 ## next:
+- kernel unit tests (existing tests and test system are useless)
+- userspace environment variables
+- libc code improvements, more Zig-style
 - remove the bash requirement
-- update README.md and all the README.mds and phillosophy.mds hiding in the repo
-- rename NaviOS to SafaOS EVERYWHERE
 - some bechmarking tools
     - PIT timer?
 
+FIXME: roadmap sucks, figure out some philosophy or something
 ## roadmap
 - [X] x86_64 basics
     - [X] GDT
@@ -97,7 +91,7 @@ note: i dont know much about osdev (this is my first OS), stuff prefixed with ? 
     - [X] kernel heap
     - [X] higher half kernel
 - [ ] fs
-    - [X] basic vfs
+    - [X] vfs
     - [X] ramfs
     - [ ] fat32
 - [ ] networking?
