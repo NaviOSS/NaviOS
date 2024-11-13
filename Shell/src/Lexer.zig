@@ -1,3 +1,4 @@
+// TODO: handle errors
 const utils = @import("utils.zig");
 const eql = utils.eql;
 const Self = @This();
@@ -9,6 +10,7 @@ data: []const u8,
 
 pub const Token = union(enum) {
     argument: []const u8,
+    string_literal: []const u8,
     keyword: Keyword,
     eof,
 
@@ -92,6 +94,20 @@ inline fn is_skippable(self: *const Self) bool {
     const x = self.at();
     return x == '\n' or x == ' ' or x == '\t';
 }
+fn string_literal(self: *Self) ?Token {
+    _ = self.eat();
+    const start = self.pos;
+    while (!self.is_eof()) {
+        if (self.at() == '"') break;
+        _ = self.eat();
+    }
+
+    // unterminated string literal
+    if (self.is_eof()) return null;
+    const end = self.pos;
+    _ = self.eat();
+    return Token{ .string_literal = self.data[start..end] };
+}
 
 pub fn next(self: *Self) ?Token {
     while (!self.is_eof())
@@ -104,15 +120,21 @@ pub fn next(self: *Self) ?Token {
             },
             else => break,
         };
+
     if (self.is_eof()) return null;
-    const start = self.pos;
+    switch (self.at()) {
+        '"' => return self.string_literal(),
+        else => {
+            const start = self.pos;
 
-    while (!self.is_eof()) {
-        if (!self.is_skippable()) _ = self.eat() else break;
+            while (!self.is_eof()) {
+                if (!self.is_skippable()) _ = self.eat() else break;
+            }
+
+            const lexeme = self.data[start..self.pos];
+
+            const keyword = Token.Keyword.fromString(lexeme) orelse return Token{ .argument = lexeme };
+            return .{ .keyword = keyword };
+        },
     }
-
-    const lexeme = self.data[start..self.pos];
-
-    const keyword = Token.Keyword.fromString(lexeme) orelse return Token{ .argument = lexeme };
-    return .{ .keyword = keyword };
 }
