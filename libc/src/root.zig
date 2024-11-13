@@ -74,6 +74,9 @@ comptime {
 fn __libc_c_start() callconv(.Naked) i32 {
     // converting argv to **char
     asm volatile (
+        \\ # jmps to main if argc == 0
+        \\ test %rdi, %rdi
+        \\ jz main
         \\ # rax = size + 8 (first argument copying)
         \\ mov %rdi, %rax
         \\ shl $3, %rax

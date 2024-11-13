@@ -132,3 +132,13 @@ pub inline fn sbrk(amount: isize) ?*u8 {
 pub inline fn pspawn(path_ptr: *const u8, path_len: usize, config: *const raw.SpawnConfig, dest_pid: *u64) usize {
     return syscall4(19, @intFromPtr(path_ptr), path_len, @intFromPtr(config), @intFromPtr(dest_pid));
 }
+
+pub inline fn shutdown() noreturn {
+    _ = syscall0(20);
+    unreachable;
+}
+
+pub inline fn reboot() noreturn {
+    _ = syscall0(21);
+    unreachable;
+}
