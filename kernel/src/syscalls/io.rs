@@ -1,12 +1,15 @@
 use crate::{
     drivers::vfs::{self, expose::open, FSError},
-    threading::{self, expose::ErrorStatus},
-    utils::ffi::{Optional, Slice, SliceMut},
+    threading,
+    utils::{
+        errors::ErrorStatus,
+        ffi::{Optional, Slice, SliceMut},
+    },
 };
 
 #[no_mangle]
 extern "C" fn sysopen(path_ptr: *const u8, len: usize, dest_fd: Optional<usize>) -> ErrorStatus {
-    let path = Slice::new(path_ptr, len).into_str();
+    let path = Slice::new(path_ptr, len)?.into_str();
 
     match open(path) {
         Ok(fd) => {
@@ -21,7 +24,7 @@ extern "C" fn sysopen(path_ptr: *const u8, len: usize, dest_fd: Optional<usize>)
 
 #[no_mangle]
 extern "C" fn syswrite(fd: usize, ptr: *const u8, len: usize) -> ErrorStatus {
-    let slice = Slice::new(ptr, len).into_slice();
+    let slice = Slice::new(ptr, len)?.into_slice();
     while let Err(err) = vfs::expose::write(fd, slice) {
         match err {
             FSError::ResourceBusy => {
@@ -40,7 +43,7 @@ extern "C" fn sysread(
     len: usize,
     dest_read: Optional<usize>,
 ) -> ErrorStatus {
-    let slice = SliceMut::new(ptr, len).into_slice();
+    let slice = SliceMut::new(ptr, len)?.into_slice();
 
     loop {
         match vfs::expose::read(fd, slice) {
@@ -67,7 +70,7 @@ extern "C" fn sysclose(fd: usize) -> ErrorStatus {
 
 #[no_mangle]
 extern "C" fn syscreate(path_ptr: *const u8, path_len: usize) -> ErrorStatus {
-    let path = Slice::new(path_ptr, path_len).into_str();
+    let path = Slice::new(path_ptr, path_len)?.into_str();
 
     if let Err(err) = vfs::expose::create(path) {
         err.into()
@@ -78,7 +81,7 @@ extern "C" fn syscreate(path_ptr: *const u8, path_len: usize) -> ErrorStatus {
 
 #[no_mangle]
 extern "C" fn syscreatedir(path_ptr: *const u8, path_len: usize) -> ErrorStatus {
-    let path = Slice::new(path_ptr, path_len).into_str();
+    let path = Slice::new(path_ptr, path_len)?.into_str();
 
     if let Err(err) = vfs::expose::createdir(path) {
         err.into()

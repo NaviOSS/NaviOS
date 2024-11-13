@@ -1,6 +1,6 @@
 //! exposed functions of VFS they manually uses
 //! a resource index instead of a file descriptor aka ri
-use core::{fmt::Debug, str, usize};
+use core::{fmt::Debug, usize};
 
 use crate::threading::{
     expose::{add_resource, get_resource, remove_resource},
@@ -88,11 +88,6 @@ pub struct DirEntry {
 }
 
 impl DirEntry {
-    #[inline]
-    pub fn name(&self) -> &str {
-        unsafe { str::from_utf8_unchecked(&self.name[..self.name_length]) }
-    }
-
     pub fn get_from_inode(inode: Inode) -> FSResult<Self> {
         let name = inode.name();
         let name_slice = name.as_bytes();

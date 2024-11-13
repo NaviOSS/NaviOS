@@ -11,15 +11,13 @@ use crate::{
         expose::{fstat, open, read, DirEntry},
         FSError, FSResult, InodeType, VFS_STRUCT,
     },
-    khalt,
-    memory::paging::allocate_pml4,
-    scheduler,
+    khalt, scheduler,
     threading::processes::Process,
     utils::elf::{Elf, ElfError},
 };
 
 use super::{
-    processes::{ProcessFlags, ProcessInfo, ProcessState},
+    processes::{ProcessInfo, ProcessState},
     resources::Resource,
 };
 
@@ -154,49 +152,6 @@ pub fn pspawn(name: &str, path: &str, argv: &[&str], flags: SpawnFlags) -> Resul
     spawn(name, &buffer, argv, flags).map_err(|_| FSError::NotExecuteable)
 }
 
-/// unsafe because function has to be a valid function pointer
-/// same as `spawn` but spwans a ring0 function
-pub unsafe fn spawn_function(
-    name: &str,
-    function: usize,
-    argv: &[&str],
-    flags: SpawnFlags,
-) -> Result<u64, ElfError> {
-    let page_table_addr = allocate_pml4().map_err(|_| ElfError::MapToError)?;
-
-    let cwd = if flags.contains(SpawnFlags::CLONE_CWD) {
-        getcwd().to_string()
-    } else {
-        String::from("ram:/")
-    };
-
-    let mut process = Process::create(
-        function,
-        name,
-        argv,
-        0,
-        page_table_addr,
-        cwd,
-        ProcessFlags::empty(),
-    )
-    .map_err(|_| ElfError::MapToError)?;
-    let pid = process.pid;
-
-    let ProcessState::Alive(ref mut state) = process.state else {
-        unreachable!()
-    };
-
-    if flags.contains(SpawnFlags::CLONE_RESOURCES) {
-        let clone = scheduler()
-            .current_process_state()
-            .resource_manager
-            .lock()
-            .clone_resources();
-        state.resource_manager.lock().overwrite_resources(clone);
-    }
-    scheduler().add_process(process);
-    Ok(pid)
-}
 /// also ensures the cwd ends with /
 /// will only Err if new_dir doesn't exists or is not a directory
 #[no_mangle]
@@ -308,41 +263,4 @@ pub fn remove_resource(ri: usize) -> Result<(), ()> {
         .resource_manager
         .lock()
         .remove_resource(ri)
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy)]
-#[repr(u32)]
-pub enum ErrorStatus {
-    None,
-    // use when no ErrorStatus is avalible for xyz and you cannot add a new one
-    Generic,
-    OperationNotSupported,
-    // for example an elf class is not supported, there is a difference between NotSupported and
-    // OperationNotSupported
-    NotSupported,
-    // for example a magic value is invaild
-    Corrupted,
-    InvaildSyscall,
-    InvaildResource,
-    InvaildPid,
-    // instead of panicking syscalls will return this on null and unaligned pointers
-    InvaildPtr,
-    // for operations that requires a vaild utf8 str...
-    InvaildStr,
-    InvaildPath,
-    NoSuchAFileOrDirectory,
-    NotAFile,
-    NotADirectory,
-    AlreadyExists,
-    NotExecutable,
-    // would be useful when i add remove related operations to the vfs
-    DirectoryNotEmpty,
-    // Generic premissions(protection) related error
-    MissingPermissions,
-    // memory allocations and mapping error, most likely that memory is full
-    MMapError,
-    Busy,
-    // errors sent by processes
-    NotEnoughArguments,
 }

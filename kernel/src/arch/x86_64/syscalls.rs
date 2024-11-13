@@ -1,7 +1,7 @@
 // TODO: figure out errors
 // for now errors are a big mess
 use super::interrupts::InterruptFrame;
-use crate::threading::expose::ErrorStatus;
+use crate::utils::errors::ErrorStatus;
 use core::arch::global_asm;
 /// used sometimes for debugging syscalls
 #[allow(dead_code)]
@@ -48,6 +48,8 @@ syscall_table:
     .quad syspcollect
     .quad syssbrk
     .quad syspspawn
+    .quad sysshutdown
+    .quad sysreboot
 syscall_table_end:
 
 SYSCALL_TABLE_INFO:

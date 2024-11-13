@@ -20,7 +20,7 @@ impl InodeOps for Mutex<DeviceManagerInode> {
     }
 
     fn name(&self) -> String {
-        "dev".to_string()
+        String::new()
     }
 
     fn contains(&self, name: &str) -> bool {
@@ -104,6 +104,10 @@ impl FS for DeviceFS {
     }
 
     fn get_inode(&self, inode_id: usize) -> FSResult<Option<Inode>> {
+        if inode_id == 0 {
+            return Ok(Some(self.root_inode.clone()));
+        }
+
         for (i, _) in DEVICE_MANAGER.lock().devices().iter().enumerate() {
             if i == inode_id - 1 {
                 return Ok(Some(DeviceInode::new(inode_id)));
@@ -134,7 +138,7 @@ impl FS for DeviceFS {
 
         let mut inodeids = Vec::with_capacity(length);
         for inodeid in 0..length {
-            inodeids.push(inodeid);
+            inodeids.push(inodeid + 1);
         }
 
         Ok(DirIter::new(

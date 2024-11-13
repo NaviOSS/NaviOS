@@ -10,7 +10,7 @@ use crate::{
         copy_to_userspace, frame_allocator,
         paging::{EntryFlags, IterPage, Page, PageTable, PAGE_SIZE},
     },
-    threading::expose::ErrorStatus,
+    utils::errors::{ErrorStatus, IntoErr},
     VirtAddr,
 };
 
@@ -93,8 +93,8 @@ pub enum ElfError {
     SupportedElfCorrupted,
 }
 
-impl Into<ErrorStatus> for ElfError {
-    fn into(self) -> ErrorStatus {
+impl IntoErr for ElfError {
+    fn into_err(self) -> ErrorStatus {
         match self {
             Self::NotAnExecutable | Self::NotAnElf => ErrorStatus::NotExecutable,
             Self::MapToError => ErrorStatus::MMapError,

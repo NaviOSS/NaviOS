@@ -1,3 +1,5 @@
+use super::errors::{ErrorStatus, ErrorStatusResult};
+
 ///! safe FFI types to make it easier to interact with userspace
 
 /// a Nullable refrence to a value
@@ -81,12 +83,12 @@ pub struct Slice<T> {
 impl<'a, T> Slice<T> {
     /// ptr must be aligned
     /// panics if ptr is invaild
-    pub fn new(ptr: *const T, len: usize) -> Self {
+    pub fn new(ptr: *const T, len: usize) -> ErrorStatusResult<Self> {
         if !(ptr.is_aligned() || ptr.is_null()) {
-            panic!("Pointer {:#x} is null or unaligned", ptr as usize);
+            ErrorStatusResult::err(ErrorStatus::InvaildPtr)
+        } else {
+            ErrorStatusResult::ok(Self { ptr, len })
         }
-
-        Self { ptr, len }
     }
 
     /// converts Slice to a slice
@@ -118,12 +120,12 @@ pub struct SliceMut<T> {
 impl<'a, T> SliceMut<T> {
     /// ptr must be aligned
     /// panics if ptr is invaild
-    pub fn new(ptr: *mut T, len: usize) -> Self {
+    pub fn new(ptr: *mut T, len: usize) -> ErrorStatusResult<Self> {
         if !(ptr.is_aligned() || ptr.is_null()) {
-            panic!("Pointer {:#x} is null or unaligned", ptr as usize);
+            ErrorStatusResult::err(ErrorStatus::InvaildPtr)
+        } else {
+            ErrorStatusResult::ok(Self { ptr, len })
         }
-
-        Self { ptr, len }
     }
 
     /// converts Slice to a slice

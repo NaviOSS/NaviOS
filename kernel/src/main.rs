@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 #![feature(allocator_api)]
+#![feature(try_trait_v2)]
 #[cfg(feature = "test")]
 mod test;
 
@@ -11,7 +12,6 @@ mod drivers;
 mod globals;
 mod limine;
 mod memory;
-mod shell;
 mod syscalls;
 mod terminal;
 mod threading;

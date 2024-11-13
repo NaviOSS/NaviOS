@@ -4,5 +4,6 @@
 // it should also support optional pointer-arguments using Option<T>
 // and we should do something about functions that takes a struct
 mod io;
+mod power;
 mod processes;
 mod utils;

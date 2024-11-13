@@ -11,7 +11,7 @@ use crate::{
         HandleKey,
     },
     memory::page_allocator::{PageAlloc, GLOBAL_PAGE_ALLOCATOR},
-    threading::expose::{spawn_function, SpawnFlags},
+    threading::expose::{pspawn, SpawnFlags},
     utils::Locked,
 };
 
@@ -144,15 +144,7 @@ impl HandleKey for TTY<'_> {
             KeyCode::PageUp => self.interface.inner.lock().scroll_up(),
             KeyCode::KeyC if key.flags.contains(KeyFlags::CTRL | KeyFlags::SHIFT) => {
                 self.clear();
-                unsafe {
-                    spawn_function(
-                        "Shell",
-                        crate::shell::shell as usize,
-                        &[],
-                        SpawnFlags::CLONE_RESOURCES,
-                    )
-                    .unwrap();
-                }
+                pspawn("Shell", "sys:/bin/Shell", &[], SpawnFlags::CLONE_RESOURCES).unwrap();
             }
             KeyCode::Backspace if self.settings.contains(TTYSettings::RECIVE_INPUT) => {
                 self.peform_backspace();

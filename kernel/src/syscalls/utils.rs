@@ -1,7 +1,8 @@
 use crate::{
-    threading::{self, expose::ErrorStatus},
+    threading,
     utils::{
         self,
+        errors::ErrorStatus,
         expose::SysInfo,
         ffi::{Optional, Slice, SliceMut},
     },
@@ -20,7 +21,7 @@ extern "C" fn sysyield() {
 
 #[no_mangle]
 extern "C" fn syschdir(path_ptr: *const u8, path_len: usize) -> ErrorStatus {
-    let path = Slice::new(path_ptr, path_len).into_str();
+    let path = Slice::new(path_ptr, path_len)?.into_str();
 
     if let Err(err) = threading::expose::chdir(path) {
         err.into()
@@ -31,7 +32,7 @@ extern "C" fn syschdir(path_ptr: *const u8, path_len: usize) -> ErrorStatus {
 
 #[no_mangle]
 extern "C" fn sysgetcwd(path_ptr: *mut u8, len: usize, dest_len: Optional<usize>) -> ErrorStatus {
-    let path = SliceMut::new(path_ptr, len).into_slice();
+    let path = SliceMut::new(path_ptr, len)?.into_slice();
     let got = threading::expose::getcwd().as_bytes();
 
     if got.len() > len {

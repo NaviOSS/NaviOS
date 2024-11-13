@@ -4,8 +4,11 @@ use core::usize;
 
 use crate::{
     debug, limine,
-    threading::expose::{getcwd, ErrorStatus},
-    utils::ustar::{self, TarArchiveIter},
+    threading::expose::getcwd,
+    utils::{
+        errors::{ErrorStatus, IntoErr},
+        ustar::{self, TarArchiveIter},
+    },
 };
 pub mod devicefs;
 pub mod ramfs;
@@ -83,8 +86,9 @@ pub enum FSError {
     NotExecuteable,
     ResourceBusy,
 }
-impl Into<ErrorStatus> for FSError {
-    fn into(self) -> ErrorStatus {
+
+impl IntoErr for FSError {
+    fn into_err(self) -> ErrorStatus {
         match self {
             Self::OperationNotSupported => ErrorStatus::OperationNotSupported,
             Self::NotAFile => ErrorStatus::NotAFile,
@@ -519,5 +523,9 @@ impl FS for VFS {
 
     fn close(&self, file_descriptor: &mut FileDescriptor) -> FSResult<()> {
         unsafe { (*file_descriptor.mountpoint).close(file_descriptor) }
+    }
+
+    fn diriter_open(&self, fd: &mut FileDescriptor) -> FSResult<DirIter> {
+        unsafe { (*fd.mountpoint).diriter_open(fd) }
     }
 }

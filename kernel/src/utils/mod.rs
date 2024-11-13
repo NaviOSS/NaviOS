@@ -1,12 +1,12 @@
 pub mod display;
 pub mod elf;
+pub mod errors;
 pub mod expose;
 pub mod ffi;
 pub mod ustar;
 
 use core::ops::Deref;
 
-// TODO: impl our own Optional type
 use spin::Mutex;
 
 pub struct Locked<T: ?Sized> {

@@ -16,7 +16,7 @@ pub const ARGV_SIZE: usize = PAGE_SIZE * 4;
 use core::{arch::asm, mem::MaybeUninit};
 use processes::{AliveProcessState, Process, ProcessFlags, ProcessState, ProcessStatus};
 
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, string::String};
 
 use crate::{
     arch::threading::{restore_cpu_status, CPUStatus},
@@ -27,16 +27,6 @@ use crate::{
     },
     scheduler, SCHEDULER,
 };
-
-/// helper function to work with `name` in Process
-#[inline]
-fn trim_trailing_zeros(slice: &[u8]) -> &[u8] {
-    if let Some(last_non_zero) = slice.iter().rposition(|&x| x != 0) {
-        &slice[..=last_non_zero]
-    } else {
-        &[]
-    }
-}
 
 /// allocates and maps an area starting from `$start` with size `$size` and returns `Result<(), MapToError>` in `$page_table`
 macro_rules! alloc_map {
@@ -204,38 +194,6 @@ impl Scheduler {
         }
 
         found
-    }
-
-    /// sets all process(s) with name `name` status to WaitingForBurying returns Err(()) if there is no
-    /// such a process
-    /// current implentation just collects all the pids and executes `Self::pkill`
-    /// TODO: work on better kill implentations for now this works
-    pub fn pkillall(&mut self, name: &[u8]) -> Result<(), ()> {
-        let mut current = &mut *self.head;
-        let mut plist = Vec::new();
-
-        while let Some(ref mut process) = current.next {
-            if trim_trailing_zeros(&current.name) == name {
-                plist.push(current.pid);
-                break;
-            }
-
-            current = &mut **process;
-            if trim_trailing_zeros(&current.name) == name {
-                plist.push(current.pid);
-                break;
-            }
-        }
-
-        if plist.is_empty() {
-            Err(())
-        } else {
-            for pid in plist {
-                expose::pkill(pid)?
-            }
-
-            Ok(())
-        }
     }
 
     /// moves all the parentership of processes with parent `ppid` to `pid`
