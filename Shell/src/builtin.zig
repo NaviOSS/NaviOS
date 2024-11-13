@@ -13,6 +13,26 @@ pub fn cd(argv: []const Slice(u8)) u64 {
     return 0;
 }
 
+pub fn help() u64 {
+    libc.stdio.zprintf(
+        \\to scroll up use PageUp, to scroll down use PageDown
+        \\### Basic builtin commands list:
+        \\
+    , .{}) catch {};
+    for (BuiltinFunctions) |function| {
+        libc.stdio.zprintf("- %.*s\n", .{ function.len, function.ptr }) catch {};
+    }
+    return 0;
+}
+
+pub fn shutdown() noreturn {
+    libc.syscalls.shutdown();
+}
+
+pub fn reboot() noreturn {
+    libc.syscalls.reboot();
+}
+
 pub fn getBuitlinFunctions() []const []const u8 {
     const self = @This();
     const info = @typeInfo(self);

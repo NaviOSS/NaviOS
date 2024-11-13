@@ -10,8 +10,11 @@ var environment: ArrayList(EnvironmentVariable) = undefined;
 
 pub fn init() !void {
     environment = try ArrayList(EnvironmentVariable).init();
+    try add_environment_variable("PATH", "sys:/bin");
+}
 
-    try environment.append(.{ .name = "PATH", .value = "sys:/bin" });
+pub fn add_environment_variable(name: []const u8, value: []const u8) !void {
+    try environment.append(.{ .name = name, .value = value });
 }
 
 pub fn get_environment_variable(name: []const u8) ?[]const u8 {
