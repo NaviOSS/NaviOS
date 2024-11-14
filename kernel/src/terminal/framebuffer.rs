@@ -83,9 +83,9 @@ impl FrameBufferTTY<'_> {
             for (col, byte) in rows.iter().enumerate() {
                 let (red, green, blue) = fg_color.tuple();
                 let (red, green, blue) = (
-                    red.saturating_mul(*byte),
-                    green.saturating_mul(*byte),
-                    blue.saturating_mul(*byte),
+                    red * (*byte > 0) as u8,
+                    green * (*byte > 0) as u8,
+                    blue * (*byte > 0) as u8,
                 );
                 let fg_color = RGB::new(red, green, blue);
 

@@ -4,6 +4,7 @@ const getline = libc.stdio.zgetline;
 const Lexer = @import("Lexer.zig");
 const repl = @import("repl.zig");
 const Error = libc.sys.errno.Error;
+const eql = @import("utils.zig").eql;
 
 pub const panic = libc.panic;
 const ArrayList = @import("utils.zig").ArrayList;
@@ -32,6 +33,7 @@ pub fn run(line: []const u8) Error!void {
     while (lexer.next()) |token| {
         try tokens.append(token);
     }
+    if (tokens.items.len < 1) return;
 
     const name = tokens.items[0].asString();
     ret = repl.repl(tokens.items) catch |err| blk: {
@@ -42,7 +44,7 @@ pub fn run(line: []const u8) Error!void {
 }
 
 pub fn main() Error!void {
-    try printf("\x1B[38;2;255;0;193m", .{});
+    try printf("\x1B[38;2;255;192;203m", .{});
     try printf(
         \\                                                      
         \\  ,---.             ,---.           ,-----.   ,---.   
@@ -52,14 +54,13 @@ pub fn main() Error!void {
         \\ `-----'   `--`--' `--'    `--`--'  `-----'  `-----'  
     , .{});
 
-    try printf("\n\x1B[38;2;100;100;100m", .{});
+    try printf("\n\x1B[38;2;200;200;200m", .{});
     try printf(
-        \\
-        \\Welcome to SafaOS!
-        \\you are currently in ram:/, a playground
-        \\init ramdisk has been mounted at sys:/
-        \\sys:/bin is avalible in your PATH check it out for some binaries
-        \\the command `help` will provide a list of builtin commands and some terminal usage guide
+        \\| Welcome to SafaOS!
+        \\| you are currently in ram:/, a playground
+        \\| init ramdisk has been mounted at sys:/
+        \\| sys:/bin is avalible in your PATH check it out for some binaries
+        \\| the command `help` will provide a list of builtin commands and some terminal usage guide
     , .{});
 
     try printf("\x1B[0m\n", .{});
@@ -70,7 +71,6 @@ pub fn main() Error!void {
         try prompt();
         const line = try getline();
         defer libc.stdlib.free(line.ptr);
-        if (line.len == 0) continue;
 
         try run(line);
     }
