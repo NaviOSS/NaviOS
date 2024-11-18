@@ -86,7 +86,12 @@ fn __libc_c_start() callconv(.Naked) i32 {
         \\ # allocating on the stack
         \\ mov %rsp, %rcx
         \\ sub %rax, %rsp
-        \\ mov %rsp, %rsi
+        \\ # aligning the stack
+        \\ add $15, %rsp
+        \\ and $-16, %rsp        
+        \\ # ignoring the first 8 bytes, because they are the return address
+        \\ add $8, %rsp
+        \\ mov %rsp, %rsi        
         \\ # pushing the return value
         \\ push (%rcx)
         \\ jmp __libc_OsStr_to_cstr
