@@ -1,12 +1,5 @@
-pub fn eql(comptime T: type, a: []const T, b: []const T) bool {
-    if (a.len != b.len) return false;
-    for (a, 0..) |item, i| {
-        if (item != b[i]) return false;
-    }
-    return true;
-}
-
 const libc = @import("libc");
+pub const eql = libc.extra.eql;
 
 pub fn ArrayList(comptime T: type) type {
     return struct {
@@ -49,6 +42,17 @@ pub fn ArrayList(comptime T: type) type {
             for (slice) |item| {
                 try self.append(item);
             }
+        }
+
+        pub fn contains(self: Self, item: T) bool {
+            for (self.items) |i| {
+                const type_info = @typeInfo(@typeInfo(item));
+                if (type_info == .Pointer) {
+                    const pointte = type_info.Pointer.child;
+                    if (eql(pointte, i, item)) return true;
+                } else if (i == item) return true;
+            }
+            return false;
         }
     };
 }

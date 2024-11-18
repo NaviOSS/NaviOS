@@ -46,7 +46,6 @@ pub fn run(line: []const u8) Error!void {
 pub fn main() Error!void {
     try printf("\x1B[38;2;255;192;203m", .{});
     try printf(
-        \\                                                      
         \\  ,---.             ,---.           ,-----.   ,---.   
         \\ '   .-'   ,--,--. /  .-'  ,--,--. '  .-.  ' '   .-'  
         \\ `.  `-.  ' ,-.  | |  `-, ' ,-.  | |  | |  | `.  `-.  

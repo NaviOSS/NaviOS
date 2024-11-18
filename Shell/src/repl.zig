@@ -8,6 +8,7 @@ const Error = libc.sys.errno.Error;
 const eql = @import("utils.zig").eql;
 const environment = @import("environment.zig");
 const ArrayList = @import("utils.zig").ArrayList;
+const Dir = libc.dirent.DIR;
 
 const ExecuteBuiltin = @import("builtin.zig").executeBuiltin;
 
@@ -16,7 +17,7 @@ fn spawn(name: []const u8, argv: []const Slice(u8)) Error!u64 {
     defer path_var.deinit();
 
     for (path_var.items) |path| {
-        var it = try libc.dirent.zopendir(path);
+        var it = try Dir.open(path);
         defer it.close();
 
         while (it.next()) |entry| {
