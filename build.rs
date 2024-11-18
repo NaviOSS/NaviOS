@@ -15,6 +15,7 @@ use tar::{Builder, Header};
 const RAMDISK_CONTENT: &[(&str, &str)] = &[
     ("bin/zig-out/bin/", "bin"),
     ("Shell/zig-out/bin/Shell", "bin/Shell"),
+    ("TestBot/zig-out/bin/TestBot", "bin/TestBot"),
 ];
 
 fn limine_make() -> Output {
@@ -112,6 +113,11 @@ fn compile_programs() -> Output {
     Command::new("bash")
         .arg("-c")
         .arg("cd bin && zig build")
+        .output()
+        .unwrap();
+    Command::new("bash")
+        .arg("-c")
+        .arg("cd TestBot && zig build")
         .output()
         .unwrap()
 }
