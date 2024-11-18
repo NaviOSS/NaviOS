@@ -76,6 +76,17 @@ impl InodeOps for Mutex<RamInode> {
         }
     }
 
+    fn truncate(&self, size: usize) -> FSResult<()> {
+        match self.lock().data {
+            RamInodeData::Data(ref mut data) => {
+                data.truncate(size);
+                Ok(())
+            }
+            RamInodeData::HardLink(ref inode) => inode.truncate(size),
+            _ => Err(FSError::NotAFile),
+        }
+    }
+
     fn read(&self, buffer: &mut [u8], offset: usize, count: usize) -> FSResult<usize> {
         match self.lock().data {
             RamInodeData::Data(ref data) => {
@@ -94,8 +105,8 @@ impl InodeOps for Mutex<RamInode> {
                     data.resize(buffer.len() + offset, 0);
                 }
 
-                data[offset..buffer.len()].copy_from_slice(buffer);
-                Ok(buffer.len() - offset)
+                data[offset..(offset + buffer.len())].copy_from_slice(buffer);
+                Ok(buffer.len())
             }
             RamInodeData::HardLink(ref inode) => inode.write(buffer, offset),
             _ => Err(FSError::NotAFile),
@@ -207,6 +218,10 @@ impl FS for RamFS {
     }
 
     fn write(&self, file_descriptor: &mut FileDescriptor, buffer: &[u8]) -> FSResult<usize> {
+        if file_descriptor.write_pos == 0 {
+            file_descriptor.node.truncate(0)?;
+        }
+
         file_descriptor
             .node
             .write(buffer, file_descriptor.write_pos)?;

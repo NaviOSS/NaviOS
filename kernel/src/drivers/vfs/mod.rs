@@ -1,3 +1,4 @@
+// TODO: define write and read behaviour, especially write
 pub mod expose;
 
 use core::usize;
@@ -153,6 +154,11 @@ pub trait InodeOps: Send + Sync {
     fn insert(&self, name: &str, node: usize) -> FSResult<()> {
         _ = name;
         _ = node;
+        Err(FSError::OperationNotSupported)
+    }
+
+    fn truncate(&self, size: usize) -> FSResult<()> {
+        _ = size;
         Err(FSError::OperationNotSupported)
     }
 
