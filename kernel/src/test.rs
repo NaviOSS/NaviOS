@@ -6,8 +6,12 @@ pub mod testing_module {
 
     use crate::cross_println;
     use crate::println;
+    use crate::threading::expose::pspawn;
+    use crate::threading::expose::wait;
+    use crate::threading::expose::SpawnFlags;
     use core::arch::asm;
 
+    fn serial() {}
     fn print() {}
 
     #[cfg(target_arch = "x86_64")]
@@ -41,6 +45,7 @@ pub mod testing_module {
         println!("{:#?}\nAllocated Vec with len {}", test, test.len());
     }
 
+    #[cfg(target_arch = "x86_64")]
     // syscall tests
     fn syscall() {
         let msg = "Hello from syswrite!\n";
@@ -56,5 +61,19 @@ pub mod testing_module {
                 int 0x80", in("r9") msg, in("r10") len
             )
         }
+    }
+
+    fn spawn() {
+        let pid = pspawn("TEST_CASE", "sys:/bin/true", &[], SpawnFlags::empty()).unwrap();
+        let ret = wait(pid);
+
+        assert_eq!(ret, 1);
+    }
+
+    fn userspace() {
+        let pid = pspawn("TEST_BOT", "sys:/bin/TestBot", &[], SpawnFlags::empty()).unwrap();
+        let ret = wait(pid);
+
+        assert_eq!(ret, 0);
     }
 }
