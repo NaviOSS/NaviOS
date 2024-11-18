@@ -3,6 +3,14 @@ pub fn Slice(comptime T: type) type {
     return extern struct {
         ptr: [*]const T,
         len: usize,
+
+        pub fn from(slice: []const T) @This() {
+            return .{ .ptr = slice.ptr, .len = slice.len };
+        }
+
+        pub fn to(slice: @This()) []const T {
+            return slice.ptr[0..slice.len];
+        }
     };
 }
 

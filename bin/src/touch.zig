@@ -1,4 +1,5 @@
 const libc = @import("libc");
+const File = libc.stdio.File;
 const printf = libc.stdio.zprintf;
 
 pub fn main() !void {
@@ -9,16 +10,15 @@ pub fn main() !void {
     }
 
     const filename = args.nth(1).?;
-    const file = libc.stdio.zfopen(filename, .{ .read = true }) catch |err|
+    const file = File.open(filename, .{ .read = true }) catch |err|
         switch (err) {
-        error.NoSuchAFileOrDirectory => try libc.stdio.zfopen(filename, .{ .write = true }),
+        error.NoSuchAFileOrDirectory => try File.open(filename, .{ .write = true }),
         else => {
-            try printf("got error %s\n", .{@errorName(err).ptr});
-            return;
+            return err;
         },
     };
 
-    try libc.stdio.zfclose(file);
+    file.close();
 }
 
 comptime {

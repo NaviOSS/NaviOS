@@ -1,6 +1,8 @@
 const libc = @import("libc");
 const printf = libc.stdio.zprintf;
+const File = libc.stdio.File;
 pub const panic = libc.panic;
+
 pub fn main() !void {
     const args = libc.sys.args();
     if (args.count() < 2) {
@@ -9,13 +11,12 @@ pub fn main() !void {
     }
 
     const filename = args.nth(1).?;
-    const file = try libc.stdio.zfopen(filename, .{ .read = true });
 
-    var len: usize = 0;
-    const data = libc.stdio.fgetline(file, &len);
-    try printf("%.*s\n", .{ len, data });
+    const file = try File.open(filename, .{ .read = true });
+    defer file.close();
 
-    try libc.stdio.zfclose(file);
+    const data = try file.reader().readUntilEOFOrDelimiter('\n');
+    try printf("%.*s\n", .{ data.len, data.ptr });
 }
 
 comptime {

@@ -11,6 +11,18 @@ pub const DIR = extern struct {
     ri: isize,
     dir_ri: isize,
 
+    pub fn open(path: []const u8) errors.Error!*DIR {
+        const dir_ri = try io.zopen(path);
+
+        const ri = try io.zdiriter_open(dir_ri);
+
+        const dir = stdlib.zmalloc(DIR).?;
+        dir.ri = ri;
+        dir.dir_ri = dir_ri;
+
+        return dir;
+    }
+
     pub fn next(dir: *DIR) ?raw.DirEntry {
         defer dir.current_index += 1;
         return io.zdiriter_next(dir.ri);
@@ -32,22 +44,10 @@ pub export fn opendir(path: [*:0]const c_char) ?*DIR {
     const length = string.strlen(path);
     const path_u8: [*:0]const u8 = @ptrCast(path);
 
-    return zopendir(path_u8[0..length]) catch |err| {
+    return DIR.open(path_u8[0..length]) catch |err| {
         seterr(err);
         return null;
     };
-}
-
-pub fn zopendir(path: []const u8) !*DIR {
-    const dir_ri = try io.zopen(path);
-
-    const ri = try io.zdiriter_open(dir_ri);
-
-    const dir = stdlib.zmalloc(DIR).?;
-    dir.ri = ri;
-    dir.dir_ri = dir_ri;
-
-    return dir;
 }
 
 // FIXME: this is very unhealthy

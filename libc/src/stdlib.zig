@@ -140,3 +140,15 @@ pub export fn realloc(ptr: *anyopaque, size: usize) ?*anyopaque {
 
     return ptr;
 }
+
+pub fn zfree(comptime T: type, buffer: []const T) void {
+    free(@ptrCast(@constCast(buffer.ptr)));
+}
+
+pub fn zrealloc(comptime T: type, buffer: []T, size: usize) ?[]T {
+    const ptr = realloc(@ptrCast(buffer.ptr), size);
+    if (ptr == null)
+        return null;
+    const buf: [*]T = @ptrCast(@alignCast(ptr));
+    return buf[0..size];
+}

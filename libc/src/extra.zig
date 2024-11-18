@@ -36,3 +36,11 @@ pub export fn itoa(integer: usize, buffer: [*]u8, radix: u8) c_int {
     _ = reverse(buffer, i);
     return 0;
 }
+
+pub fn eql(comptime T: type, a: []const T, b: []const T) bool {
+    if (a.len != b.len) return false;
+    for (a, 0..) |item, i| {
+        if (item != b[i]) return false;
+    }
+    return true;
+}

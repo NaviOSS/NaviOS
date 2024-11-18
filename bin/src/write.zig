@@ -1,4 +1,5 @@
 const libc = @import("libc");
+const File = libc.stdio.File;
 const printf = libc.stdio.zprintf;
 pub const panic = libc.panic;
 
@@ -10,11 +11,12 @@ pub fn main() !void {
     }
     const filename = args.nth(1).?;
     const data = args.nth(2).?;
-    const file = try libc.stdio.zfopen(filename, .{ .write = true });
 
-    _ = try libc.sys.io.zwrite(file.fd, data);
+    const file = try File.open(filename, .{ .write = true });
+    defer file.close();
 
-    try libc.stdio.zfclose(file);
+    const writer = file.writer();
+    try writer.write(data);
 }
 comptime {
     _ = libc;
