@@ -68,3 +68,12 @@ impl From<RGB> for (u8, u8, u8) {
         rgb.tuple()
     }
 }
+
+pub const BLACK: RGB = RGB::new(0, 0, 0);
+pub const WHITE: RGB = RGB::new(255, 255, 255);
+pub const RED: RGB = RGB::new(255, 0, 0);
+pub const GREEN: RGB = RGB::new(0, 255, 0);
+pub const BLUE: RGB = RGB::new(0, 0, 255);
+pub const YELLOW: RGB = RGB::new(255, 255, 0);
+pub const CYAN: RGB = RGB::new(0, 255, 255);
+pub const MAGENTA: RGB = RGB::new(255, 0, 255);

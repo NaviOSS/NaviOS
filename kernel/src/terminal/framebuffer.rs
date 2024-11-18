@@ -14,7 +14,10 @@ use spin::RwLock;
 use super::TTYInterface;
 use crate::{
     drivers::framebuffer::{FrameBuffer, FRAMEBUFFER_DRIVER},
-    utils::{display::RGB, Locked},
+    utils::{
+        display::{BLACK, BLUE, CYAN, GREEN, MAGENTA, RED, RGB, WHITE, YELLOW},
+        Locked,
+    },
 };
 
 pub struct FrameBufferTTY<'a> {
@@ -128,28 +131,41 @@ impl FrameBufferTTY<'_> {
             return;
         }
 
-        if params.len() == 1 {
-            match params[0] {
-                0 => {
-                    self.fg_color = RGB::new(255, 255, 255);
-                    self.bg_color = RGB::new(0, 0, 0);
-                }
-                _ => todo!(),
-            }
-        }
+        match params.len() {
+            1 => {
+                let color = match params[0] {
+                    0 => {
+                        self.fg_color = RGB::new(255, 255, 255);
+                        self.bg_color = RGB::new(0, 0, 0);
+                        return;
+                    }
+                    30 => BLACK,
+                    31 => RED,
+                    32 => GREEN,
+                    33 => YELLOW,
+                    34 => BLUE,
+                    35 => MAGENTA,
+                    36 => CYAN,
+                    37 => WHITE,
+                    _ => return,
+                };
 
-        if params.len() == 5 {
-            let kind = &params[0..2];
-            match kind {
-                [38, 2] => {
-                    self.fg_color = RGB::new(params[2], params[3], params[4]);
-                }
-                [48, 2] => {
-                    self.bg_color = RGB::new(params[2], params[3], params[4]);
-                }
-
-                _ => {}
+                self.fg_color = color;
             }
+            5 => {
+                let kind = &params[0..2];
+                match kind {
+                    [38, 2] => {
+                        self.fg_color = RGB::new(params[2], params[3], params[4]);
+                    }
+                    [48, 2] => {
+                        self.bg_color = RGB::new(params[2], params[3], params[4]);
+                    }
+
+                    _ => {}
+                }
+            }
+            _ => {}
         }
     }
 
