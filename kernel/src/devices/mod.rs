@@ -1,4 +1,6 @@
+pub mod serial;
 pub mod tty;
+
 use alloc::{
     collections::linked_list::LinkedList,
     string::{String, ToString},
@@ -7,6 +9,7 @@ use lazy_static::lazy_static;
 use spin::Mutex;
 
 use crate::{
+    arch::serial::SERIAL,
     drivers::vfs::{FSResult, InodeOps},
     terminal::FRAMEBUFFER_TERMINAL,
 };
@@ -88,4 +91,5 @@ lazy_static! {
 
 pub fn init() {
     DEVICE_MANAGER.lock().add_device(&*FRAMEBUFFER_TERMINAL);
+    DEVICE_MANAGER.lock().add_device(&*SERIAL);
 }
