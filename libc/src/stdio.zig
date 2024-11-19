@@ -69,7 +69,7 @@ pub const Writer = struct {
                             value = -value;
                         }
 
-                        var buffer: [10:0]u8 = [1:0]u8{0} ** 10;
+                        var buffer: [20:0]u8 = [1:0]u8{0} ** 20;
                         _ = extra.itoa(@intCast(arg), &buffer, 10);
 
                         const ptr: [*:0]const u8 = @ptrCast(&buffer);
@@ -83,7 +83,7 @@ pub const Writer = struct {
             'u' => {
                 switch (ty) {
                     u32, u64, usize => {
-                        var buffer: [10]u8 = [1]u8{0} ** 10;
+                        var buffer: [20:0]u8 = [1:0]u8{0} ** 20;
                         _ = extra.itoa(@intCast(arg), &buffer, 10);
 
                         const ptr: [*:0]const u8 = @ptrCast(&buffer);
@@ -91,6 +91,18 @@ pub const Writer = struct {
                     },
 
                     else => @compileError("invaild type for fmt 'u' " ++ @typeName(ty)),
+                }
+            },
+
+            'x' => {
+                switch (ty) {
+                    u32, u64, usize => {
+                        var buffer: [16:0]u8 = [1:0]u8{0} ** 16;
+                        _ = extra.itoa(@intCast(arg), &buffer, 16);
+                        const ptr: [*:0]const u8 = @ptrCast(&buffer);
+                        try self.writeArg("s", ptr);
+                    },
+                    else => @compileError("invaild type for fmt 'x' " ++ @typeName(ty)),
                 }
             },
 
@@ -137,13 +149,26 @@ pub const Writer = struct {
                     const i = @cVaArg(args, i32);
                     try self.writeArg("d", i);
                 },
-                'l' => {
-                    const i = @cVaArg(args, i64);
-                    try self.writeArg("d", i);
+
+                'u' => {
+                    const i = @cVaArg(args, u32);
+                    try self.writeArg("u", i);
                 },
+
+                'l' => {
+                    if (current[1] == 'u') {
+                        current += 1;
+                        const i = @cVaArg(args, u64);
+                        try self.writeArg("u", i);
+                    } else {
+                        const i = @cVaArg(args, i64);
+                        try self.writeArg("d", i);
+                    }
+                },
+
                 'p', 'x' => {
                     const i = @cVaArg(args, usize);
-                    try self.writeArg("u", i);
+                    try self.writeArg("x", i);
                 },
 
                 's' => {
