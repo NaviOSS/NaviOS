@@ -8,6 +8,9 @@ var serial: *File = undefined;
 
 var last_output: ?Output = null;
 var expected_output: ?Output = null;
+/// meminfo at the start of the tests
+/// used to check if there is memory leaks
+var meminfo_output: Output = undefined;
 
 /// TODO: make this a union with different errors, containing payloads
 var extra_info: ?[:0]const u8 = null;
@@ -41,6 +44,15 @@ const Output = struct {
                 }
             }
         }
+    }
+
+    pub fn eql(self: *const Output, other: *const Output) bool {
+        if (self.status != other.status) return false;
+        if (self.stdout.len != other.stdout.len) return false;
+        for (self.stdout, 0..) |byte, i| {
+            if (byte != other.stdout[i]) return false;
+        }
+        return true;
     }
 
     pub fn debug(self: *const Output) void {
@@ -82,6 +94,12 @@ fn test_binary(comptime path: []const u8, args: []const Slice(u8)) !Output {
 
     const buffer = try test_log.reader().readUntilEOF();
     return .{ .stdout = buffer, .status = status };
+}
+
+fn meminfo() !Output {
+    const output = try test_binary("sys:/bin/meminfo", &[_]Slice(u8){Slice(u8).from("-k")});
+    try output.expect(null, 0);
+    return output;
 }
 
 fn mkdir(dir: []const u8) !void {
@@ -126,6 +144,11 @@ fn ls() !Output {
     return output;
 }
 
+pub fn memory_info_capture() Error!void {
+    const output = try meminfo();
+    meminfo_output = output;
+}
+
 pub fn echo_test() Error!void {
     const output = try test_binary("sys:/bin/echo", make_args(.{ "echo", "test data" }));
     try output.expect("test data\n", 0);
@@ -166,6 +189,23 @@ pub fn ls_test() Error!void {
         \\test_file
         \\
     , 0);
+    output.uninit();
+}
+
+pub fn memory_info_test() Error!void {
+    const output = try meminfo();
+    if (!meminfo_output.eql(&output)) {
+        print("\x1b[31m[TestBot]: ", .{});
+        print(
+            \\possible memory leak detected
+            \\expected:
+            \\%.*s
+            \\actual:
+            \\%.*s
+            \\
+        , .{ meminfo_output.stdout.len - 1, meminfo_output.stdout.ptr, output.stdout.len - 1, output.stdout.ptr });
+        print("\x1b[0m", .{});
+    } else print("\x1b[36m[TestBot]\x1b[0m: memory has been reported to be %.*s since the start of the TestBot, no possible leaks detected\n", .{ output.stdout.len - 1, output.stdout.ptr });
     output.uninit();
 }
 
