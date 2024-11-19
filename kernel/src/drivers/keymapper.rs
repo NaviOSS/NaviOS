@@ -266,17 +266,6 @@ pub const DEFAULT_MAPPING: KeyMapping = create_mapping!(
     { KeyCode::Slash, { KeyFlags::SHIFT } } => '?',
 );
 
-// returns '\0' if no char found
-// returns a UTF8 char in u32 form for ffi safety
-#[no_mangle]
-extern "C" fn __navi_map_key(keycode: KeyCode, keyflags: KeyFlags) -> u32 {
-    Key {
-        code: keycode,
-        flags: keyflags,
-    }
-    .map_key() as u32
-}
-
 impl Key {
     pub fn map_key(&self) -> char {
         let mappings = DEFAULT_MAPPING.get_const(self.code);

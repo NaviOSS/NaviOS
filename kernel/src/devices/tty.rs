@@ -21,12 +21,12 @@ impl CharDevice for RwLock<TTY<'_>> {
             .try_read()
             .ok_or(FSError::ResourceBusy)?
             .stdin_buffer
-            .ends_with(&[b'\n'])
+            .ends_with(&['\n'])
         {
             self.write().enable_input();
             while self
                 .try_read()
-                .is_none_or(|reader| !reader.stdin_buffer.ends_with(&[b'\n']))
+                .is_none_or(|reader| !reader.stdin_buffer.ends_with(&['\n']))
             {
                 thread_yeild();
             }
@@ -35,14 +35,15 @@ impl CharDevice for RwLock<TTY<'_>> {
         }
 
         let stdin_buffer = &mut self.write().stdin_buffer;
+
         let count = if stdin_buffer.len() <= buffer.len() {
             stdin_buffer.len()
         } else {
             buffer.len()
         };
 
-        buffer[..count].copy_from_slice(&stdin_buffer[..count]);
-        stdin_buffer.drain(..count);
+        buffer[..count].copy_from_slice(&stdin_buffer.as_str().as_bytes()[..count]);
+        stdin_buffer.inner.drain(..count);
         Ok(count)
     }
 

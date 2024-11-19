@@ -3,6 +3,8 @@
 #![feature(abi_x86_interrupt)]
 #![feature(allocator_api)]
 #![feature(try_trait_v2)]
+#![feature(pattern)]
+
 #[cfg(feature = "test")]
 mod test;
 

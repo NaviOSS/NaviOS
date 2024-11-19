@@ -1,4 +1,3 @@
-use alloc::vec::Vec;
 use bitflags::bitflags;
 use core::fmt::Write;
 use framebuffer::FRAMEBUFFER_TTY_INTERFACE;
@@ -10,9 +9,8 @@ use crate::{
         keys::{Key, KeyCode, KeyFlags},
         HandleKey,
     },
-    memory::page_allocator::{PageAlloc, GLOBAL_PAGE_ALLOCATOR},
     threading::expose::{pspawn, SpawnFlags},
-    utils::Locked,
+    utils::{alloc::PageString, Locked},
 };
 
 pub mod framebuffer;
@@ -56,8 +54,8 @@ bitflags! {
 }
 
 pub struct TTY<'a> {
-    pub stdout_buffer: Vec<u8, PageAlloc>,
-    pub stdin_buffer: Vec<u8, PageAlloc>,
+    pub stdout_buffer: PageString,
+    pub stdin_buffer: PageString,
 
     pub settings: TTYSettings,
     interface: &'a Locked<dyn TTYInterface>,
@@ -67,7 +65,7 @@ impl Write for TTY<'_> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         if self.settings.contains(TTYSettings::DRAW_GRAPHICS) {
             self.interface.inner.lock().write_str(s)?;
-            self.stdout_buffer.extend_from_slice(s.as_bytes());
+            self.stdout_buffer.push_str(s);
         }
         Ok(())
     }
@@ -75,7 +73,7 @@ impl Write for TTY<'_> {
     fn write_char(&mut self, c: char) -> core::fmt::Result {
         if self.settings.contains(TTYSettings::DRAW_GRAPHICS) {
             self.interface.inner.lock().write_char(c)?;
-            self.stdout_buffer.push(c as u8);
+            self.stdout_buffer.push_char(c);
         }
         Ok(())
     }
@@ -84,8 +82,8 @@ impl Write for TTY<'_> {
 impl<'a> TTY<'a> {
     pub fn new(interface: &'a Locked<dyn TTYInterface>) -> Self {
         Self {
-            stdout_buffer: Vec::new_in(&*GLOBAL_PAGE_ALLOCATOR),
-            stdin_buffer: Vec::new_in(&*GLOBAL_PAGE_ALLOCATOR),
+            stdout_buffer: PageString::new(),
+            stdin_buffer: PageString::new(),
             interface,
             settings: TTYSettings::DRAW_GRAPHICS,
         }
@@ -121,6 +119,7 @@ impl<'a> TTY<'a> {
             // backspace
             self.interface.inner.lock().backspace();
             self.stdin_buffer.pop();
+            self.stdout_buffer.pop();
 
             if self.settings.contains(TTYSettings::RECIVE_INPUT) {
                 // puts the cursor `_`
@@ -156,7 +155,7 @@ impl HandleKey for TTY<'_> {
                     let char = key.map_key();
                     if char != '\0' {
                         let _ = self.write_char(char);
-                        self.stdin_buffer.push(char as u8);
+                        self.stdin_buffer.push_char(char);
                     }
                     // put the cursor back
                     _ = self.write_char('_');

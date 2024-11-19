@@ -1,3 +1,4 @@
+pub mod alloc;
 pub mod display;
 pub mod elf;
 pub mod errors;
