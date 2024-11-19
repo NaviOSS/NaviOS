@@ -253,7 +253,7 @@ fn run_tests(comptime tests: []const TestCase) Error!void {
         try run_test(test_case.name, test_case.func);
     }
 
-    print("\x1b[36m[TEST]: \x1b[32m[PASSED]\x1b[0m\n", .{});
+    print("\x1b[36m[TestBot]\x1b[0m: \x1b[32m[PASSED]\x1b[0m\n", .{});
 }
 pub fn main() !void {
     // fd 0

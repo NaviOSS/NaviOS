@@ -28,7 +28,7 @@ pub fn test_module(_attr: TokenStream, item: TokenStream) -> TokenStream {
         pub fn test_main() {
             cross_println!("\x1B[36m[TEST]\x1B[0m: Running {} tests", #len);
             #(
-                cross_println!("\x1B[36m[TEST]\x1B[0m: Running {}", stringify!(#func_names));
+                cross_println!("\x1B[36m[TEST]\x1B[0m: Running {} test", stringify!(#func_names));
                 #func_names();
                 cross_println!("\x1B[32m[OK]\x1B[0m");
             )*
