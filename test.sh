@@ -7,6 +7,7 @@ PID=$!
 
 function cleanup {
     pkill -P $PID
+    kill $PID
 }
 
 trap "exit \$exit_code" INT TERM
