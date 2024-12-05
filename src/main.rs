@@ -13,11 +13,12 @@ fn main() {
 
     let mut cmd = std::process::Command::new("qemu-system-x86_64");
     if uefi {
-        cmd.arg("-bios").arg(ovmf_prebuilt::ovmf_pure_efi());
+        cmd.arg("-display")
+            .arg("sdl")
+            .arg("-bios")
+            .arg(ovmf_prebuilt::ovmf_pure_efi());
         cmd.arg("-drive")
             .arg(format!("format=raw,file={iso_path}"))
-            .arg("-display")
-            .arg("sdl")
             .arg("-serial")
             .arg("stdio")
             .arg("-m")
@@ -26,8 +27,22 @@ fn main() {
             .arg("2");
     }
 
-    if args.next() != Some("no-kvm".to_string()) {
+    let mut kvm = true;
+    let mut gui = true;
+
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "no-kvm" => kvm = false,
+            "no-gui" => gui = false,
+            arg => panic!("Unknown argument {}", arg),
+        }
+    }
+
+    if kvm {
         cmd.arg("-enable-kvm");
+    }
+    if !gui {
+        cmd.arg("-display").arg("none");
     }
 
     let mut child = cmd.spawn().unwrap();

@@ -13,15 +13,10 @@ pkg/
 build/
 *.img
 *.bin
-.trunk
-a.out
-noVNC
 Cargo.lock
 
-# Added by cargo
-
 /target
-/fonts/font*
+/.cache
 
 iso_root
 navios.iso
