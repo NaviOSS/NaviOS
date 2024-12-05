@@ -2,7 +2,7 @@
 # This script simply runs the OS with qemu, no-gui, and no-kvm then checks if the serial output 
 # contains a successful output (returns 0) or a kernel panic (returns 1)
 
-cargo run -- no-gui > TEST.log.txt &
+cargo run -- no-kvm no-gui > TEST.log.txt &
 
 trap "exit \$exit_code" INT TERM
 trap "exit_code=\$?; kill 0" EXIT
