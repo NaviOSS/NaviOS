@@ -15,6 +15,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: mlugg/setup-zig@v1
+    - uses: actions/upload-artifact@v4
+      with:
+        name: x86_64-iso
+        path: navios.iso
+        if-no-files-found: error
     - name: Install deps
       run: sudo apt install qemu-system
     - name: Setup
