@@ -7,7 +7,12 @@ PID=$!
 
 function cleanup {
     pkill -P $PID
-    kill $PID
+    kill $PID        
+
+    echo "---------   LOG:  -------"
+    # print log starting after SERIAL INITIALIZATION
+    cat TEST.log.txt | awk '{if (NR>4) print}'
+    echo "--------- END LOG -------"
 }
 
 trap "exit \$exit_code" INT TERM
