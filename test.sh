@@ -3,9 +3,14 @@
 # contains a successful output (returns 0) or a kernel panic (returns 1)
 
 cargo run -- no-kvm no-gui > TEST.log.txt &
+PID=$!
+
+function cleanup {
+    pkill -P $PID
+}
 
 trap "exit \$exit_code" INT TERM
-trap "exit_code=\$?; kill 0" EXIT
+trap "exit_code=\$?; cleanup" EXIT
 
 echo "running..."
 while true; do
