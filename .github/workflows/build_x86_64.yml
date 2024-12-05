@@ -1,4 +1,4 @@
-name: Build and Test
+name: Build and Test X86_64
 
 on:
   push:
@@ -15,8 +15,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: mlugg/setup-zig@v1
-    - name: Install deps
-      run: sudo apt install git xorriso make
+    - name: Setup
+      run: rustup target add x86_64-unknown-none
     - name: Build
       run: cargo build --verbose
     - name: Run tests
