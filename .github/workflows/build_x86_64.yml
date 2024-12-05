@@ -15,6 +15,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - uses: mlugg/setup-zig@v1
+    - name: Install deps
+      run: sudo apt install qemu-system
     - name: Setup
       run: rustup target add x86_64-unknown-none
     - name: Build
