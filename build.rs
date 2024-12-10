@@ -9,7 +9,7 @@ use std::{
 };
 
 use tar::{Builder, Header};
-
+const ISO_PATH: &str = "safaos.iso";
 // (dir relative from build.rs, dir in ramdisk)
 // or (file relative from build.rs, path in ramdisk)
 const RAMDISK_CONTENT: &[(&str, &str)] = &[
@@ -87,14 +87,13 @@ fn make_iso() {
     // command too long ):
     out(Command::new("bash")
         .arg("-c")
-        .arg(
+        .arg(format!(
             "xorriso -as mkisofs -b boot/limine/limine-bios-cd.bin \
 		-no-emul-boot -boot-load-size 4 -boot-info-table \
 		--efi-boot boot/limine/limine-uefi-cd.bin \
 		-efi-boot-part --efi-boot-image --protective-msdos-label \
-		iso_root -o navios.iso
-",
-        )
+		iso_root -o {ISO_PATH}"
+        ))
         .output()
         .unwrap())
 }
@@ -178,7 +177,7 @@ fn main() {
     make_ramdisk();
     make_iso();
     cleanup();
-    let iso_path = current_dir().unwrap().join("navios.iso");
+    let iso_path = current_dir().unwrap().join(ISO_PATH);
     println!("cargo:rerun-if-changed={}", iso_path.display());
     println!("cargo:rerun-if-changed={}", "limine");
     println!("cargo:rerun-if-changed={}", "programs/build");
