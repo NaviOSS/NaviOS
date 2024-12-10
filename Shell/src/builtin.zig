@@ -13,7 +13,7 @@ pub fn cd(argv: []const Slice(u8)) u64 {
     return 0;
 }
 
-pub fn help() u64 {
+pub fn help() void {
     libc.stdio.zprintf(
         \\to scroll up use PageUp, to scroll down use PageDown
         \\### Basic builtin commands list:
@@ -22,7 +22,6 @@ pub fn help() u64 {
     for (BuiltinFunctions) |function| {
         libc.stdio.zprintf("- %.*s\n", .{ function.len, function.ptr }) catch {};
     }
-    return 0;
 }
 
 pub fn shutdown() noreturn {
@@ -31,6 +30,10 @@ pub fn shutdown() noreturn {
 
 pub fn reboot() noreturn {
     libc.syscalls.reboot();
+}
+
+pub fn clear() void {
+    libc.stdio.zprintf("\x1B[2J\x1B[H", .{}) catch {};
 }
 
 pub fn getBuitlinFunctions() []const []const u8 {
@@ -58,11 +61,22 @@ pub fn executeBuiltin(name: Slice(u8), argv: []const Slice(u8)) ?u64 {
         const ty = @TypeOf(func);
         const info = @typeInfo(ty);
 
-        if (info.Fn.return_type == void or info.Fn.return_type == u64 or info.Fn.return_type == noreturn)
-            if (eql(u8, function, name.ptr[0..name.len])) {
-                if (info.Fn.params.len == 0) return @call(.auto, func, .{});
-                if (info.Fn.params.len == 1) return @call(.auto, func, .{argv});
+        if (eql(u8, function, name.ptr[0..name.len])) {
+            const args = switch (info.Fn.params.len) {
+                0 => .{},
+                1 => .{argv},
+                else => return null,
             };
+
+            switch (info.Fn.return_type.?) {
+                void => {
+                    @call(.auto, func, args);
+                    return 0;
+                },
+                u64, noreturn => return @call(.auto, func, .{} ++ args),
+                else => {},
+            }
+        }
     }
 
     return null;
