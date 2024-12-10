@@ -26,5 +26,5 @@ jobs:
     - uses: actions/upload-artifact@v4
       with:
         name: x86_64-iso
-        path: navios.iso
+        path: safaos.iso
         if-no-files-found: error
